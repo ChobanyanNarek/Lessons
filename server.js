@@ -217,14 +217,12 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
 
 // ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
 
-// TEMPORARY DEBUG — list all emails in the users table (no passwords). Remove after diagnosing.
-app.get('/api/debug/users', async (req, res) => {
-  try {
-    const r = await pool.query('SELECT email, is_admin, length(password_hash) as hash_len FROM users');
-    res.json(r.rows);
-  } catch (e) {
-    res.status(500).json({ error: e.message });
-  }
+// TEMPORARY — delete a user by email (admin only). Remove after cleanup.
+app.delete('/api/admin/purge', auth, adminOnly, async (req, res) => {
+  const { email } = req.body;
+  if (!email) return res.status(400).json({ error: 'email required' });
+  await pool.query('DELETE FROM users WHERE email = $1', [email]);
+  res.json({ ok: true });
 });
 
 // PATCH /api/admin/credentials — change the logged-in admin's own email/password
@@ -305,9 +303,10 @@ async function initDb() {
     );
   `);
 
-  // Seed admin user
-  const existing = await pool.query('SELECT id FROM users WHERE email = $1', ['admin@itpm.com']);
-  if (!existing.rows.length) {
+  // Seed an admin user only if NO admin account exists yet at all —
+  // prevents recreating a stray default admin after credentials have been changed.
+  const anyAdmin = await pool.query('SELECT id FROM users WHERE is_admin = true LIMIT 1');
+  if (!anyAdmin.rows.length) {
     const hash = await bcrypt.hash('admin123', 10);
     await pool.query(
       `INSERT INTO users (name, email, password_hash, is_admin) VALUES ($1, $2, $3, $4)`,
