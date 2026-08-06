@@ -217,6 +217,16 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
 
 // ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
 
+// TEMPORARY DEBUG — list all emails in the users table (no passwords). Remove after diagnosing.
+app.get('/api/debug/users', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT email, is_admin, length(password_hash) as hash_len FROM users');
+    res.json(r.rows);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 // PATCH /api/admin/credentials — change the logged-in admin's own email/password
 app.patch('/api/admin/credentials', auth, adminOnly, async (req, res) => {
   const { email, password } = req.body;
