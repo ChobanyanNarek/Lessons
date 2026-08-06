@@ -217,6 +217,24 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
 
 // ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
 
+// PATCH /api/admin/credentials — change the logged-in admin's own email/password
+app.patch('/api/admin/credentials', auth, adminOnly, async (req, res) => {
+  const { email, password } = req.body;
+  if (!email || !password) return res.status(400).json({ error: 'email and password are required' });
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    await pool.query(
+      `UPDATE users SET email = $1, password_hash = $2 WHERE id = $3`,
+      [email, hash, req.user.id]
+    );
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.code === '23505') return res.status(409).json({ error: 'email-already-in-use' });
+    console.error('Admin credentials update error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/users  — admin only, returns all students with progress
 app.get('/api/users', auth, adminOnly, async (req, res) => {
   try {
