@@ -212,14 +212,15 @@ tbody tr:hover td{background:var(--surface-alt);}
 .empty-state .ei{font-size:38px;margin-bottom:12px;}
 .empty-state p{font-size:14px;}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
-.pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;background:var(--amber-soft);border:1px solid rgba(192,122,0,0.22);border-radius:8px;margin-bottom:10px;}
+.pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
 .pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
-.pending-row .p-avatar{width:38px;height:38px;border-radius:50%;background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex-shrink:0;}
+.pending-row .p-avatar{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
 .pending-row .p-text{min-width:0;}
-.pending-row .p-phone{font-size:12px;color:var(--ink-faint);white-space:nowrap;margin-left:auto;padding-right:8px;}
+.pending-row .p-phone{font-size:13px;color:var(--ink-dim);white-space:nowrap;margin-left:auto;padding-right:8px;}
 .pending-row .p-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
-.btn-approve{background:var(--green);color:#fff;border:none;padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
-.btn-approve:hover{filter:brightness(1.08);}
+.status-badge.pending{background:var(--grey-soft);color:var(--ink-dim);}
+.btn-approve{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-approve:hover{filter:brightness(1.1);}
 
 /* ── Admin editor ── */
 .editor-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;}
@@ -542,12 +543,19 @@ const DEFAULT_LESSONS = [
   },
 ];
 
+// Lesson numbers aren't stored in the database — derive them from sort order
+// so every lesson always has a clean, gap-free "01", "02", ... label.
+function renumberLessons(){
+  lessons.forEach((l, i) => { l.num = String(i + 1).padStart(2, '0'); });
+}
+
 /* ─ INIT — load lessons from API, restore session if a token was saved ─ */
 async function init(){
   showLoading(true);
   try {
     lessons = await api('GET', '/lessons');
     lessons.sort((a,b)=>(a.id||0)-(b.id||0));
+    renumberLessons();
   } catch(e){
     console.error('Failed to load lessons, using defaults:', e);
     lessons = DEFAULT_LESSONS.map(l => ({...l}));
@@ -679,7 +687,7 @@ async function renderStudentsPanel(){
 
     // ── Pending approval section ──
     const pendingHtml = pending.length ? `
-      <div class="students-meta" style="color:var(--amber);">
+      <div class="students-meta">
         ${pending.length} account${pending.length!==1?'s':''} awaiting approval
       </div>
       <div style="margin-bottom:26px;">
@@ -688,7 +696,7 @@ async function renderStudentsPanel(){
             <div class="p-info">
               <div class="p-avatar">${(s.name||'?').trim().charAt(0).toUpperCase()}</div>
               <div class="p-text">
-                <div class="user-name">${s.name}</div>
+                <div class="user-name">${s.name} <span class="status-badge pending">Pending</span></div>
                 <div class="user-email">${s.email}</div>
               </div>
             </div>
@@ -702,23 +710,23 @@ async function renderStudentsPanel(){
 
     // ── Approved students table (with score columns + revoke toggle) ──
     const lessonTh = lessons.map(l =>
-      `<th>Lesson ${l.num}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--ink-dim);display:block;margin-top:2px;">${l.title}</span></th>`
+      `<th style="width:1%;white-space:nowrap;">Lesson ${l.num}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--ink-dim);display:block;margin-top:2px;">${l.title}</span></th>`
     ).join('');
     const approvedRows = approved.map(s => {
       const answers = {};
       for(const p of (s.progress || [])){ answers[p.lesson_id] = p.answers || {}; }
       const scoreCells = lessons.map(l => {
         const sc = studentScore(answers, l.id);
-        if(!sc) return `<td><span class="score-chip none">—</span></td>`;
+        if(!sc) return `<td style="width:1%;white-space:nowrap;"><span class="score-chip none">—</span></td>`;
         const pct = sc.correct / sc.total;
         const cls = pct===1 ? 'done' : sc.correct>0 ? 'partial' : 'none';
-        return `<td><span class="score-chip ${cls}">${sc.correct}/${sc.total}</span></td>`;
+        return `<td style="width:1%;white-space:nowrap;"><span class="score-chip ${cls}">${sc.correct}/${sc.total}</span></td>`;
       }).join('');
       return `<tr>
         <td><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
-        <td style="white-space:nowrap;">${s.phone || '—'}</td>
+        <td style="width:1%;white-space:nowrap;">${s.phone || '—'}</td>
         ${scoreCells}
-        <td style="text-align:right;white-space:nowrap;">
+        <td style="width:1%;text-align:right;white-space:nowrap;">
           <button class="dl-btn" style="opacity:0.75;" onclick="setApproval('${s.id}', false)">Revoke</button>
           <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
         </td>
@@ -728,7 +736,7 @@ async function renderStudentsPanel(){
       <div class="students-meta">${approved.length} approved student${approved.length!==1?'s':''}</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Student</th><th>Phone</th>${lessonTh}<th></th></tr></thead>
+          <thead><tr><th>Student</th><th style="width:1%;white-space:nowrap;">Phone</th>${lessonTh}<th style="width:1%;"></th></tr></thead>
           <tbody>${approvedRows}</tbody>
         </table>
       </div>` : (pending.length ? '' : `<div class="empty-state"><div class="ei">👤</div><p>No approved students yet.</p></div>`);
@@ -968,11 +976,10 @@ function toggleFromEditor(){
 }
 
 async function createLesson(){
-  const nextNum = lessons.length ? Math.max(...lessons.map(l=>l.id||0)) + 1 : 1;
-  const num     = String(nextNum).padStart(2,'0');
   try {
-    const created = await api('POST', '/lessons', { num, title:'New lesson', blurb:'Add a short description.', status:'closed', slides:[], quiz:[] });
+    const created = await api('POST', '/lessons', { title:'New lesson', blurb:'Add a short description.', status:'closed', slides:[], quiz:[] });
     lessons.push(created);
+    renumberLessons();
     renderAdminGrid();
     openEditor(created.id);
   } catch(e){ console.error('Create lesson failed', e); }
@@ -983,6 +990,7 @@ async function deleteLesson(id, title){
   try {
     await api('DELETE', '/lessons/'+id);
     lessons = lessons.filter(l => l.id !== id);
+    renumberLessons();
     renderAdminGrid();
   } catch(e){
     console.error('Delete lesson failed', e);
@@ -997,6 +1005,7 @@ async function deleteLessonFromEditor(){
   try {
     await api('DELETE', '/lessons/'+l.id);
     lessons = lessons.filter(x => x.id !== l.id);
+    renumberLessons();
     renderAdminGrid();
     go('admin');
   } catch(e){
