@@ -430,7 +430,13 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <script>
 
 /* ─ API HELPERS ─ */
-var apiToken = null;
+var apiToken = localStorage.getItem('apiToken') || null;
+
+function setApiToken(token){
+  apiToken = token;
+  if(token) localStorage.setItem('apiToken', token);
+  else      localStorage.removeItem('apiToken');
+}
 
 async function api(method, path, body){
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -518,7 +524,7 @@ const DEFAULT_LESSONS = [
   },
 ];
 
-/* ─ INIT — load lessons from API ─ */
+/* ─ INIT — load lessons from API, restore session if a token was saved ─ */
 async function init(){
   showLoading(true);
   try {
@@ -528,6 +534,33 @@ async function init(){
     console.error('Failed to load lessons, using defaults:', e);
     lessons = DEFAULT_LESSONS.map(l => ({...l}));
   }
+
+  // Try to restore a previous session from the saved token.
+  if(apiToken){
+    try {
+      const me = await api('GET', '/auth/me');
+      if(me.is_admin){
+        showLoading(false);
+        renderAdminGrid();
+        go('admin');
+        renderStudentsPanel();
+        return;
+      }
+      currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {} };
+      for(const p of (me.progress || [])){
+        currentStudent.answers[p.lesson_id] = p.answers || {};
+        currentStudent.notes[p.lesson_id]   = p.note    || '';
+      }
+      showLoading(false);
+      renderStudentGrid();
+      go('student');
+      return;
+    } catch(e){
+      // Token invalid/expired — clear it and fall through to the login screen.
+      setApiToken(null);
+    }
+  }
+
   showLoading(false);
   setAuthMode('login');
   updateChrome('portal');
@@ -538,7 +571,7 @@ function showLoading(show){
 }
 
 function signOutStudent(){
-  apiToken = null;
+  setApiToken(null);
   currentStudent = null;
   setAuthMode('login');
   go('portal');
@@ -640,6 +673,7 @@ async function renderStudentsPanel(){
                 <td style="white-space:nowrap;">${s.phone || '—'}</td>
                 <td style="text-align:right;white-space:nowrap;">
                   <button class="dl-btn" onclick="setApproval('${s.id}', true)">Approve</button>
+                  <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
                 </td>
               </tr>`).join('')}
           </tbody>
@@ -666,6 +700,7 @@ async function renderStudentsPanel(){
         ${scoreCells}
         <td style="text-align:right;white-space:nowrap;">
           <button class="dl-btn" style="opacity:0.75;" onclick="setApproval('${s.id}', false)">Revoke</button>
+          <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
         </td>
       </tr>`;
     }).join('');
@@ -692,6 +727,17 @@ async function setApproval(userId, approved){
   } catch(e){
     console.error('Approval change failed', e);
     alert('Could not update approval status. Please try again.');
+  }
+}
+
+async function deleteStudent(userId, name){
+  if(!confirm(`Delete ${name}'s account? This permanently removes their profile, quiz answers, and notes. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/users/'+userId);
+    renderStudentsPanel();
+  } catch(e){
+    console.error('Delete student failed', e);
+    alert('Could not delete this account. Please try again.');
   }
 }
 
@@ -748,7 +794,7 @@ async function unifiedAuth(){
     }
 
     const data = await api('POST', '/auth/login', { email, password: pw });
-    apiToken = data.token;
+    setApiToken(data.token);
 
     if(data.user.is_admin){
       renderAdminGrid();
