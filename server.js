@@ -116,6 +116,11 @@ app.get('/api/auth/me', auth, async (req, res) => {
 
 // ─── LESSONS ROUTES ──────────────────────────────────────────────────────────
 
+// GET /api/version — deploy verification marker
+app.get('/api/version', (req, res) => {
+  res.json({ version: 'approval-workflow-v1', deployedAt: '2026-08-06T20:00:00Z' });
+});
+
 // GET /api/lessons  — public, no auth needed
 app.get('/api/lessons', async (req, res) => {
   try {
