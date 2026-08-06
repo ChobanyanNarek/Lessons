@@ -212,6 +212,14 @@ tbody tr:hover td{background:var(--surface-alt);}
 .empty-state .ei{font-size:38px;margin-bottom:12px;}
 .empty-state p{font-size:14px;}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
+.pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;background:var(--amber-soft);border:1px solid rgba(192,122,0,0.22);border-radius:8px;margin-bottom:10px;}
+.pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
+.pending-row .p-avatar{width:38px;height:38px;border-radius:50%;background:var(--amber);color:#fff;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:600;flex-shrink:0;}
+.pending-row .p-text{min-width:0;}
+.pending-row .p-phone{font-size:12px;color:var(--ink-faint);white-space:nowrap;margin-left:auto;padding-right:8px;}
+.pending-row .p-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.btn-approve{background:var(--green);color:#fff;border:none;padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-approve:hover{filter:brightness(1.08);}
 
 /* ── Admin editor ── */
 .editor-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;}
@@ -663,21 +671,22 @@ async function renderStudentsPanel(){
       <div class="students-meta" style="color:var(--amber);">
         ${pending.length} account${pending.length!==1?'s':''} awaiting approval
       </div>
-      <div class="table-wrap" style="margin-bottom:26px;">
-        <table>
-          <thead><tr><th>Student</th><th>Phone</th><th></th></tr></thead>
-          <tbody>
-            ${pending.map(s => `
-              <tr>
-                <td><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
-                <td style="white-space:nowrap;">${s.phone || '—'}</td>
-                <td style="text-align:right;white-space:nowrap;">
-                  <button class="dl-btn" onclick="setApproval('${s.id}', true)">Approve</button>
-                  <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
-                </td>
-              </tr>`).join('')}
-          </tbody>
-        </table>
+      <div style="margin-bottom:26px;">
+        ${pending.map(s => `
+          <div class="pending-row">
+            <div class="p-info">
+              <div class="p-avatar">${(s.name||'?').trim().charAt(0).toUpperCase()}</div>
+              <div class="p-text">
+                <div class="user-name">${s.name}</div>
+                <div class="user-email">${s.email}</div>
+              </div>
+            </div>
+            <div class="p-phone">${s.phone || '—'}</div>
+            <div class="p-actions">
+              <button class="btn-approve" onclick="setApproval('${s.id}', true)">Approve</button>
+              <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
+            </div>
+          </div>`).join('')}
       </div>` : '';
 
     // ── Approved students table (with score columns + revoke toggle) ──
