@@ -1,8 +1,17 @@
 const express = require('express');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
-const pool    = require('./db');
 const path    = require('path');
+
+// ── Fail fast if DATABASE_URL is missing ──────────────────────────────────────
+if (!process.env.DATABASE_URL) {
+  console.error('✗ DATABASE_URL environment variable is not set.');
+  console.error('  Go to Render → Web Service → Environment → add DATABASE_URL.');
+  process.exit(1);
+}
+console.log('✓ DATABASE_URL is set:', process.env.DATABASE_URL.replace(/:\/\/.*@/, '://***@'));
+
+const pool    = require('./db');
 
 const app        = express();
 const PORT       = process.env.PORT || 3000;
