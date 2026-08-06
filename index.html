@@ -173,6 +173,8 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .slide-size{font-size:12px;color:var(--ink-faint);}
 .dl-btn{background:transparent;border:1px solid var(--line-strong);color:var(--ink-dim);padding:7px 14px;border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit;}
 .dl-btn:hover{border-color:var(--blue);color:var(--blue);}
+.dl-btn.danger{border-color:rgba(209,67,67,0.35);color:var(--red);}
+.dl-btn.danger:hover{border-color:var(--red);color:var(--red);filter:brightness(0.96);}
 textarea.notes{width:100%;min-height:260px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:16px;resize:vertical;}
 textarea.notes:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
 .notes-status{font-size:12px;color:var(--ink-faint);margin-top:8px;}
@@ -703,7 +705,7 @@ async function renderStudentsPanel(){
             <div class="p-phone">${s.phone || '—'}</div>
             <div class="p-actions">
               <button class="btn-approve" onclick="setApproval('${s.id}', true)">Approve</button>
-              <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
+              <button class="dl-btn danger" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">Delete</button>
             </div>
           </div>`).join('')}
       </div>` : '';
@@ -728,7 +730,7 @@ async function renderStudentsPanel(){
         ${scoreCells}
         <td style="width:1%;text-align:right;white-space:nowrap;">
           <button class="dl-btn" style="opacity:0.75;" onclick="setApproval('${s.id}', false)">Revoke</button>
-          <button class="icon-btn" title="Delete account" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">✕</button>
+          <button class="dl-btn danger" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">Delete</button>
         </td>
       </tr>`;
     }).join('');
