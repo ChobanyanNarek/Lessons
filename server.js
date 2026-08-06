@@ -42,7 +42,8 @@ function adminOnly(req, res, next) {
 
 // ─── AUTH ROUTES ─────────────────────────────────────────────────────────────
 
-// POST /api/auth/register
+// POST /api/auth/register — new students are created unapproved and cannot log in
+// until an admin approves them from the admin panel.
 app.post('/api/auth/register', async (req, res) => {
   const { name, email, phone, password } = req.body;
   if (!name || !email || !password) {
@@ -51,18 +52,13 @@ app.post('/api/auth/register', async (req, res) => {
   try {
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
-      `INSERT INTO users (name, email, phone, password_hash)
-       VALUES ($1, $2, $3, $4)
-       RETURNING id, name, email, phone, is_admin`,
+      `INSERT INTO users (name, email, phone, password_hash, approved)
+       VALUES ($1, $2, $3, $4, false)
+       RETURNING id, name, email, phone, is_admin, approved`,
       [name, email, phone || '', hash]
     );
-    const user = result.rows[0];
-    const token = jwt.sign(
-      { id: user.id, email: user.email, is_admin: user.is_admin },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
-    res.status(201).json({ token, user });
+    // No token is issued — the account is pending admin approval.
+    res.status(201).json({ pending: true, user: result.rows[0] });
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ error: 'email-already-in-use' });
     console.error('Register error:', e.message);
@@ -82,6 +78,7 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user) return res.status(401).json({ error: 'user-not-found' });
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ error: 'wrong-password' });
+    if (!user.is_admin && !user.approved) return res.status(403).json({ error: 'account-pending' });
     const token = jwt.sign(
       { id: user.id, email: user.email, is_admin: user.is_admin },
       JWT_SECRET,
@@ -217,12 +214,21 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
 
 // ─── ADMIN ROUTES ─────────────────────────────────────────────────────────────
 
-// TEMPORARY — delete a user by email (admin only). Remove after cleanup.
-app.delete('/api/admin/purge', auth, adminOnly, async (req, res) => {
-  const { email } = req.body;
-  if (!email) return res.status(400).json({ error: 'email required' });
-  await pool.query('DELETE FROM users WHERE email = $1', [email]);
-  res.json({ ok: true });
+// PATCH /api/users/:id/approval — approve or revoke a student account (admin only)
+app.patch('/api/users/:id/approval', auth, adminOnly, async (req, res) => {
+  const { approved } = req.body;
+  if (typeof approved !== 'boolean') return res.status(400).json({ error: 'approved (boolean) is required' });
+  try {
+    const result = await pool.query(
+      `UPDATE users SET approved = $1 WHERE id = $2 AND is_admin = false RETURNING id, name, email, approved`,
+      [approved, req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'User not found' });
+    res.json(result.rows[0]);
+  } catch (e) {
+    console.error('Approval update error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
 });
 
 // PATCH /api/admin/credentials — change the logged-in admin's own email/password
@@ -247,7 +253,7 @@ app.patch('/api/admin/credentials', auth, adminOnly, async (req, res) => {
 app.get('/api/users', auth, adminOnly, async (req, res) => {
   try {
     const usersRes = await pool.query(
-      `SELECT id, name, email, phone, is_admin, created_at FROM users ORDER BY created_at DESC`
+      `SELECT id, name, email, phone, is_admin, approved, created_at FROM users ORDER BY created_at DESC`
     );
     const progressRes = await pool.query(`SELECT * FROM user_progress`);
 
@@ -281,6 +287,7 @@ async function initDb() {
       phone         TEXT DEFAULT '',
       password_hash TEXT NOT NULL,
       is_admin      BOOLEAN DEFAULT FALSE,
+      approved      BOOLEAN DEFAULT FALSE,
       created_at    TIMESTAMP DEFAULT NOW()
     );
 
@@ -303,14 +310,19 @@ async function initDb() {
     );
   `);
 
+  // Migration: add the approved column for databases created before this feature existed.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE`);
+  // Admins are always approved automatically.
+  await pool.query(`UPDATE users SET approved = true WHERE is_admin = true AND approved = false`);
+
   // Seed an admin user only if NO admin account exists yet at all —
   // prevents recreating a stray default admin after credentials have been changed.
   const anyAdmin = await pool.query('SELECT id FROM users WHERE is_admin = true LIMIT 1');
   if (!anyAdmin.rows.length) {
     const hash = await bcrypt.hash('admin123', 10);
     await pool.query(
-      `INSERT INTO users (name, email, password_hash, is_admin) VALUES ($1, $2, $3, $4)`,
-      ['Admin', 'admin@itpm.com', hash, true]
+      `INSERT INTO users (name, email, password_hash, is_admin, approved) VALUES ($1, $2, $3, $4, $5)`,
+      ['Admin', 'admin@itpm.com', hash, true, true]
     );
     console.log('✓ Admin user created — email: admin@itpm.com  password: admin123');
   }
