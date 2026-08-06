@@ -429,6 +429,16 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
             <div class="toggle" id="editor-toggle" onclick="toggleFromEditor()"><div class="knob"></div></div>
           </div>
         </div>
+        <div class="editor-block" style="border-color:rgba(209,67,67,0.3);">
+          <h3 style="color:var(--red);">Danger zone</h3>
+          <div class="status-row">
+            <div>
+              <div class="s-label">Delete this lesson</div>
+              <div class="s-desc">Permanently removes the lesson, its materials, and quiz.</div>
+            </div>
+            <button class="dl-btn" style="border-color:rgba(209,67,67,0.4);color:var(--red);" onclick="deleteLessonFromEditor()">Delete</button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -635,6 +645,7 @@ function renderAdminGrid(){
         <span class="card-num mono">Lesson ${l.num}</span>
         <div class="admin-controls">
           <button class="icon-btn" title="Edit lesson" onclick="openEditor(${l.id})">✎</button>
+          <button class="icon-btn" title="Delete lesson" onclick="deleteLesson(${l.id},'${(l.title||'').replace(/'/g,"\\'")}')">✕</button>
           <div class="toggle${l.status==='open'?' on':''}" onclick="toggleStatus(${l.id})"><div class="knob"></div></div>
         </div>
       </div>
@@ -965,6 +976,33 @@ async function createLesson(){
     renderAdminGrid();
     openEditor(created.id);
   } catch(e){ console.error('Create lesson failed', e); }
+}
+
+async function deleteLesson(id, title){
+  if(!confirm(`Delete "${title}"? This permanently removes the lesson, its materials, and quiz. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/lessons/'+id);
+    lessons = lessons.filter(l => l.id !== id);
+    renderAdminGrid();
+  } catch(e){
+    console.error('Delete lesson failed', e);
+    alert('Could not delete this lesson. Please try again.');
+  }
+}
+
+async function deleteLessonFromEditor(){
+  const l = lessons.find(x => x.id === currentEditorId);
+  if(!l) return;
+  if(!confirm(`Delete "${l.title}"? This permanently removes the lesson, its materials, and quiz. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/lessons/'+l.id);
+    lessons = lessons.filter(x => x.id !== l.id);
+    renderAdminGrid();
+    go('admin');
+  } catch(e){
+    console.error('Delete lesson failed', e);
+    alert('Could not delete this lesson. Please try again.');
+  }
 }
 
 function openEditor(id){
