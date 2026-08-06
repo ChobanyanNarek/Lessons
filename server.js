@@ -18,6 +18,7 @@ const PORT       = process.env.PORT || 3000;
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-in-production';
 
 app.use(express.json());
+app.use(require('cors')());  // allow GitHub Pages → Render API calls
 app.use(express.static(path.join(__dirname, 'public')));
 
 // ─── MIDDLEWARE ──────────────────────────────────────────────────────────────
