@@ -236,6 +236,21 @@ app.patch('/api/users/:id/approval', auth, adminOnly, async (req, res) => {
   }
 });
 
+// DELETE /api/users/:id — permanently delete a student account (admin only)
+app.delete('/api/users/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const result = await pool.query(
+      `DELETE FROM users WHERE id = $1 AND is_admin = false RETURNING id`,
+      [req.params.id]
+    );
+    if (!result.rows.length) return res.status(404).json({ error: 'User not found or cannot delete an admin' });
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Delete user error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // PATCH /api/admin/credentials — change the logged-in admin's own email/password
 app.patch('/api/admin/credentials', auth, adminOnly, async (req, res) => {
   const { email, password } = req.body;
