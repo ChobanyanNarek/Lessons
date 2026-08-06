@@ -621,11 +621,36 @@ async function renderStudentsPanel(){
       panel.innerHTML = `<div class="empty-state"><div class="ei">👤</div><p>No students have registered yet.</p></div>`;
       return;
     }
+
+    const pending  = studentsData.filter(s => !s.approved);
+    const approved = studentsData.filter(s => s.approved);
+
+    // ── Pending approval section ──
+    const pendingHtml = pending.length ? `
+      <div class="students-meta" style="color:var(--amber);">
+        ${pending.length} account${pending.length!==1?'s':''} awaiting approval
+      </div>
+      <div class="table-wrap" style="margin-bottom:26px;">
+        <table>
+          <thead><tr><th>Student</th><th>Phone</th><th></th></tr></thead>
+          <tbody>
+            ${pending.map(s => `
+              <tr>
+                <td><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
+                <td style="white-space:nowrap;">${s.phone || '—'}</td>
+                <td style="text-align:right;white-space:nowrap;">
+                  <button class="dl-btn" onclick="setApproval('${s.id}', true)">Approve</button>
+                </td>
+              </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>` : '';
+
+    // ── Approved students table (with score columns + revoke toggle) ──
     const lessonTh = lessons.map(l =>
       `<th>Lesson ${l.num}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--ink-dim);display:block;margin-top:2px;">${l.title}</span></th>`
     ).join('');
-    const rows = studentsData.map(s => {
-      // Convert progress array → answers map { lessonId: { qi: oi } }
+    const approvedRows = approved.map(s => {
       const answers = {};
       for(const p of (s.progress || [])){ answers[p.lesson_id] = p.answers || {}; }
       const scoreCells = lessons.map(l => {
@@ -639,19 +664,34 @@ async function renderStudentsPanel(){
         <td><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
         <td style="white-space:nowrap;">${s.phone || '—'}</td>
         ${scoreCells}
+        <td style="text-align:right;white-space:nowrap;">
+          <button class="dl-btn" style="opacity:0.75;" onclick="setApproval('${s.id}', false)">Revoke</button>
+        </td>
       </tr>`;
     }).join('');
-    panel.innerHTML = `
-      <div class="students-meta">${studentsData.length} registered student${studentsData.length!==1?'s':''}</div>
+    const approvedHtml = approved.length ? `
+      <div class="students-meta">${approved.length} approved student${approved.length!==1?'s':''}</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Student</th><th>Phone</th>${lessonTh}</tr></thead>
-          <tbody>${rows}</tbody>
+          <thead><tr><th>Student</th><th>Phone</th>${lessonTh}<th></th></tr></thead>
+          <tbody>${approvedRows}</tbody>
         </table>
-      </div>`;
+      </div>` : (pending.length ? '' : `<div class="empty-state"><div class="ei">👤</div><p>No approved students yet.</p></div>`);
+
+    panel.innerHTML = pendingHtml + approvedHtml;
   } catch(e){
     panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load students.</p></div>`;
     console.error(e);
+  }
+}
+
+async function setApproval(userId, approved){
+  try {
+    await api('PATCH', '/users/'+userId+'/approval', { approved });
+    renderStudentsPanel();
+  } catch(e){
+    console.error('Approval change failed', e);
+    alert('Could not update approval status. Please try again.');
   }
 }
 
@@ -686,8 +726,9 @@ async function unifiedAuth(){
   btn.textContent = 'Please wait…';
   btn.disabled = true;
 
+  let pendingMsg = null; // set on successful signup; shown after mode reset below
+
   try {
-    let data;
     if(authMode === 'signup'){
       const first = document.getElementById('s-first').value.trim();
       const last  = document.getElementById('s-last').value.trim();
@@ -699,11 +740,14 @@ async function unifiedAuth(){
         setAuthMode(authMode);
         return;
       }
-      data = await api('POST', '/auth/register', { name: first+' '+last, email, phone, password: pw });
-    } else {
-      data = await api('POST', '/auth/login', { email, password: pw });
+      await api('POST', '/auth/register', { name: first+' '+last, email, phone, password: pw });
+      // Account created but pending admin approval — no token issued, don't log in.
+      authMode = 'login';
+      pendingMsg = 'Account created. An admin needs to approve it before you can sign in — check back shortly.';
+      return;
     }
 
+    const data = await api('POST', '/auth/login', { email, password: pw });
     apiToken = data.token;
 
     if(data.user.is_admin){
@@ -728,11 +772,23 @@ async function unifiedAuth(){
     if(e.code === 'email-already-in-use') msg = 'An account with this email exists — sign in instead.';
     if(e.code === 'user-not-found')       msg = 'No account found with this email.';
     if(e.code === 'wrong-password')       msg = 'Incorrect email or password.';
+    if(e.code === 'account-pending')      msg = 'Your account is awaiting admin approval. Please check back later.';
     err.textContent = msg;
     err.classList.add('show');
   } finally {
     btn.disabled = false;
     setAuthMode(authMode);
+    if(pendingMsg){
+      err.textContent = pendingMsg;
+      err.classList.add('show');
+      err.style.background  = 'var(--green-soft)';
+      err.style.borderColor = 'rgba(28,154,108,0.35)';
+      err.style.color       = 'var(--green)';
+    } else {
+      err.style.background  = '';
+      err.style.borderColor = '';
+      err.style.color       = '';
+    }
   }
 }
 
@@ -1018,5 +1074,3 @@ init();
 </script>
 </body>
 </html>
-
-<!-- redeploy trigger -->
