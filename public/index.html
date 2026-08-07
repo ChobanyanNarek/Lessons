@@ -888,8 +888,9 @@ async function saveCourseName(){
   }
 }
 
+var GITHUB_PAGES_BASE = 'https://chobanyannarek.github.io/Lessons/';
 function courseLinkFor(slug){
-  return window.location.origin + window.location.pathname + '?course=' + slug;
+  return GITHUB_PAGES_BASE + '?course=' + slug;
 }
 
 function copyLinkToClipboard(link){
