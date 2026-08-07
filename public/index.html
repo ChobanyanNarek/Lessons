@@ -274,7 +274,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     </div>
     <div class="brand-text">
       <div class="brand-name" id="brand-name-text">IT Project Management Course</div>
-      <div class="brand-tagline">Online Course</div>
+      <div class="brand-tagline" id="brand-tagline-text">Online Course</div>
     </div>
   </div>
   <div class="chrome-right" id="chrome-right"></div>
@@ -374,8 +374,8 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       </div>
     </div>
     <div class="admin-tabs">
-      <button class="admin-tab-btn active" data-apanel="content">Course Content</button>
-      <button class="admin-tab-btn" data-apanel="students">Students</button>
+      <button class="admin-tab-btn active" data-apanel="content" id="content-tab-btn">Course Content</button>
+      <button class="admin-tab-btn" data-apanel="students" id="students-tab-btn">Students</button>
       <button class="admin-tab-btn" data-apanel="settings" id="settings-tab-btn">Settings</button>
       <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
     </div>
@@ -616,19 +616,51 @@ function syncCourseSlugToUrl(slug){
   window.history.replaceState({}, '', url);
 }
 
+// Bare URL / no course in context — used for the Platform sign-in screen and after
+// a Super Admin signs out (when there's no course slug to fall back on).
+function applyBareLoginBranding(){
+  document.title = 'Course Platform';
+  const brandEl   = document.getElementById('brand-name-text');
+  const taglineEl = document.getElementById('brand-tagline-text');
+  const eyebrowEl = document.getElementById('auth-eyebrow');
+  if(brandEl)   brandEl.textContent   = 'Course Platform';
+  if(taglineEl) taglineEl.textContent = 'Platform sign in';
+  if(eyebrowEl) eyebrowEl.textContent = 'Platform sign in';
+}
+
+// Super Admin sees a generic, product-name-free header — they manage admins, not a
+// specific course, so no course/product name should ever show while in this role.
+function applySuperAdminBranding(){
+  document.title = 'Admin Platform';
+  const brandEl   = document.getElementById('brand-name-text');
+  const taglineEl = document.getElementById('brand-tagline-text');
+  if(brandEl)   brandEl.textContent   = 'Admin Platform';
+  if(taglineEl) taglineEl.textContent = 'Super Admin';
+}
+
 async function enterAdminSession(user){
   currentUser = user;
+  const isSuperAdmin = user.role === 'super_admin';
+
+  document.getElementById('platform-tab-btn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('settings-tab-btn').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('content-tab-btn').style.display  = isSuperAdmin ? 'none' : '';
+  document.getElementById('students-tab-btn').style.display = isSuperAdmin ? 'none' : '';
+
+  if(isSuperAdmin){
+    // The Super Admin only manages admins — no course context, no product name, no lessons/students.
+    applySuperAdminBranding();
+    go('admin');
+    activateAdminTab('platform');
+    return;
+  }
+
   syncCourseSlugToUrl(user.course_slug);
   applyCourseName(user.course_name || courseName);
   await loadLessons(currentCourseSlug);
-  const isSuperAdmin = user.role === 'super_admin';
-  document.getElementById('platform-tab-btn').style.display = isSuperAdmin ? '' : 'none';
-  document.getElementById('settings-tab-btn').style.display = isSuperAdmin ? 'none' : '';
   renderAdminGrid();
   go('admin');
-  // Super admins with no course of their own (e.g. they deleted it) land on Platform;
-  // everyone else lands on Course Content, which is the tab already marked active in the HTML.
-  activateAdminTab(isSuperAdmin && !user.course_id ? 'platform' : 'content');
+  activateAdminTab('content');
 }
 
 async function enterStudentSession(me){
@@ -680,9 +712,7 @@ async function init(){
   } else {
     // Bare URL, no course context — this is the Super Admin / platform sign-in.
     // No signup is possible here since we don't know which course to join.
-    document.getElementById('brand-name-text').textContent = 'Course Platform';
-    document.getElementById('auth-eyebrow').textContent    = 'Platform sign in';
-    document.title = 'Course Platform';
+    applyBareLoginBranding();
     document.getElementById('auth-switch').style.display = 'none';
   }
 
@@ -703,8 +733,13 @@ function signOutStudent(){
 }
 
 function adminSignOut(){
+  const wasSuperAdmin = currentUser && currentUser.role === 'super_admin';
   setApiToken(null);
   currentUser = null;
+  if(wasSuperAdmin && !currentCourseSlug){
+    applyBareLoginBranding();
+    document.getElementById('auth-switch').style.display = 'none';
+  }
   setAuthMode('login');
   go('portal');
 }
