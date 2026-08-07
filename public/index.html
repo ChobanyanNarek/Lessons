@@ -377,6 +377,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <button class="admin-tab-btn active" data-apanel="content">Course Content</button>
       <button class="admin-tab-btn" data-apanel="students">Students</button>
       <button class="admin-tab-btn" data-apanel="settings">Settings</button>
+      <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
     </div>
     <div class="admin-panel active" id="apanel-content">
       <div class="grid" id="admin-grid"></div>
@@ -389,13 +390,24 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
         <h3>Product name</h3>
         <div class="field" style="margin-bottom:14px;">
           <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">
-            Shown on the sign-in page, browser tab, and header for every user
+            Shown on the sign-in page, browser tab, and header for your students
           </label>
           <input type="text" class="field-input" id="settings-course-name">
         </div>
         <button class="btn btn-primary" style="width:auto;padding:10px 22px;" onclick="saveCourseName()">Save</button>
         <span id="settings-saved-msg" style="display:none;color:var(--green);font-size:13px;margin-left:12px;">Saved.</span>
       </div>
+      <div class="editor-block" style="max-width:520px;">
+        <h3>Your course link</h3>
+        <p style="font-size:13px;color:var(--ink-dim);margin:0 0 12px;">Share this link with students so they can find your course and sign up.</p>
+        <div style="display:flex;gap:8px;">
+          <input type="text" class="field-input" id="settings-course-link" readonly>
+          <button class="btn btn-primary" style="width:auto;padding:10px 18px;white-space:nowrap;" onclick="copySettingsCourseLink()">Copy</button>
+        </div>
+      </div>
+    </div>
+    <div class="admin-panel" id="apanel-platform">
+      <div id="platform-panel"></div>
     </div>
   </div>
 </div>
@@ -471,7 +483,9 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 
 /* ─ API HELPERS ─ */
 var apiToken    = localStorage.getItem('apiToken') || null;
-var courseName  = 'IT Project Management Course'; // fallback until /api/settings loads
+var courseName  = 'IT Project Management Course'; // fallback until course info loads
+var currentCourseSlug = new URLSearchParams(window.location.search).get('course') || null;
+var currentUser = null; // { id, name, email, is_admin, role, course_id, course_slug, course_name }
 
 function applyCourseName(name){
   courseName = name || courseName;
@@ -580,50 +594,93 @@ function renumberLessons(){
   lessons.forEach((l, i) => { l.num = String(i + 1).padStart(2, '0'); });
 }
 
-/* ─ INIT — load lessons from API, restore session if a token was saved ─ */
-async function init(){
-  showLoading(true);
+/* ─ COURSE HELPERS ─ */
+async function loadLessons(slug){
+  if(!slug){ lessons = []; return; }
   try {
-    lessons = await api('GET', '/lessons');
+    lessons = await api('GET', '/lessons?course=' + encodeURIComponent(slug));
     lessons.sort((a,b)=>(a.id||0)-(b.id||0));
     renumberLessons();
   } catch(e){
-    console.error('Failed to load lessons, using defaults:', e);
-    lessons = DEFAULT_LESSONS.map(l => ({...l}));
+    console.error('Failed to load lessons:', e);
+    lessons = [];
   }
+}
 
-  try {
-    const settings = await api('GET', '/settings');
-    applyCourseName(settings.course_name);
-  } catch(e){
-    console.error('Failed to load settings, using default course name:', e);
-    applyCourseName(courseName);
+// Makes sure the URL carries ?course=SLUG so bookmarks/shares point at the right place.
+function syncCourseSlugToUrl(slug){
+  if(!slug || currentCourseSlug === slug) return;
+  currentCourseSlug = slug;
+  const url = new URL(window.location.href);
+  url.searchParams.set('course', slug);
+  window.history.replaceState({}, '', url);
+}
+
+async function enterAdminSession(user){
+  currentUser = user;
+  syncCourseSlugToUrl(user.course_slug);
+  applyCourseName(user.course_name || courseName);
+  await loadLessons(currentCourseSlug);
+  document.getElementById('platform-tab-btn').style.display = (user.role === 'super_admin') ? '' : 'none';
+  renderAdminGrid();
+  go('admin');
+  renderStudentsPanel();
+  if(user.role === 'super_admin') renderPlatformPanel();
+}
+
+async function enterStudentSession(me){
+  currentUser = me;
+  currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {} };
+  for(const p of (me.progress || [])){
+    currentStudent.answers[p.lesson_id] = p.answers || {};
+    currentStudent.notes[p.lesson_id]   = p.note    || '';
   }
+  syncCourseSlugToUrl(me.course_slug);
+  applyCourseName(me.course_name || courseName);
+  await loadLessons(currentCourseSlug);
+  renderStudentGrid();
+  go('student');
+}
 
-  // Try to restore a previous session from the saved token.
+/* ─ INIT — load course/lessons from API, restore session if a token was saved ─ */
+async function init(){
+  showLoading(true);
+
+  // Try to restore a previous session from the saved token first — this works
+  // even from a bare URL (no ?course=), since we know the user's course from their token.
   if(apiToken){
     try {
       const me = await api('GET', '/auth/me');
       if(me.is_admin){
+        await enterAdminSession(me);
         showLoading(false);
-        renderAdminGrid();
-        go('admin');
-        renderStudentsPanel();
         return;
       }
-      currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {} };
-      for(const p of (me.progress || [])){
-        currentStudent.answers[p.lesson_id] = p.answers || {};
-        currentStudent.notes[p.lesson_id]   = p.note    || '';
-      }
+      await enterStudentSession(me);
       showLoading(false);
-      renderStudentGrid();
-      go('student');
       return;
     } catch(e){
       // Token invalid/expired — clear it and fall through to the login screen.
       setApiToken(null);
     }
+  }
+
+  if(currentCourseSlug){
+    try {
+      const course = await api('GET', '/courses/' + encodeURIComponent(currentCourseSlug));
+      applyCourseName(course.name);
+    } catch(e){
+      console.error('Failed to load course:', e);
+    }
+    await loadLessons(currentCourseSlug);
+    document.getElementById('auth-switch').style.display = '';
+  } else {
+    // Bare URL, no course context — this is the Super Admin / platform sign-in.
+    // No signup is possible here since we don't know which course to join.
+    document.getElementById('brand-name-text').textContent = 'Course Platform';
+    document.getElementById('auth-eyebrow').textContent    = 'Platform sign in';
+    document.title = 'Course Platform';
+    document.getElementById('auth-switch').style.display = 'none';
   }
 
   showLoading(false);
@@ -638,6 +695,13 @@ function showLoading(show){
 function signOutStudent(){
   setApiToken(null);
   currentStudent = null;
+  setAuthMode('login');
+  go('portal');
+}
+
+function adminSignOut(){
+  setApiToken(null);
+  currentUser = null;
   setAuthMode('login');
   go('portal');
 }
@@ -813,14 +877,114 @@ async function saveCourseName(){
   const name  = input.value.trim();
   if(!name){ alert('Please enter a name.'); return; }
   try {
-    await api('PATCH', '/settings', { course_name: name });
-    applyCourseName(name);
+    const course = await api('PATCH', '/courses/mine', { name });
+    applyCourseName(course.name);
     const msg = document.getElementById('settings-saved-msg');
     msg.style.display = 'inline';
     setTimeout(() => { msg.style.display = 'none'; }, 2500);
   } catch(e){
     console.error('Save course name failed', e);
     alert('Could not save. Please try again.');
+  }
+}
+
+function courseLinkFor(slug){
+  return window.location.origin + window.location.pathname + '?course=' + slug;
+}
+
+function copyLinkToClipboard(link){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(
+      () => alert('Link copied:\n' + link),
+      () => alert(link)
+    );
+  } else {
+    alert(link);
+  }
+}
+
+function copySettingsCourseLink(){
+  const input = document.getElementById('settings-course-link');
+  copyLinkToClipboard(input.value);
+}
+
+/* ─ PLATFORM (SUPER ADMIN) ─ */
+async function renderPlatformPanel(){
+  const panel = document.getElementById('platform-panel');
+  panel.innerHTML = `<div class="empty-state"><div class="ei">⏳</div><p>Loading courses…</p></div>`;
+  try {
+    const courses = await api('GET', '/super/courses');
+    const rows = courses.map(c => {
+      const adminInfo = c.admin ? `${c.admin.name}<div class="user-email">${c.admin.email}</div>` : '<span style="color:var(--ink-faint);">No admin</span>';
+      return `<tr>
+        <td><div class="user-name">${c.name}</div><div class="user-email">/${c.slug}</div></td>
+        <td>${adminInfo}</td>
+        <td style="width:1%;white-space:nowrap;text-align:center;">${c.student_count}</td>
+        <td style="width:1%;white-space:nowrap;"><button class="dl-btn" onclick="copyLinkToClipboard('${courseLinkFor(c.slug)}')">Copy link</button></td>
+        <td style="width:1%;white-space:nowrap;"><button class="dl-btn danger" onclick="deleteCourse('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')">Delete</button></td>
+      </tr>`;
+    }).join('');
+    const tableHtml = `
+      <div class="students-meta">${courses.length} course${courses.length!==1?'s':''} on the platform</div>
+      <div class="table-wrap" style="margin-bottom:26px;">
+        <table>
+          <thead><tr><th>Course</th><th>Admin</th><th style="width:1%;">Students</th><th style="width:1%;"></th><th style="width:1%;"></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--ink-faint);padding:30px;">No courses yet.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+    panel.innerHTML = tableHtml + `
+      <div class="editor-block" style="max-width:560px;">
+        <h3>Create a new course</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Course name</label>
+          <input type="text" class="field-input" id="new-course-name" placeholder="e.g. Data Analytics Fundamentals">
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin name</label>
+          <input type="text" class="field-input" id="new-course-admin-name" placeholder="Full name">
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin email</label>
+          <input type="email" class="field-input" id="new-course-admin-email" placeholder="admin@example.com">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin password</label>
+          <input type="password" class="field-input" id="new-course-admin-password" placeholder="••••••••">
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;margin-top:14px;" onclick="createCourse()">Create course</button>
+      </div>`;
+  } catch(e){
+    console.error('Failed to load courses', e);
+    panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load courses.</p></div>`;
+  }
+}
+
+async function createCourse(){
+  const courseNameVal = document.getElementById('new-course-name').value.trim();
+  const adminName      = document.getElementById('new-course-admin-name').value.trim();
+  const adminEmail     = document.getElementById('new-course-admin-email').value.trim();
+  const adminPassword  = document.getElementById('new-course-admin-password').value;
+  if(!courseNameVal || !adminName || !adminEmail || !adminPassword){
+    alert('Please fill in all fields.');
+    return;
+  }
+  try {
+    await api('POST', '/super/courses', { courseName: courseNameVal, adminName, adminEmail, adminPassword });
+    renderPlatformPanel();
+  } catch(e){
+    console.error('Create course failed', e);
+    alert(e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the course. Please try again.');
+  }
+}
+
+async function deleteCourse(id, name){
+  if(!confirm(`Delete "${name}"? This permanently removes its lessons, admin account, and all students. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/super/courses/' + id);
+    renderPlatformPanel();
+  } catch(e){
+    console.error('Delete course failed', e);
+    alert('Could not delete this course. Please try again.');
   }
 }
 
@@ -869,7 +1033,14 @@ async function unifiedAuth(){
         setAuthMode(authMode);
         return;
       }
-      await api('POST', '/auth/register', { name: first+' '+last, email, phone, password: pw });
+      if(!currentCourseSlug){
+        err.textContent = 'This link is missing a course — ask your admin for the correct sign-up link.';
+        err.classList.add('show');
+        btn.disabled = false;
+        setAuthMode(authMode);
+        return;
+      }
+      await api('POST', '/auth/register', { name: first+' '+last, email, phone, password: pw, course: currentCourseSlug });
       // Account created but pending admin approval — no token issued, don't log in.
       authMode = 'login';
       pendingMsg = 'Account created. An admin needs to approve it before you can sign in — check back shortly.';
@@ -880,21 +1051,13 @@ async function unifiedAuth(){
     setApiToken(data.token);
 
     if(data.user.is_admin){
-      renderAdminGrid();
-      go('admin');
-      renderStudentsPanel();
+      await enterAdminSession(data.user);
       return;
     }
 
     // Load full profile + progress
     const me = await api('GET', '/auth/me');
-    currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {} };
-    for(const p of (me.progress || [])){
-      currentStudent.answers[p.lesson_id] = p.answers || {};
-      currentStudent.notes[p.lesson_id]   = p.note    || '';
-    }
-    renderStudentGrid();
-    go('student');
+    await enterStudentSession(me);
   } catch(e){
     console.error('Auth error:', e.code, e.message);
     let msg = 'Something went wrong. Please try again.';
@@ -902,6 +1065,7 @@ async function unifiedAuth(){
     if(e.code === 'user-not-found')       msg = 'No account found with this email.';
     if(e.code === 'wrong-password')       msg = 'Incorrect email or password.';
     if(e.code === 'account-pending')      msg = 'Your account is awaiting admin approval. Please check back later.';
+    if(e.code === 'course-not-found')     msg = 'This course link is invalid or no longer exists.';
     err.textContent = msg;
     err.classList.add('show');
   } finally {
@@ -1193,8 +1357,9 @@ function updateChrome(s){
   const isStudent = ['student','detail'].includes(s);
   chrome.classList.toggle('mode-admin', isAdmin);
   if(isAdmin){
-    right.innerHTML = `<span class="admin-tag">Admin</span>
-      <button class="chrome-link" onclick="go('portal')">Sign out</button>`;
+    const tag = (currentUser && currentUser.role === 'super_admin') ? 'Super Admin' : 'Admin';
+    right.innerHTML = `<span class="admin-tag">${tag}</span>
+      <button class="chrome-link" onclick="adminSignOut()">Sign out</button>`;
   } else if(isStudent && currentStudent){
     right.innerHTML = `<span class="chrome-user">${currentStudent.name}</span>
       <button class="chrome-link" onclick="signOutStudent()">Sign out</button>`;
@@ -1212,7 +1377,11 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn => {
     const target = document.getElementById('apanel-'+btn.dataset.apanel);
     if(target) target.classList.add('active');
     if(btn.dataset.apanel === 'students') renderStudentsPanel();
-    if(btn.dataset.apanel === 'settings') document.getElementById('settings-course-name').value = courseName;
+    if(btn.dataset.apanel === 'settings'){
+      document.getElementById('settings-course-name').value = courseName;
+      document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
+    }
+    if(btn.dataset.apanel === 'platform') renderPlatformPanel();
   });
 });
 
