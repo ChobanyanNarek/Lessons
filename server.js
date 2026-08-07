@@ -114,6 +114,41 @@ app.get('/api/auth/me', auth, async (req, res) => {
   }
 });
 
+// ─── SETTINGS ROUTES ──────────────────────────────────────────────────────────
+
+// GET /api/settings — public, no auth needed (site chrome needs this before login)
+app.get('/api/settings', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT key, value FROM settings');
+    const settings = {};
+    for (const row of result.rows) settings[row.key] = row.value;
+    res.json(settings);
+  } catch (e) {
+    console.error('Settings fetch error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PATCH /api/settings — admin only
+app.patch('/api/settings', auth, adminOnly, async (req, res) => {
+  try {
+    for (const [key, value] of Object.entries(req.body || {})) {
+      await pool.query(
+        `INSERT INTO settings (key, value) VALUES ($1, $2)
+         ON CONFLICT (key) DO UPDATE SET value = $2`,
+        [key, String(value)]
+      );
+    }
+    const result = await pool.query('SELECT key, value FROM settings');
+    const settings = {};
+    for (const row of result.rows) settings[row.key] = row.value;
+    res.json(settings);
+  } catch (e) {
+    console.error('Settings update error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── LESSONS ROUTES ──────────────────────────────────────────────────────────
 
 // GET /api/version — deploy verification marker
@@ -328,12 +363,23 @@ async function initDb() {
       note      TEXT  DEFAULT '',
       PRIMARY KEY (user_id, lesson_id)
     );
+
+    CREATE TABLE IF NOT EXISTS settings (
+      key   TEXT PRIMARY KEY,
+      value TEXT
+    );
   `);
 
   // Migration: add the approved column for databases created before this feature existed.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE`);
   // Admins are always approved automatically.
   await pool.query(`UPDATE users SET approved = true WHERE is_admin = true AND approved = false`);
+
+  // Seed a default course name if none has been set yet.
+  await pool.query(
+    `INSERT INTO settings (key, value) VALUES ('course_name', 'IT Project Management Course')
+     ON CONFLICT (key) DO NOTHING`
+  );
 
   // Seed an admin user only if NO admin account exists yet at all —
   // prevents recreating a stray default admin after credentials have been changed.
