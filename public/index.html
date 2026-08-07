@@ -268,7 +268,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
   <div class="brand">
     <div class="brand-mark"><span>PM</span></div>
     <div class="brand-text">
-      <div class="brand-name">IT Project Management</div>
+      <div class="brand-name" id="brand-name-text">IT Project Management Course</div>
       <div class="brand-tagline">Online Course</div>
     </div>
   </div>
@@ -371,12 +371,26 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <div class="admin-tabs">
       <button class="admin-tab-btn active" data-apanel="content">Course Content</button>
       <button class="admin-tab-btn" data-apanel="students">Students</button>
+      <button class="admin-tab-btn" data-apanel="settings">Settings</button>
     </div>
     <div class="admin-panel active" id="apanel-content">
       <div class="grid" id="admin-grid"></div>
     </div>
     <div class="admin-panel" id="apanel-students">
       <div id="students-panel"></div>
+    </div>
+    <div class="admin-panel" id="apanel-settings">
+      <div class="editor-block" style="max-width:520px;">
+        <h3>Product name</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">
+            Shown on the sign-in page, browser tab, and header for every user
+          </label>
+          <input type="text" class="field-input" id="settings-course-name">
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;" onclick="saveCourseName()">Save</button>
+        <span id="settings-saved-msg" style="display:none;color:var(--green);font-size:13px;margin-left:12px;">Saved.</span>
+      </div>
     </div>
   </div>
 </div>
@@ -451,7 +465,17 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <script>
 
 /* ─ API HELPERS ─ */
-var apiToken = localStorage.getItem('apiToken') || null;
+var apiToken    = localStorage.getItem('apiToken') || null;
+var courseName  = 'IT Project Management Course'; // fallback until /api/settings loads
+
+function applyCourseName(name){
+  courseName = name || courseName;
+  document.title = courseName;
+  const brandEl  = document.getElementById('brand-name-text');
+  const eyebrow  = document.getElementById('auth-eyebrow');
+  if(brandEl) brandEl.textContent = courseName;
+  if(eyebrow) eyebrow.textContent = courseName;
+}
 
 function setApiToken(token){
   apiToken = token;
@@ -561,6 +585,14 @@ async function init(){
   } catch(e){
     console.error('Failed to load lessons, using defaults:', e);
     lessons = DEFAULT_LESSONS.map(l => ({...l}));
+  }
+
+  try {
+    const settings = await api('GET', '/settings');
+    applyCourseName(settings.course_name);
+  } catch(e){
+    console.error('Failed to load settings, using default course name:', e);
+    applyCourseName(courseName);
   }
 
   // Try to restore a previous session from the saved token.
@@ -771,6 +803,22 @@ async function deleteStudent(userId, name){
   }
 }
 
+async function saveCourseName(){
+  const input = document.getElementById('settings-course-name');
+  const name  = input.value.trim();
+  if(!name){ alert('Please enter a name.'); return; }
+  try {
+    await api('PATCH', '/settings', { course_name: name });
+    applyCourseName(name);
+    const msg = document.getElementById('settings-saved-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 2500);
+  } catch(e){
+    console.error('Save course name failed', e);
+    alert('Could not save. Please try again.');
+  }
+}
+
 /* ─ AUTH ─ */
 function setAuthMode(mode){
   authMode = mode;
@@ -873,7 +921,7 @@ function openDetail(id){
   currentDetailId = id;
   const l = lessons.find(x=>x.id===id);
   document.getElementById('detail-title').textContent = l.title;
-  document.getElementById('detail-meta').textContent  = `Lesson ${l.num} · IT Project Management Course`;
+  document.getElementById('detail-meta').textContent  = `Lesson ${l.num} · ${courseName}`;
   document.getElementById('panel-slides').innerHTML   = l.slides.length
     ? l.slides.map(s => `
         <div class="slide-row">
@@ -1159,6 +1207,7 @@ document.querySelectorAll('.admin-tab-btn').forEach(btn => {
     const target = document.getElementById('apanel-'+btn.dataset.apanel);
     if(target) target.classList.add('active');
     if(btn.dataset.apanel === 'students') renderStudentsPanel();
+    if(btn.dataset.apanel === 'settings') document.getElementById('settings-course-name').value = courseName;
   });
 });
 
