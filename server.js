@@ -69,15 +69,29 @@ app.get('/api/courses/:slug', async (req, res) => {
   }
 });
 
-// PATCH /api/courses/mine — admin renames their own course (shown to their students)
+// PATCH /api/courses/mine — admin renames their own course (shown to their students).
+// The shareable link's slug is regenerated from the new name too, so the link
+// always reflects the course's current name.
 app.patch('/api/courses/mine', auth, adminOnly, async (req, res) => {
   const { name } = req.body;
   if (!name) return res.status(400).json({ error: 'name is required' });
   if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
   try {
+    const baseSlug = slugify(name);
+    let slug = baseSlug;
+    let n = 1;
+    let exists = true;
+    while (exists) {
+      const check = await pool.query(
+        'SELECT 1 FROM courses WHERE slug = $1 AND id != $2',
+        [slug, req.user.course_id]
+      );
+      exists = check.rows.length > 0;
+      if (exists) { n += 1; slug = `${baseSlug}-${n}`; }
+    }
     const r = await pool.query(
-      'UPDATE courses SET name = $1 WHERE id = $2 RETURNING id, slug, name',
-      [name, req.user.course_id]
+      'UPDATE courses SET name = $1, slug = $2 WHERE id = $3 RETURNING id, slug, name',
+      [name, slug, req.user.course_id]
     );
     res.json(r.rows[0]);
   } catch (e) {
