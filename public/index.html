@@ -928,14 +928,15 @@ async function renderPlatformPanel(){
         <td>${adminInfo}</td>
         <td style="width:1%;white-space:nowrap;text-align:center;">${c.student_count}</td>
         <td style="width:1%;white-space:nowrap;"><button class="dl-btn" onclick="copyLinkToClipboard('${courseLinkFor(c.slug)}')">Copy link</button></td>
+        <td style="width:1%;white-space:nowrap;"><button class="dl-btn danger" onclick="deleteCourse('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')">Delete</button></td>
       </tr>`;
     }).join('');
     const tableHtml = `
       <div class="students-meta">${courses.length} course${courses.length!==1?'s':''} on the platform</div>
       <div class="table-wrap" style="margin-bottom:26px;">
         <table>
-          <thead><tr><th>Course</th><th>Admin</th><th style="width:1%;">Students</th><th style="width:1%;"></th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);padding:30px;">No courses yet.</td></tr>'}</tbody>
+          <thead><tr><th>Course</th><th>Admin</th><th style="width:1%;">Students</th><th style="width:1%;"></th><th style="width:1%;"></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--ink-faint);padding:30px;">No courses yet.</td></tr>'}</tbody>
         </table>
       </div>`;
     panel.innerHTML = tableHtml + `
@@ -980,6 +981,17 @@ async function createCourse(){
   } catch(e){
     console.error('Create course failed', e);
     alert(e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the course. Please try again.');
+  }
+}
+
+async function deleteCourse(id, name){
+  if(!confirm(`Delete "${name}"? This permanently removes its lessons, admin account, and all students. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/super/courses/' + id);
+    renderPlatformPanel();
+  } catch(e){
+    console.error('Delete course failed', e);
+    alert('Could not delete this course. Please try again.');
   }
 }
 
