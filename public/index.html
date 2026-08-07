@@ -918,80 +918,76 @@ function copySettingsCourseLink(){
 /* ─ PLATFORM (SUPER ADMIN) ─ */
 async function renderPlatformPanel(){
   const panel = document.getElementById('platform-panel');
-  panel.innerHTML = `<div class="empty-state"><div class="ei">⏳</div><p>Loading courses…</p></div>`;
+  panel.innerHTML = `<div class="empty-state"><div class="ei">⏳</div><p>Loading admins…</p></div>`;
   try {
-    const courses = await api('GET', '/super/courses');
-    const rows = courses.map(c => {
-      const adminInfo = c.admin ? `${c.admin.name}<div class="user-email">${c.admin.email}</div>` : '<span style="color:var(--ink-faint);">No admin</span>';
-      return `<tr>
-        <td><div class="user-name">${c.name}</div><div class="user-email">/${c.slug}</div></td>
-        <td>${adminInfo}</td>
-        <td style="width:1%;white-space:nowrap;text-align:center;">${c.student_count}</td>
-        <td style="width:1%;white-space:nowrap;"><button class="dl-btn" onclick="copyLinkToClipboard('${courseLinkFor(c.slug)}')">Copy link</button></td>
-        <td style="width:1%;white-space:nowrap;"><button class="dl-btn danger" onclick="deleteCourse('${c.id}','${(c.name||'').replace(/'/g,"\\'")}')">Delete</button></td>
-      </tr>`;
-    }).join('');
+    const admins = await api('GET', '/super/admins');
+    const rows = admins.map(a => `<tr>
+        <td><div class="user-name">${a.name}</div><div class="user-email">${a.email}</div></td>
+        <td style="width:1%;white-space:nowrap;text-align:center;">${a.course_count}</td>
+        <td style="width:1%;white-space:nowrap;text-align:center;">${a.student_count}</td>
+        <td style="width:1%;white-space:nowrap;"><button class="dl-btn danger" onclick="deleteAdmin('${a.id}','${(a.name||'').replace(/'/g,"\\'")}')">Delete</button></td>
+      </tr>`).join('');
     const tableHtml = `
-      <div class="students-meta">${courses.length} course${courses.length!==1?'s':''} on the platform</div>
+      <div class="students-meta">${admins.length} admin${admins.length!==1?'s':''} on the platform</div>
       <div class="table-wrap" style="margin-bottom:26px;">
         <table>
-          <thead><tr><th>Course</th><th>Admin</th><th style="width:1%;">Students</th><th style="width:1%;"></th><th style="width:1%;"></th></tr></thead>
-          <tbody>${rows || '<tr><td colspan="5" style="text-align:center;color:var(--ink-faint);padding:30px;">No courses yet.</td></tr>'}</tbody>
+          <thead><tr><th>Admin</th><th style="width:1%;">Courses</th><th style="width:1%;">Students</th><th style="width:1%;"></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);padding:30px;">No admins yet.</td></tr>'}</tbody>
         </table>
       </div>`;
     panel.innerHTML = tableHtml + `
       <div class="editor-block" style="max-width:560px;">
-        <h3>Create a new course</h3>
-        <div class="field" style="margin-bottom:14px;">
-          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Course name</label>
-          <input type="text" class="field-input" id="new-course-name" placeholder="e.g. Data Analytics Fundamentals">
-        </div>
+        <h3>Create a new admin</h3>
         <div class="field" style="margin-bottom:14px;">
           <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin name</label>
-          <input type="text" class="field-input" id="new-course-admin-name" placeholder="Full name">
+          <input type="text" class="field-input" id="new-admin-name" placeholder="Full name">
         </div>
         <div class="field" style="margin-bottom:14px;">
           <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin email</label>
-          <input type="email" class="field-input" id="new-course-admin-email" placeholder="admin@example.com">
+          <input type="email" class="field-input" id="new-admin-email" placeholder="admin@example.com">
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin password</label>
+          <input type="password" class="field-input" id="new-admin-password" placeholder="••••••••">
         </div>
         <div class="field" style="margin-bottom:0;">
-          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin password</label>
-          <input type="password" class="field-input" id="new-course-admin-password" placeholder="••••••••">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Their course name</label>
+          <input type="text" class="field-input" id="new-admin-course-name" placeholder="e.g. Data Analytics Fundamentals">
         </div>
-        <button class="btn btn-primary" style="width:auto;padding:10px 22px;margin-top:14px;" onclick="createCourse()">Create course</button>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;margin-top:14px;" onclick="createAdmin()">Create admin</button>
       </div>`;
   } catch(e){
-    console.error('Failed to load courses', e);
-    panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load courses.</p></div>`;
+    console.error('Failed to load admins', e);
+    panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load admins.</p></div>`;
   }
 }
 
-async function createCourse(){
-  const courseNameVal = document.getElementById('new-course-name').value.trim();
-  const adminName      = document.getElementById('new-course-admin-name').value.trim();
-  const adminEmail     = document.getElementById('new-course-admin-email').value.trim();
-  const adminPassword  = document.getElementById('new-course-admin-password').value;
-  if(!courseNameVal || !adminName || !adminEmail || !adminPassword){
+async function createAdmin(){
+  const adminName      = document.getElementById('new-admin-name').value.trim();
+  const adminEmail     = document.getElementById('new-admin-email').value.trim();
+  const adminPassword  = document.getElementById('new-admin-password').value;
+  const courseNameVal  = document.getElementById('new-admin-course-name').value.trim();
+  if(!adminName || !adminEmail || !adminPassword || !courseNameVal){
     alert('Please fill in all fields.');
     return;
   }
   try {
-    await api('POST', '/super/courses', { courseName: courseNameVal, adminName, adminEmail, adminPassword });
+    await api('POST', '/super/admins', { courseName: courseNameVal, adminName, adminEmail, adminPassword });
     renderPlatformPanel();
   } catch(e){
-    console.error('Create course failed', e);
-    alert(e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the course. Please try again.');
+    console.error('Create admin failed', e);
+    alert(e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the admin. Please try again.');
   }
 }
 
-async function deleteCourse(id, name){
-  if(!confirm(`Delete "${name}"? This permanently removes its lessons, admin account, and all students. This cannot be undone.`)) return;
+async function deleteAdmin(id, name){
+  if(!confirm(`Delete admin "${name}"? This permanently removes their course, its lessons, and all their students. This cannot be undone.`)) return;
   try {
-    await api('DELETE', '/super/courses/' + id);
+    await api('DELETE', '/super/admins/' + id);
     renderPlatformPanel();
   } catch(e){
-    console.error('Delete course failed', e);
-    alert('Could not delete this course. Please try again.');
+    console.error('Delete admin failed', e);
+    alert('Could not delete this admin. Please try again.');
   }
 }
 
