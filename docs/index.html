@@ -879,6 +879,9 @@ async function saveCourseName(){
   try {
     const course = await api('PATCH', '/courses/mine', { name });
     applyCourseName(course.name);
+    syncCourseSlugToUrl(course.slug);
+    if(currentUser){ currentUser.course_slug = course.slug; currentUser.course_name = course.name; }
+    document.getElementById('settings-course-link').value = courseLinkFor(course.slug);
     const msg = document.getElementById('settings-saved-msg');
     msg.style.display = 'inline';
     setTimeout(() => { msg.style.display = 'none'; }, 2500);
