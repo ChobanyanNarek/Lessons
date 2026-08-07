@@ -46,11 +46,13 @@ function superAdminOnly(req, res, next) {
   next();
 }
 
-function randomSlug(len = 8) {
-  const chars = 'abcdefghijklmnopqrstuvwxyz0123456789';
-  let s = '';
-  for (let i = 0; i < len; i++) s += chars[Math.floor(Math.random() * chars.length)];
-  return s;
+function slugify(name) {
+  const base = String(name || '')
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return base || 'course';
 }
 
 // ─── COURSES ROUTES ───────────────────────────────────────────────────────────
@@ -399,11 +401,14 @@ app.post('/api/super/courses', auth, superAdminOnly, async (req, res) => {
     return res.status(400).json({ error: 'courseName, adminName, adminEmail, and adminPassword are required' });
   }
   try {
-    let slug, exists = true;
+    const baseSlug = slugify(courseName);
+    let slug = baseSlug;
+    let n = 1;
+    let exists = true;
     while (exists) {
-      slug = randomSlug();
       const check = await pool.query('SELECT 1 FROM courses WHERE slug = $1', [slug]);
       exists = check.rows.length > 0;
+      if (exists) { n += 1; slug = `${baseSlug}-${n}`; }
     }
     const courseRes = await pool.query(
       'INSERT INTO courses (slug, name) VALUES ($1, $2) RETURNING id, slug, name',
