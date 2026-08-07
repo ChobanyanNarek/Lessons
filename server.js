@@ -387,29 +387,32 @@ app.get('/api/users', auth, adminOnly, async (req, res) => {
   }
 });
 
-// ─── SUPER ADMIN ROUTES (platform-wide course management) ────────────────────
+// ─── SUPER ADMIN ROUTES (platform-wide admin management) ─────────────────────
+// The Super Admin manages ADMINS, not course/lesson/student content directly.
+// For each admin they can only see how many courses and students that admin
+// has (counts, no drill-in), plus create new admins or delete existing ones.
 
-// GET /api/super/courses — list every course with its admin and student count
-app.get('/api/super/courses', auth, superAdminOnly, async (req, res) => {
+// GET /api/super/admins — list every admin with their course + student counts
+app.get('/api/super/admins', auth, superAdminOnly, async (req, res) => {
   try {
     const result = await pool.query(`
       SELECT
-        c.id, c.slug, c.name, c.created_at,
-        (SELECT json_build_object('name', u.name, 'email', u.email)
-           FROM users u WHERE u.course_id = c.id AND u.role = 'admin' LIMIT 1) AS admin,
-        (SELECT COUNT(*)::int FROM users s WHERE s.course_id = c.id AND s.role = 'student') AS student_count
-      FROM courses c
-      ORDER BY c.created_at DESC
+        u.id, u.name, u.email, u.created_at,
+        (SELECT COUNT(*)::int FROM courses c WHERE c.id = u.course_id) AS course_count,
+        (SELECT COUNT(*)::int FROM users s WHERE s.course_id = u.course_id AND s.role = 'student') AS student_count
+      FROM users u
+      WHERE u.role = 'admin'
+      ORDER BY u.created_at DESC
     `);
     res.json(result.rows);
   } catch (e) {
-    console.error('Courses list error:', e.message);
+    console.error('Admins list error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/super/courses — create a new course and its admin account in one step
-app.post('/api/super/courses', auth, superAdminOnly, async (req, res) => {
+// POST /api/super/admins — create a new admin and their initial course in one step
+app.post('/api/super/admins', auth, superAdminOnly, async (req, res) => {
   const { courseName, adminName, adminEmail, adminPassword } = req.body;
   if (!courseName || !adminName || !adminEmail || !adminPassword) {
     return res.status(400).json({ error: 'courseName, adminName, adminEmail, and adminPassword are required' });
@@ -440,31 +443,36 @@ app.post('/api/super/courses', auth, superAdminOnly, async (req, res) => {
     res.status(201).json({ course, admin: adminRes.rows[0] });
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ error: 'email-already-in-use' });
-    console.error('Create course error:', e.message);
+    console.error('Create admin error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// DELETE /api/super/courses/:id — delete a course (admin account, its students, and its
-// lessons). Never deletes a super_admin row, even if one happens to be tied to this
-// course — instead it's detached (course_id set to null) so the foreign key doesn't
-// block deleting the course. This means a super admin can delete every course,
-// including their own / the last one remaining.
-app.delete('/api/super/courses/:id', auth, superAdminOnly, async (req, res) => {
+// DELETE /api/super/admins/:id — delete an admin account, along with their course,
+// its lessons, and its students. Only ever targets a role='admin' row, so a
+// super_admin account can never be deleted through this endpoint.
+app.delete('/api/super/admins/:id', auth, superAdminOnly, async (req, res) => {
   const { id } = req.params;
   try {
-    await pool.query(
-      `DELETE FROM user_progress WHERE user_id IN (SELECT id FROM users WHERE course_id = $1 AND role != 'super_admin')`,
-      [id]
-    );
-    await pool.query(`DELETE FROM users WHERE course_id = $1 AND role != 'super_admin'`, [id]);
-    await pool.query(`UPDATE users SET course_id = NULL WHERE course_id = $1 AND role = 'super_admin'`, [id]);
-    await pool.query(`DELETE FROM lessons WHERE course_id = $1`, [id]);
-    const result = await pool.query(`DELETE FROM courses WHERE id = $1 RETURNING id`, [id]);
-    if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
+    const adminRes = await pool.query(`SELECT course_id FROM users WHERE id = $1 AND role = 'admin'`, [id]);
+    if (!adminRes.rows.length) return res.status(404).json({ error: 'Admin not found' });
+    const courseId = adminRes.rows[0].course_id;
+
+    if (courseId) {
+      await pool.query(
+        `DELETE FROM user_progress WHERE user_id IN (SELECT id FROM users WHERE course_id = $1 AND role = 'student')`,
+        [courseId]
+      );
+      await pool.query(`DELETE FROM users WHERE course_id = $1 AND role = 'student'`, [courseId]);
+      await pool.query(`DELETE FROM lessons WHERE course_id = $1`, [courseId]);
+    }
+    await pool.query(`DELETE FROM user_progress WHERE user_id = $1`, [id]);
+    await pool.query(`DELETE FROM users WHERE id = $1 AND role = 'admin'`, [id]);
+    if (courseId) await pool.query(`DELETE FROM courses WHERE id = $1`, [courseId]);
+
     res.json({ ok: true });
   } catch (e) {
-    console.error('Delete course error:', e.message);
+    console.error('Delete admin error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
