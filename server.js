@@ -445,29 +445,8 @@ app.post('/api/super/courses', auth, superAdminOnly, async (req, res) => {
   }
 });
 
-// DELETE /api/super/courses/:id — delete a course, its lessons, and its admin/students.
-// Never deletes a super_admin row, even if one happens to be tied to this course —
-// instead it's detached (course_id set to null) so the foreign key doesn't block
-// deleting the course itself. This means a super admin CAN delete every course,
-// including their own / the last one remaining.
-app.delete('/api/super/courses/:id', auth, superAdminOnly, async (req, res) => {
-  const { id } = req.params;
-  try {
-    await pool.query(
-      `DELETE FROM user_progress WHERE user_id IN (SELECT id FROM users WHERE course_id = $1 AND role != 'super_admin')`,
-      [id]
-    );
-    await pool.query(`DELETE FROM users WHERE course_id = $1 AND role != 'super_admin'`, [id]);
-    await pool.query(`UPDATE users SET course_id = NULL WHERE course_id = $1 AND role = 'super_admin'`, [id]);
-    await pool.query(`DELETE FROM lessons WHERE course_id = $1`, [id]);
-    const result = await pool.query(`DELETE FROM courses WHERE id = $1 RETURNING id`, [id]);
-    if (!result.rows.length) return res.status(404).json({ error: 'Course not found' });
-    res.json({ ok: true });
-  } catch (e) {
-    console.error('Delete course error:', e.message);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
+// Note: no DELETE endpoint for courses — the Super Admin role is intentionally
+// scoped to creating admin/course accounts and viewing student counts only.
 
 // ─── CATCH-ALL: serve the frontend for any unmatched route ───────────────────
 app.get('*', (req, res) => {
