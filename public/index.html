@@ -376,7 +376,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <div class="admin-tabs">
       <button class="admin-tab-btn active" data-apanel="content">Course Content</button>
       <button class="admin-tab-btn" data-apanel="students">Students</button>
-      <button class="admin-tab-btn" data-apanel="settings">Settings</button>
+      <button class="admin-tab-btn" data-apanel="settings" id="settings-tab-btn">Settings</button>
       <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
     </div>
     <div class="admin-panel active" id="apanel-content">
@@ -621,11 +621,14 @@ async function enterAdminSession(user){
   syncCourseSlugToUrl(user.course_slug);
   applyCourseName(user.course_name || courseName);
   await loadLessons(currentCourseSlug);
-  document.getElementById('platform-tab-btn').style.display = (user.role === 'super_admin') ? '' : 'none';
+  const isSuperAdmin = user.role === 'super_admin';
+  document.getElementById('platform-tab-btn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('settings-tab-btn').style.display = isSuperAdmin ? 'none' : '';
   renderAdminGrid();
   go('admin');
-  renderStudentsPanel();
-  if(user.role === 'super_admin') renderPlatformPanel();
+  // Super admins with no course of their own (e.g. they deleted it) land on Platform;
+  // everyone else lands on Course Content, which is the tab already marked active in the HTML.
+  activateAdminTab(isSuperAdmin && !user.course_id ? 'platform' : 'content');
 }
 
 async function enterStudentSession(me){
@@ -1024,6 +1027,7 @@ async function unifiedAuth(){
   btn.disabled = true;
 
   let pendingMsg = null; // set on successful signup; shown after mode reset below
+  let errorMsg   = null; // set on any failure; shown after mode reset below
 
   try {
     if(authMode === 'signup'){
@@ -1070,17 +1074,22 @@ async function unifiedAuth(){
     if(e.code === 'wrong-password')       msg = 'Incorrect email or password.';
     if(e.code === 'account-pending')      msg = 'Your account is awaiting admin approval. Please check back later.';
     if(e.code === 'course-not-found')     msg = 'This course link is invalid or no longer exists.';
-    err.textContent = msg;
-    err.classList.add('show');
+    errorMsg = msg;
   } finally {
     btn.disabled = false;
-    setAuthMode(authMode);
+    setAuthMode(authMode); // resets auth-error's 'show' class — re-applied below if needed
     if(pendingMsg){
       err.textContent = pendingMsg;
       err.classList.add('show');
       err.style.background  = 'var(--green-soft)';
       err.style.borderColor = 'rgba(28,154,108,0.35)';
       err.style.color       = 'var(--green)';
+    } else if(errorMsg){
+      err.textContent = errorMsg;
+      err.classList.add('show');
+      err.style.background  = '';
+      err.style.borderColor = '';
+      err.style.color       = '';
     } else {
       err.style.background  = '';
       err.style.borderColor = '';
@@ -1373,20 +1382,18 @@ function updateChrome(s){
 }
 
 /* ─ ADMIN TAB SWITCHING ─ */
+function activateAdminTab(panelName){
+  document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.apanel===panelName));
+  document.querySelectorAll('.admin-panel').forEach(p=>p.classList.toggle('active', p.id === 'apanel-'+panelName));
+  if(panelName === 'students') renderStudentsPanel();
+  if(panelName === 'settings'){
+    document.getElementById('settings-course-name').value = courseName;
+    document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
+  }
+  if(panelName === 'platform') renderPlatformPanel();
+}
 document.querySelectorAll('.admin-tab-btn').forEach(btn => {
-  btn.addEventListener('click', () => {
-    document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
-    document.querySelectorAll('.admin-panel').forEach(p=>p.classList.remove('active'));
-    btn.classList.add('active');
-    const target = document.getElementById('apanel-'+btn.dataset.apanel);
-    if(target) target.classList.add('active');
-    if(btn.dataset.apanel === 'students') renderStudentsPanel();
-    if(btn.dataset.apanel === 'settings'){
-      document.getElementById('settings-course-name').value = courseName;
-      document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
-    }
-    if(btn.dataset.apanel === 'platform') renderPlatformPanel();
-  });
+  btn.addEventListener('click', () => activateAdminTab(btn.dataset.apanel));
 });
 
 /* ─ LESSON DETAIL TAB SWITCHING ─ */
