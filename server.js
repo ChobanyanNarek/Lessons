@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const path    = require('path');
+const multer  = require('multer');
 
 // ── Fail fast if DATABASE_URL is missing ──────────────────────────────────────
 if (!process.env.DATABASE_URL) {
@@ -21,6 +22,11 @@ const SUPER_ADMIN_EMAIL = 'narek.a.chobanyan@gmail.com';
 app.use(express.json());
 app.use(require('cors')());  // allow GitHub Pages → Render API calls
 app.use(express.static(path.join(__dirname, 'public')));
+
+// Uploaded lesson materials (PDFs, Word docs, etc.) are kept in memory just long
+// enough to write them into Postgres — nothing is written to local disk, since
+// Render's disk is wiped on every redeploy. Postgres storage persists across deploys.
+const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB cap
 
 // ─── MIDDLEWARE ──────────────────────────────────────────────────────────────
 
@@ -279,6 +285,97 @@ app.delete('/api/lessons/:id', auth, adminOnly, async (req, res) => {
   }
 });
 
+// ─── LESSON FILES (uploaded materials) ───────────────────────────────────────
+// Files are stored as bytes directly in Postgres (not on disk) so they survive
+// Render redeploys, which wipe local disk every time.
+
+// POST /api/lessons/:id/files — admin only, uploads a file for a lesson (max 15MB)
+app.post('/api/lessons/:id/files', auth, adminOnly, upload.single('file'), async (req, res) => {
+  const { id } = req.params;
+  if (!req.file) return res.status(400).json({ error: 'file is required' });
+  try {
+    const existing = await pool.query('SELECT course_id FROM lessons WHERE id = $1', [id]);
+    if (!existing.rows.length) return res.status(404).json({ error: 'Lesson not found' });
+    if (existing.rows[0].course_id !== req.user.course_id) return res.status(403).json({ error: 'Forbidden' });
+
+    const result = await pool.query(
+      `INSERT INTO lesson_files (lesson_id, name, mimetype, data)
+       VALUES ($1, $2, $3, $4)
+       RETURNING id, name, mimetype, octet_length(data) AS size`,
+      [id, req.file.originalname, req.file.mimetype || 'application/octet-stream', req.file.buffer]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (e) {
+    console.error('File upload error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/files/:fileId — public, streams the file back with a download or
+// inline disposition (?disposition=inline lets PDFs open in-browser for "Open").
+app.get('/api/files/:fileId', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT name, mimetype, data FROM lesson_files WHERE id = $1', [req.params.fileId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'File not found' });
+    const file = result.rows[0];
+    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+    const safeName = (file.name || 'download').replace(/[\r\n"]/g, '');
+    res.setHeader('Content-Type', file.mimetype || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
+    res.send(file.data);
+  } catch (e) {
+    console.error('File download error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/lessons/:id/files/:fileId — admin only, must own the lesson's course
+app.delete('/api/lessons/:id/files/:fileId', auth, adminOnly, async (req, res) => {
+  try {
+    const existing = await pool.query('SELECT course_id FROM lessons WHERE id = $1', [req.params.id]);
+    if (!existing.rows.length) return res.status(404).json({ error: 'Lesson not found' });
+    if (existing.rows[0].course_id !== req.user.course_id) return res.status(403).json({ error: 'Forbidden' });
+    await pool.query('DELETE FROM lesson_files WHERE id = $1 AND lesson_id = $2', [req.params.fileId, req.params.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('File delete error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/download — proxies an external link (Google Drive, Dropbox, etc.) and
+// forces a real download via Content-Disposition, since the browser's <a download>
+// attribute is ignored for cross-origin links.
+app.get('/api/download', async (req, res) => {
+  const { url, name } = req.query;
+  if (!url) return res.status(400).json({ error: 'url is required' });
+  let target = String(url);
+  if (!/^https?:\/\//i.test(target)) return res.status(400).json({ error: 'Only http(s) links are supported' });
+
+  // Rewrite common Google Drive "view" share links to their direct-download form.
+  const gdrive = target.match(/drive\.google\.com\/file\/d\/([^/]+)/) || target.match(/drive\.google\.com\/open\?id=([^&]+)/);
+  if (gdrive) target = `https://drive.google.com/uc?export=download&id=${gdrive[1]}`;
+
+  try {
+    const upstream = await fetch(target, { redirect: 'follow' });
+    if (!upstream.ok) return res.status(502).json({ error: 'Could not fetch the file from its source.' });
+
+    const contentLength = parseInt(upstream.headers.get('content-length') || '0', 10);
+    if (contentLength && contentLength > 50 * 1024 * 1024) {
+      return res.status(413).json({ error: 'That file is larger than this proxy supports (50MB). Try opening the link directly instead.' });
+    }
+
+    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    const safeName = String(name || 'download').replace(/[\r\n"]/g, '');
+    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
+    res.send(Buffer.from(await upstream.arrayBuffer()));
+  } catch (e) {
+    console.error('Download proxy error:', e.message);
+    res.status(502).json({ error: 'Could not download the file from its source.' });
+  }
+});
+
 // ─── USER PROGRESS ROUTES ────────────────────────────────────────────────────
 
 // PATCH /api/users/:id/progress/:lessonId  — save answers and/or note
@@ -520,6 +617,15 @@ async function initDb() {
       answers   JSONB DEFAULT '{}',
       note      TEXT  DEFAULT '',
       PRIMARY KEY (user_id, lesson_id)
+    );
+
+    CREATE TABLE IF NOT EXISTS lesson_files (
+      id         SERIAL PRIMARY KEY,
+      lesson_id  INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      mimetype   TEXT NOT NULL,
+      data       BYTEA NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
     );
 
     CREATE TABLE IF NOT EXISTS settings (
