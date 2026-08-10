@@ -437,16 +437,21 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           </div>
         </div>
         <div class="editor-block">
-          <h3>Materials — links for students to open or download</h3>
+          <h3>Materials — students get an Open and a Download button for each</h3>
           <div id="editor-slides"></div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
             <input type="text" class="field-input" id="link-name-input" placeholder="Label (e.g. Lecture Slides Week 1)">
-            <input type="text" class="field-input" id="link-url-input" placeholder="URL (Google Drive, Dropbox, direct PDF link, etc.)">
+            <input type="text" class="field-input" id="link-url-input" placeholder="Link URL (Google Drive, Dropbox, etc.)">
             <button class="upload-drop" style="border:none;cursor:pointer;" onclick="addLink()">+ Add link</button>
-            <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0;">
-              Students get an Open and a Download button for every link. For Download to save the file directly
-              (instead of just opening it), use a direct file link — e.g. a Google Drive "download" link, a Dropbox
-              link with <span class="mono">?dl=1</span>, or a direct PDF URL.
+            <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0 0;">
+              Downloading a link routes through the server so it saves the actual file — even a regular Google Drive share link.
+            </p>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+              <input type="file" id="material-file-input" style="flex:1;font-size:13px;">
+              <button class="upload-drop" id="upload-file-btn" style="border:none;cursor:pointer;padding:11px 16px;white-space:nowrap;" onclick="uploadMaterialFile()">+ Upload file</button>
+            </div>
+            <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0 0;">
+              Upload a PDF, Word doc, PowerPoint, etc. directly (max 15MB). Larger files should be shared as a link instead.
             </p>
           </div>
         </div>
@@ -487,6 +492,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <script>
 
 /* ─ API HELPERS ─ */
+var API_BASE    = '/api'; // rewritten to the full Render URL in the GitHub Pages build
 var apiToken    = localStorage.getItem('apiToken') || null;
 var courseName  = 'IT Project Management Course'; // fallback until course info loads
 var currentCourseSlug = new URLSearchParams(window.location.search).get('course') || null;
@@ -511,7 +517,7 @@ async function api(method, path, body){
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
   if(apiToken) opts.headers['Authorization'] = 'Bearer ' + apiToken;
   if(body)     opts.body = JSON.stringify(body);
-  const r = await fetch('/api' + path, opts);
+  const r = await fetch(API_BASE + path, opts);
   const d = await r.json();
   if(!r.ok) throw Object.assign(new Error(d.error || 'Request failed'), { code: d.error, status: r.status });
   return d;
@@ -1146,6 +1152,39 @@ async function unifiedAuth(){
   }
 }
 
+/* ─ MATERIALS (links or uploaded files) ─ */
+// A material is either an uploaded file ({name, fileId, mimetype} — served straight
+// from our own DB, so a real download always works) or a link ({name, url} — e.g.
+// Google Drive/Dropbox, proxied through /api/download so the download actually
+// saves the file instead of just opening it, which is all a plain <a download>
+// can do for a cross-origin link).
+function materialOpenUrl(s){
+  return s.fileId ? (API_BASE + '/files/' + s.fileId + '?disposition=inline') : s.url;
+}
+function materialDownloadUrl(s){
+  return s.fileId
+    ? (API_BASE + '/files/' + s.fileId)
+    : (API_BASE + '/download?url=' + encodeURIComponent(s.url) + '&name=' + encodeURIComponent(s.name || 'material'));
+}
+function renderMaterialRow(s){
+  const hasTarget = !!(s.fileId || s.url);
+  const openUrl = materialOpenUrl(s);
+  const dlUrl   = materialDownloadUrl(s);
+  return `
+    <div class="slide-row">
+      <div class="slide-info">
+        <div class="slide-icon">${s.fileId ? '📄' : '🔗'}</div>
+        <div><div class="slide-name">${s.name}</div></div>
+      </div>
+      ${hasTarget ? `
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="dl-btn" onclick="window.open('${openUrl.replace(/'/g,"\\'")}','_blank')">Open</button>
+          <a class="dl-btn" style="text-decoration:none;" href="${dlUrl.replace(/"/g,'&quot;')}">Download</a>
+        </div>`
+        : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
+    </div>`;
+}
+
 /* ─ LESSON DETAIL ─ */
 function openDetail(id){
   currentDetailId = id;
@@ -1153,19 +1192,7 @@ function openDetail(id){
   document.getElementById('detail-title').textContent = l.title;
   document.getElementById('detail-meta').textContent  = `Lesson ${l.num} · ${courseName}`;
   document.getElementById('panel-slides').innerHTML   = l.slides.length
-    ? l.slides.map(s => `
-        <div class="slide-row">
-          <div class="slide-info">
-            <div class="slide-icon">🔗</div>
-            <div><div class="slide-name">${s.name}</div></div>
-          </div>
-          ${s.url ? `
-            <div style="display:flex;gap:8px;flex-shrink:0;">
-              <button class="dl-btn" onclick="window.open('${s.url}','_blank')">Open</button>
-              <a class="dl-btn" style="text-decoration:none;" href="${(s.url||'').replace(/"/g,'&quot;')}" download="${(s.name||'material').replace(/"/g,'&quot;')}" target="_blank" rel="noopener">Download</a>
-            </div>`
-            : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
-        </div>`).join('')
+    ? l.slides.map(renderMaterialRow).join('')
     : `<p style="color:var(--ink-faint);font-size:13px;">No materials added for this lesson yet.</p>`;
 
   // Notes
@@ -1317,11 +1344,11 @@ function renderEditorSlides(l){
     ? l.slides.map((s,i) => `
         <div class="slide-row-editable">
           <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%;">
-            <a href="${s.url}" target="_blank" style="color:var(--blue);text-decoration:none;">${s.name}</a>
+            <a href="${materialOpenUrl(s)}" target="_blank" style="color:var(--blue);text-decoration:none;">${s.fileId ? '📄 ' : ''}${s.name}</a>
           </span>
           <button class="icon-btn" onclick="removeSlide(${l.id},${i})">✕</button>
         </div>`).join('')
-    : `<p style="color:var(--ink-faint);font-size:13px;margin:0 0 12px;">No links added yet.</p>`;
+    : `<p style="color:var(--ink-faint);font-size:13px;margin:0 0 12px;">No links or files added yet.</p>`;
 }
 
 async function addLink(){
@@ -1340,13 +1367,54 @@ async function addLink(){
   catch(e){ console.error('Add link failed', e); }
 }
 
+async function uploadMaterialFile(){
+  const input = document.getElementById('material-file-input');
+  const btn   = document.getElementById('upload-file-btn');
+  const file  = input.files[0];
+  if(!file){ alert('Please choose a file first.'); return; }
+  if(file.size > 15 * 1024 * 1024){
+    alert('That file is larger than 15MB — please share it as a link instead (e.g. Google Drive).');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/lessons/' + currentEditorId + '/files', { method: 'POST', headers, body: fd });
+    const d = await r.json();
+    if(!r.ok) throw Object.assign(new Error(d.error || 'Upload failed'), { code: d.error });
+
+    const l = lessons.find(x=>x.id===currentEditorId);
+    l.slides.push({ name: file.name, fileId: d.id, mimetype: d.mimetype });
+    input.value = '';
+    renderEditorSlides(l);
+    renderAdminGrid();
+    try { await api('PATCH', '/lessons/'+currentEditorId, { slides: l.slides }); }
+    catch(e){ console.error('Save after upload failed', e); }
+  } catch(e){
+    console.error('File upload failed', e);
+    alert('Could not upload the file. Please try again.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ Upload file';
+  }
+}
+
 async function removeSlide(lid, i){
   const l = lessons.find(x=>x.id===lid);
+  const removed = l.slides[i];
   l.slides.splice(i,1);
   renderEditorSlides(l);
   renderAdminGrid();
   try { await api('PATCH', '/lessons/'+lid, { slides: l.slides }); }
   catch(e){ console.error('Remove link failed', e); }
+  if(removed && removed.fileId){
+    try { await api('DELETE', '/lessons/'+lid+'/files/'+removed.fileId); }
+    catch(e){ console.error('Delete uploaded file failed', e); }
+  }
 }
 
 function renderEditorQuiz(l){
