@@ -188,6 +188,9 @@ textarea.notes:focus{outline:2px solid var(--blue);outline-offset:1px;border-col
 .option:hover{border-color:var(--blue);}
 .option.correct{border-color:var(--green);background:var(--green-soft);}
 .option.wrong{border-color:var(--red);background:var(--red-soft);}
+.option.locked{cursor:default;}
+.option.locked:hover{border-color:var(--line-strong);}
+.quiz-submit-btn{margin:4px 0 8px;}
 .quiz-explanation{margin-top:12px;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;}
 .quiz-explanation.correct{background:var(--green-soft);color:var(--green);border:1px solid rgba(28,154,108,0.25);}
 .quiz-explanation.wrong{background:var(--red-soft);color:var(--red);border:1px solid rgba(209,67,67,0.25);}
@@ -806,7 +809,7 @@ function studentScore(answers, lessonId){
   const ans = (answers && answers[lessonId]) || {};
   const attempted = Object.keys(ans).length;
   if(!attempted) return null;
-  const correct = Object.keys(ans).filter(qi => ans[qi] === l.quiz[+qi]?.answer).length;
+  const correct = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
   return { correct, total: l.quiz.length };
 }
 
@@ -1334,26 +1337,39 @@ function quizIsCorrect(q, given){
   return given === q.answer;
 }
 
+// Multi-select questions need several clicks before the student is "done" —
+// selections are held here, un-persisted, until they hit Submit. Once
+// submitted (or, for single-choice, once the first option is clicked), the
+// question is locked in currentStudent.answers and can't be changed.
+var quizDraftMulti = {};
+
 function renderQuiz(l){
   const ans = (currentStudent?.answers?.[l.id]) || {};
   document.getElementById('quiz-questions').innerHTML = l.quiz.map((q,i) => {
     const given     = ans[i];
-    const answered  = q.multi ? Array.isArray(given) && given.length > 0 : given !== undefined;
+    const answered  = q.multi ? Array.isArray(given) : given !== undefined;
     const isCorrect = answered && quizIsCorrect(q, given);
+    const draft     = quizDraftMulti[l.id+'_'+i] || [];
     const optionsHtml = q.options.map((opt,oi) => {
       let cls = '';
       if(answered){
         const isRight = q.multi ? (q.correct||[]).includes(oi) : oi === q.answer;
-        const isPicked = q.multi ? Array.isArray(given) && given.includes(oi) : oi === given;
+        const isPicked = q.multi ? given.includes(oi) : oi === given;
         if(isRight)        cls = 'correct';
         else if(isPicked)  cls = 'wrong';
       }
-      const picked = q.multi ? (Array.isArray(given) && given.includes(oi)) : (given===oi);
+      const picked = answered
+        ? (q.multi ? given.includes(oi) : given===oi)
+        : (q.multi ? draft.includes(oi) : false);
       const inputType = q.multi ? 'checkbox' : 'radio';
-      return `<label class="option ${cls}" onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi})">
-        <input type="${inputType}" name="q${i}" ${picked?'checked':''}> ${opt}
+      const clickAttr = answered ? '' : ` onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi})"`;
+      return `<label class="option ${cls}${answered?' locked':''}"${clickAttr}>
+        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}> ${opt}
       </label>`;
     }).join('');
+    const submitBtnHtml = (q.multi && !answered && draft.length > 0)
+      ? `<button class="btn btn-primary btn-sm quiz-submit-btn" style="width:auto;padding:9px 18px;" onclick="submitMultiAnswer(${l.id},${i})">Submit answer</button>`
+      : '';
     // Google Forms-style feedback: once answered, show the explanation only
     // when the student's answer is wrong — no explanation on a correct answer.
     const explanationHtml = (answered && !isCorrect && q.explanation)
@@ -1366,6 +1382,7 @@ function renderQuiz(l){
         <div class="qnum mono">Question ${i+1} of ${l.quiz.length}${q.multi ? ' · select all that apply' : ''}</div>
         <h4>${q.q}</h4>
         ${optionsHtml}
+        ${submitBtnHtml}
         ${explanationHtml}
       </div>`;
   }).join('');
@@ -1378,14 +1395,34 @@ async function answerQuiz(lid, qi, oi, isMulti){
   if(!currentStudent) return;
   if(!currentStudent.answers)      currentStudent.answers = {};
   if(!currentStudent.answers[lid]) currentStudent.answers[lid] = {};
+  // A question is locked in as soon as it has a saved answer — no re-picking.
+  if(currentStudent.answers[lid][qi] !== undefined) return;
   if(isMulti){
-    const current = Array.isArray(currentStudent.answers[lid][qi]) ? currentStudent.answers[lid][qi].slice() : [];
+    const key = lid+'_'+qi;
+    const current = quizDraftMulti[key] ? quizDraftMulti[key].slice() : [];
     const idx = current.indexOf(oi);
     if(idx === -1) current.push(oi); else current.splice(idx,1);
-    currentStudent.answers[lid][qi] = current;
-  } else {
-    currentStudent.answers[lid][qi] = oi;
+    quizDraftMulti[key] = current;
+    renderQuiz(lessons.find(x=>x.id===lid));
+    return; // draft only — not locked or saved until Submit is clicked
   }
+  currentStudent.answers[lid][qi] = oi;
+  renderQuiz(lessons.find(x=>x.id===lid));
+  try {
+    await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
+  } catch(e){ console.error('Answer save failed', e); }
+}
+
+async function submitMultiAnswer(lid, qi){
+  if(!currentStudent) return;
+  const key = lid+'_'+qi;
+  const draft = quizDraftMulti[key] || [];
+  if(!draft.length) return;
+  if(!currentStudent.answers)      currentStudent.answers = {};
+  if(!currentStudent.answers[lid]) currentStudent.answers[lid] = {};
+  if(currentStudent.answers[lid][qi] !== undefined) return;
+  currentStudent.answers[lid][qi] = draft.slice();
+  delete quizDraftMulti[key];
   renderQuiz(lessons.find(x=>x.id===lid));
   try {
     await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
