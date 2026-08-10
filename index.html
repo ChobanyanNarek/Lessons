@@ -338,6 +338,10 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       </div>
       <button class="btn btn-primary btn-sm" id="student-videocall-btn" style="display:none;width:auto;padding:11px 20px;" onclick="if(courseVideoCallUrl) window.open(courseVideoCallUrl,'_blank')">🎥 Join video call</button>
     </div>
+    <div class="score-bar" id="dash-score-bar" style="position:static;">
+      <span class="label">Your quiz results — all lessons combined</span>
+      <span class="score-num" id="dash-score-num">0 / 0 correct</span>
+    </div>
     <div class="grid" id="student-grid"></div>
   </div>
 </div>
@@ -833,6 +837,19 @@ function isPrereqDone(index){
   return isQuizComplete(lessons[index-1], currentStudent?.answers);
 }
 
+// The dashboard-level "final result" — every quiz question across every
+// lesson tallied into one combined score, so a student can see how they're
+// doing overall rather than lesson-by-lesson.
+function globalQuizScore(){
+  let correct = 0, total = 0;
+  lessons.forEach(l => {
+    total += l.quiz.length;
+    const ans = (currentStudent?.answers?.[l.id]) || {};
+    correct += l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
+  });
+  return { correct, total };
+}
+
 /* ─ RENDERS ─ */
 function renderStudentGrid(){
   const open = lessons.filter(l=>l.status==='open').length;
@@ -841,6 +858,9 @@ function renderStudentGrid(){
   if(currentStudent)
     document.getElementById('student-greeting').textContent =
       'Welcome back, ' + currentStudent.name.split(' ')[0];
+  const g = globalQuizScore();
+  const scoreNumEl = document.getElementById('dash-score-num');
+  if(scoreNumEl) scoreNumEl.textContent = `${g.correct} / ${g.total} correct`;
   document.getElementById('student-grid').innerHTML = lessons.map((l,i) => {
     const adminOpen  = l.status === 'open';
     const prereqDone = isPrereqDone(i);
