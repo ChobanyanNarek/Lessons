@@ -61,6 +61,21 @@ function slugify(name) {
   return base || 'course';
 }
 
+// Admins often paste more than a bare URL here — e.g. copying a whole Google
+// Meet/Calendar invite block, or just the "meet.google.com/xxx-xxxx-xxx" line
+// with no protocol. Pull out the actual link and make sure it has a scheme.
+function normalizeVideoCallUrl(raw) {
+  const text = String(raw || '').trim();
+  if (!text) return '';
+  const match = text.match(
+    /(https?:\/\/\S+)|((?:[\w-]+\.)?(?:meet\.google\.com|zoom\.us|teams\.microsoft\.com|teams\.live\.com)\S*)/i
+  );
+  let url = match ? match[0] : text.split(/\s+/)[0];
+  url = url.replace(/[),.;]+$/, ''); // trim trailing punctuation from a sentence/paste
+  if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+  return url;
+}
+
 // ─── COURSES ROUTES ───────────────────────────────────────────────────────────
 
 // GET /api/courses/:slug — public, used to brand the portal for a given course link
@@ -103,11 +118,11 @@ app.patch('/api/courses/mine', auth, adminOnly, async (req, res) => {
       fields.push(`slug = $${i++}`); values.push(slug);
     }
     if (videocall_url !== undefined) {
-      const trimmed = String(videocall_url || '').trim();
-      if (trimmed && !/^https?:\/\//i.test(trimmed)) {
-        return res.status(400).json({ error: 'Video call link must start with http:// or https://' });
+      const normalized = normalizeVideoCallUrl(videocall_url);
+      if (normalized && !/^https?:\/\/[^\s]+\.[^\s]+/i.test(normalized)) {
+        return res.status(400).json({ error: "That doesn't look like a valid link — please paste the meeting URL." });
       }
-      fields.push(`videocall_url = $${i++}`); values.push(trimmed || null);
+      fields.push(`videocall_url = $${i++}`); values.push(normalized || null);
     }
     values.push(req.user.course_id);
     const r = await pool.query(
