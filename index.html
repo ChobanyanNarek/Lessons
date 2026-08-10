@@ -259,7 +259,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <!-- ════ LOADING OVERLAY ════ -->
 <div id="loading-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(244,247,252,0.92);align-items:center;justify-content:center;flex-direction:column;gap:16px;">
   <div style="width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;"></div>
-  <p style="font-size:14px;color:var(--ink-dim);margin:0;">Loading course…</p>
+  <p style="font-size:14px;color:var(--ink-dim);margin:0;text-align:center;max-width:320px;" id="loading-text">Loading course…</p>
 </div>
 <style>@keyframes spin{to{transform:rotate(360deg);}}</style>
 
@@ -726,8 +726,20 @@ async function init(){
   updateChrome('portal');
 }
 
+var loadingHintTimer = null;
 function showLoading(show){
   document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+  const text = document.getElementById('loading-text');
+  clearTimeout(loadingHintTimer);
+  if(show){
+    text.textContent = 'Loading course…';
+    // The free server this app runs on falls asleep after inactivity and takes a
+    // little while to wake back up on the first request — explain the delay
+    // instead of leaving people staring at a spinner that looks stuck.
+    loadingHintTimer = setTimeout(() => {
+      text.textContent = 'Waking up the server — this can take up to a minute after inactivity. Thanks for your patience…';
+    }, 4000);
+  }
 }
 
 function signOutStudent(){
