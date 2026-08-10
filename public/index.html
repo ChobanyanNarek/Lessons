@@ -987,6 +987,10 @@ async function saveVideoCallUrl(){
   try {
     const course = await api('PATCH', '/courses/mine', { videocall_url: url });
     setVideoCallUrl(course.videocall_url);
+    // The server may have pulled a bare "meet.google.com/xxx" or a pasted
+    // invite block down to the real https:// link — reflect that back so
+    // the field shows exactly what got saved.
+    input.value = course.videocall_url || '';
     if(currentUser) currentUser.course_videocall_url = course.videocall_url;
     const msg = document.getElementById('videocall-saved-msg');
     msg.style.display = 'inline';
