@@ -1166,6 +1166,35 @@ function materialDownloadUrl(s){
     ? (API_BASE + '/files/' + s.fileId)
     : (API_BASE + '/download?url=' + encodeURIComponent(s.url) + '&name=' + encodeURIComponent(s.name || 'material'));
 }
+function jsEscape(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// Downloads via fetch+blob instead of a plain <a href> so a failed proxy request
+// (e.g. Google Drive wouldn't hand over the raw file) shows a clear message
+// instead of navigating the whole app away to a page of raw JSON.
+async function downloadMaterial(name, url){
+  try {
+    const r = await fetch(url);
+    if(!r.ok){
+      let msg = 'Could not download this file. Please try again.';
+      try { const d = await r.json(); if(d.error) msg = d.error; } catch(e){}
+      alert(msg);
+      return;
+    }
+    const blob = await r.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = name || 'download';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+  } catch(e){
+    console.error('Download failed', e);
+    alert('Could not download this file. Please check your connection and try again.');
+  }
+}
+
 function renderMaterialRow(s){
   const hasTarget = !!(s.fileId || s.url);
   const openUrl = materialOpenUrl(s);
@@ -1178,8 +1207,8 @@ function renderMaterialRow(s){
       </div>
       ${hasTarget ? `
         <div style="display:flex;gap:8px;flex-shrink:0;">
-          <button class="dl-btn" onclick="window.open('${openUrl.replace(/'/g,"\\'")}','_blank')">Open</button>
-          <a class="dl-btn" style="text-decoration:none;" href="${dlUrl.replace(/"/g,'&quot;')}">Download</a>
+          <button class="dl-btn" onclick="window.open('${jsEscape(openUrl)}','_blank')">Open</button>
+          <button class="dl-btn" onclick="downloadMaterial('${jsEscape(s.name)}','${jsEscape(dlUrl)}')">Download</button>
         </div>`
         : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
     </div>`;
