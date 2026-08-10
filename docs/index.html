@@ -188,6 +188,9 @@ textarea.notes:focus{outline:2px solid var(--blue);outline-offset:1px;border-col
 .option:hover{border-color:var(--blue);}
 .option.correct{border-color:var(--green);background:var(--green-soft);}
 .option.wrong{border-color:var(--red);background:var(--red-soft);}
+.quiz-explanation{margin-top:12px;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;}
+.quiz-explanation.correct{background:var(--green-soft);color:var(--green);border:1px solid rgba(28,154,108,0.25);}
+.quiz-explanation.wrong{background:var(--red-soft);color:var(--red);border:1px solid rgba(209,67,67,0.25);}
 .option input{accent-color:var(--blue);flex-shrink:0;}
 
 /* ── Admin tabs ── */
@@ -1279,24 +1282,38 @@ document.getElementById('notes-area').addEventListener('input', function(){
   }
 });
 
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
 function renderQuiz(l){
   const ans = (currentStudent?.answers?.[l.id]) || {};
-  document.getElementById('quiz-questions').innerHTML = l.quiz.map((q,i) => `
-    <div class="quiz-q">
-      <div class="qnum mono">Question ${i+1} of ${l.quiz.length}</div>
-      <h4>${q.q}</h4>
-      ${q.options.map((opt,oi) => {
-        let cls = '';
-        if(ans[i] !== undefined){
-          if(oi === q.answer)    cls = 'correct';
-          else if(oi === ans[i]) cls = 'wrong';
-        }
-        return `<label class="option ${cls}" onclick="answerQuiz(${l.id},${i},${oi})">
-          <input type="radio" name="q${i}" ${ans[i]===oi?'checked':''}> ${opt}
-        </label>`;
-      }).join('')}
-    </div>
-  `).join('');
+  document.getElementById('quiz-questions').innerHTML = l.quiz.map((q,i) => {
+    const answered  = ans[i] !== undefined;
+    const isCorrect = answered && ans[i] === q.answer;
+    const optionsHtml = q.options.map((opt,oi) => {
+      let cls = '';
+      if(answered){
+        if(oi === q.answer)    cls = 'correct';
+        else if(oi === ans[i]) cls = 'wrong';
+      }
+      return `<label class="option ${cls}" onclick="answerQuiz(${l.id},${i},${oi})">
+        <input type="radio" name="q${i}" ${ans[i]===oi?'checked':''}> ${opt}
+      </label>`;
+    }).join('');
+    // Google Forms-style feedback: once answered, show why the answer was right
+    // or wrong (whatever the lesson author wrote), not just a colored highlight.
+    const explanationHtml = (answered && q.explanation)
+      ? `<div class="quiz-explanation ${isCorrect ? 'correct' : 'wrong'}">
+           <strong>${isCorrect ? 'Correct — ' : 'Not quite — '}</strong>${escapeHtml(q.explanation)}
+         </div>`
+      : '';
+    return `
+      <div class="quiz-q">
+        <div class="qnum mono">Question ${i+1} of ${l.quiz.length}</div>
+        <h4>${q.q}</h4>
+        ${optionsHtml}
+        ${explanationHtml}
+      </div>`;
+  }).join('');
   const total   = l.quiz.length;
   const correct = Object.keys(ans).filter(qi => ans[qi] === l.quiz[+qi]?.answer).length;
   document.getElementById('quiz-score').textContent = `${correct} / ${total} correct`;
@@ -1487,6 +1504,14 @@ function renderEditorQuiz(l){
               <button class="eq-small-btn" onclick="removeOption(${qi},${oi})">✕</button>
             </div>`).join('')}
           <button class="eq-add-opt" onclick="addOption(${qi})">+ Add option</button>
+          <div style="margin-top:12px;">
+            <label style="font-size:11px;color:var(--ink-faint);display:block;margin-bottom:6px;">
+              Explanation — shown to students after they answer, right or wrong (optional)
+            </label>
+            <textarea class="field-textarea" style="min-height:60px;font-size:13px;"
+              oninput="updateExplanation(${qi},this.value)"
+              placeholder="e.g. A project has a defined start and end date, which is what separates it from ongoing operations.">${escapeHtml(q.explanation)}</textarea>
+          </div>
         </div>`).join('')
     : `<p style="color:var(--ink-faint);font-size:13px;margin:0 0 12px;">No questions yet — add one below.</p>`;
 }
@@ -1494,6 +1519,7 @@ function renderEditorQuiz(l){
 function updateQText(qi,v){  lessons.find(x=>x.id===currentEditorId).quiz[qi].q = v; saveLessonDebounced(currentEditorId); }
 function updateOptText(qi,oi,v){ lessons.find(x=>x.id===currentEditorId).quiz[qi].options[oi] = v; saveLessonDebounced(currentEditorId); }
 function setCorrect(qi,oi){ lessons.find(x=>x.id===currentEditorId).quiz[qi].answer = oi; saveLessonDebounced(currentEditorId); }
+function updateExplanation(qi,v){ lessons.find(x=>x.id===currentEditorId).quiz[qi].explanation = v; saveLessonDebounced(currentEditorId); }
 
 function addOption(qi){
   const l = lessons.find(x=>x.id===currentEditorId);
@@ -1518,7 +1544,7 @@ function removeQuestion(qi){
 
 function addQuestion(){
   const l = lessons.find(x=>x.id===currentEditorId);
-  l.quiz.push({ q:'New question', options:['Option A','Option B'], answer:0 });
+  l.quiz.push({ q:'New question', options:['Option A','Option B'], answer:0, explanation:'' });
   renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
 }
 
