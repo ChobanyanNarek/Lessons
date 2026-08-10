@@ -66,7 +66,7 @@ function slugify(name) {
 // GET /api/courses/:slug — public, used to brand the portal for a given course link
 app.get('/api/courses/:slug', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, slug, name FROM courses WHERE slug = $1', [req.params.slug]);
+    const r = await pool.query('SELECT id, slug, name, videocall_url FROM courses WHERE slug = $1', [req.params.slug]);
     if (!r.rows.length) return res.status(404).json({ error: 'course-not-found' });
     res.json(r.rows[0]);
   } catch (e) {
@@ -75,29 +75,44 @@ app.get('/api/courses/:slug', async (req, res) => {
   }
 });
 
-// PATCH /api/courses/mine — admin renames their own course (shown to their students).
-// The shareable link's slug is regenerated from the new name too, so the link
-// always reflects the course's current name.
+// PATCH /api/courses/mine — admin renames their own course and/or sets its video
+// call link (Zoom/Meet/Teams — any URL works, shown to students on their dashboard).
+// The shareable link's slug is regenerated from a new name so the link always
+// reflects the course's current name.
 app.patch('/api/courses/mine', auth, adminOnly, async (req, res) => {
-  const { name } = req.body;
-  if (!name) return res.status(400).json({ error: 'name is required' });
+  const { name, videocall_url } = req.body;
+  if (name === undefined && videocall_url === undefined) {
+    return res.status(400).json({ error: 'Nothing to update' });
+  }
   if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
   try {
-    const baseSlug = slugify(name);
-    let slug = baseSlug;
-    let n = 1;
-    let exists = true;
-    while (exists) {
-      const check = await pool.query(
-        'SELECT 1 FROM courses WHERE slug = $1 AND id != $2',
-        [slug, req.user.course_id]
-      );
-      exists = check.rows.length > 0;
-      if (exists) { n += 1; slug = `${baseSlug}-${n}`; }
+    const fields = [];
+    const values = [];
+    let i = 1;
+    if (name !== undefined && String(name).trim()) {
+      const baseSlug = slugify(name);
+      let slug = baseSlug;
+      let n = 1;
+      let exists = true;
+      while (exists) {
+        const check = await pool.query('SELECT 1 FROM courses WHERE slug = $1 AND id != $2', [slug, req.user.course_id]);
+        exists = check.rows.length > 0;
+        if (exists) { n += 1; slug = `${baseSlug}-${n}`; }
+      }
+      fields.push(`name = $${i++}`); values.push(name);
+      fields.push(`slug = $${i++}`); values.push(slug);
     }
+    if (videocall_url !== undefined) {
+      const trimmed = String(videocall_url || '').trim();
+      if (trimmed && !/^https?:\/\//i.test(trimmed)) {
+        return res.status(400).json({ error: 'Video call link must start with http:// or https://' });
+      }
+      fields.push(`videocall_url = $${i++}`); values.push(trimmed || null);
+    }
+    values.push(req.user.course_id);
     const r = await pool.query(
-      'UPDATE courses SET name = $1, slug = $2 WHERE id = $3 RETURNING id, slug, name',
-      [name, slug, req.user.course_id]
+      `UPDATE courses SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, slug, name, videocall_url`,
+      values
     );
     res.json(r.rows[0]);
   } catch (e) {
@@ -145,7 +160,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT u.*, c.slug AS course_slug, c.name AS course_name
+      `SELECT u.*, c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url
        FROM users u LEFT JOIN courses c ON u.course_id = c.id
        WHERE u.email = $1`,
       [email]
@@ -165,7 +180,8 @@ app.post('/api/auth/login', async (req, res) => {
       user: {
         id: user.id, name: user.name, email: user.email, phone: user.phone,
         is_admin: user.is_admin, role: user.role,
-        course_id: user.course_id, course_slug: user.course_slug, course_name: user.course_name
+        course_id: user.course_id, course_slug: user.course_slug, course_name: user.course_name,
+        course_videocall_url: user.course_videocall_url
       }
     });
   } catch (e) {
@@ -179,7 +195,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const userRes = await pool.query(
       `SELECT u.id, u.name, u.email, u.phone, u.is_admin, u.role, u.course_id,
-              c.slug AS course_slug, c.name AS course_name
+              c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url
        FROM users u LEFT JOIN courses c ON u.course_id = c.id
        WHERE u.id = $1`,
       [req.user.id]
@@ -724,6 +740,7 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student'`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
+  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS videocall_url TEXT`);
 
   // Admins are always approved automatically.
   await pool.query(`UPDATE users SET approved = true WHERE is_admin = true AND approved = false`);
