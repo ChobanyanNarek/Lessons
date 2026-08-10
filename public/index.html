@@ -493,6 +493,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 
 /* ─ API HELPERS ─ */
 var API_BASE    = '/api'; // rewritten to the full Render URL in the GitHub Pages build
+var API_ORIGIN  = 'https://lessons-d4zi.onrender.com'; // absolute backend origin — needed when a URL has to be fetched by a third party (e.g. Office viewer), not just the user's own browser
 var apiToken    = localStorage.getItem('apiToken') || null;
 var courseName  = 'IT Project Management Course'; // fallback until course info loads
 var currentCourseSlug = new URLSearchParams(window.location.search).get('course') || null;
@@ -1158,8 +1159,29 @@ async function unifiedAuth(){
 // Google Drive/Dropbox, proxied through /api/download so the download actually
 // saves the file instead of just opening it, which is all a plain <a download>
 // can do for a cross-origin link).
+// Browsers can preview PDFs and images natively, but not Word/PowerPoint/Excel —
+// those just download regardless of the inline disposition since there's no
+// built-in viewer for them. Route those through Microsoft's free Office viewer
+// instead, which can render them right in the browser tab.
+var OFFICE_MIME_TYPES = new Set([
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
 function materialOpenUrl(s){
-  return s.fileId ? (API_BASE + '/files/' + s.fileId + '?disposition=inline') : s.url;
+  if(!s.fileId) return s.url;
+  const inlineUrl = API_BASE + '/files/' + s.fileId + '?disposition=inline';
+  if(OFFICE_MIME_TYPES.has(s.mimetype)){
+    // The Office viewer fetches the file itself, so it needs a fully-qualified
+    // absolute URL — not the relative /api path used when this page's own
+    // fetch calls already know their origin.
+    const absoluteUrl = API_ORIGIN + '/api/files/' + s.fileId + '?disposition=inline';
+    return 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(absoluteUrl);
+  }
+  return inlineUrl;
 }
 function materialDownloadUrl(s){
   return s.fileId
