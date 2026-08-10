@@ -813,6 +813,26 @@ function studentScore(answers, lessonId){
   return { correct, total: l.quiz.length };
 }
 
+// A lesson's quiz is "done" once every question has a locked-in answer —
+// doesn't need to be all correct, just attempted (matches the fact that once
+// answered, a question can't be changed, so an answer here is final).
+function isQuizComplete(l, answers){
+  if(!l || !l.quiz || l.quiz.length === 0) return true;
+  const ans = (answers && answers[l.id]) || {};
+  return l.quiz.every((q,qi) => {
+    const given = ans[qi];
+    return q.multi ? Array.isArray(given) : given !== undefined;
+  });
+}
+
+// Lessons unlock sequentially: lesson N (after the first) only becomes
+// enterable once the student has completed lesson N-1's quiz — independent
+// of whether the admin has separately opened lesson N for the whole class.
+function isPrereqDone(index){
+  if(index <= 0) return true;
+  return isQuizComplete(lessons[index-1], currentStudent?.answers);
+}
+
 /* ─ RENDERS ─ */
 function renderStudentGrid(){
   const open = lessons.filter(l=>l.status==='open').length;
@@ -821,8 +841,16 @@ function renderStudentGrid(){
   if(currentStudent)
     document.getElementById('student-greeting').textContent =
       'Welcome back, ' + currentStudent.name.split(' ')[0];
-  document.getElementById('student-grid').innerHTML = lessons.map(l => `
-    <div class="card${l.status==='closed'?' locked':''}"${l.status==='open'?` onclick="openDetail(${l.id})"`:''}>
+  document.getElementById('student-grid').innerHTML = lessons.map((l,i) => {
+    const adminOpen  = l.status === 'open';
+    const prereqDone = isPrereqDone(i);
+    const enterable  = adminOpen && prereqDone;
+    let footLabel = 'Enter →';
+    if(!enterable){
+      footLabel = !adminOpen ? 'Locked' : `Complete Lesson ${lessons[i-1].num}'s quiz to unlock`;
+    }
+    return `
+    <div class="card${enterable?'':' locked'}"${enterable?` onclick="openDetail(${l.id})"`:''}>
       <div class="card-tab ${l.status}"></div>
       <div class="card-top">
         <span class="card-num mono">Lesson ${l.num}</span>
@@ -832,10 +860,10 @@ function renderStudentGrid(){
       <p>${l.blurb}</p>
       <div class="card-foot">
         <span>${l.slides.length} file${l.slides.length!==1?'s':''} · ${l.quiz.length} ${l.quiz.length===1?'question':'questions'}</span>
-        <span class="enter-link">${l.status==='open'?'Enter →':'Locked'}</span>
+        <span class="enter-link">${footLabel}</span>
       </div>
-    </div>
-  `).join('');
+    </div>`;
+  }).join('');
 }
 
 function renderAdminGrid(){
@@ -1286,8 +1314,16 @@ function renderMaterialRow(s){
 
 /* ─ LESSON DETAIL ─ */
 function openDetail(id){
+  const idx = lessons.findIndex(x=>x.id===id);
+  const l   = lessons[idx];
+  if(!l) return;
+  // Guard the direct entry point too — not just the card's onclick — so a
+  // stale render or a manual openDetail() call can't bypass the gate.
+  if(currentStudent && (l.status !== 'open' || !isPrereqDone(idx))){
+    renderStudentGrid();
+    return;
+  }
   currentDetailId = id;
-  const l = lessons.find(x=>x.id===id);
   document.getElementById('detail-title').textContent = l.title;
   document.getElementById('detail-meta').textContent  = `Lesson ${l.num} · ${courseName}`;
   document.getElementById('panel-slides').innerHTML   = l.slides.length
@@ -1366,9 +1402,13 @@ function renderQuiz(l){
         ? (q.multi ? given.includes(oi) : given===oi)
         : (q.multi ? draft.includes(oi) : false);
       const inputType = q.multi ? 'checkbox' : 'radio';
-      const clickAttr = answered ? '' : ` onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi})"`;
-      return `<label class="option ${cls}${answered?' locked':''}"${clickAttr}>
-        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}> ${opt}
+      // The click handler lives on the <input> itself (not the wrapping <label>)
+      // and returns false to suppress the browser's own native check/toggle —
+      // we fully own the checked state via re-render, so there's no race between
+      // the native default action and the DOM we just replaced.
+      const clickAttr = answered ? '' : ` onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi});return false;"`;
+      return `<label class="option ${cls}${answered?' locked':''}">
+        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}${clickAttr}> ${opt}
       </label>`;
     }).join('');
     const submitBtnHtml = (q.multi && !answered && draft.length > 0)
