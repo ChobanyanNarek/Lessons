@@ -333,6 +333,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
         <h1 class="display" id="student-greeting">Welcome back</h1>
         <div class="sub" id="student-sub"></div>
       </div>
+      <button class="btn btn-primary btn-sm" id="student-videocall-btn" style="display:none;width:auto;padding:11px 20px;" onclick="if(courseVideoCallUrl) window.open(courseVideoCallUrl,'_blank')">🎥 Join video call</button>
     </div>
     <div class="grid" id="student-grid"></div>
   </div>
@@ -407,6 +408,17 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           <input type="text" class="field-input" id="settings-course-link" readonly>
           <button class="btn btn-primary" style="width:auto;padding:10px 18px;white-space:nowrap;" onclick="copySettingsCourseLink()">Copy</button>
         </div>
+      </div>
+      <div class="editor-block" style="max-width:520px;">
+        <h3>Video call link</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">
+            A Zoom, Google Meet, or Microsoft Teams link — shown to students as a "Join video call" button on their dashboard. Leave blank to hide it.
+          </label>
+          <input type="text" class="field-input" id="settings-videocall-url" placeholder="https://zoom.us/j/... or meet.google.com/... or teams.live.com/...">
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;" onclick="saveVideoCallUrl()">Save</button>
+        <span id="videocall-saved-msg" style="display:none;color:var(--green);font-size:13px;margin-left:12px;">Saved.</span>
       </div>
     </div>
     <div class="admin-panel" id="apanel-platform">
@@ -501,6 +513,7 @@ var apiToken    = localStorage.getItem('apiToken') || null;
 var courseName  = 'IT Project Management Course'; // fallback until course info loads
 var currentCourseSlug = new URLSearchParams(window.location.search).get('course') || null;
 var currentUser = null; // { id, name, email, is_admin, role, course_id, course_slug, course_name }
+var courseVideoCallUrl = null;
 
 function applyCourseName(name){
   courseName = name || courseName;
@@ -509,6 +522,12 @@ function applyCourseName(name){
   const eyebrow  = document.getElementById('auth-eyebrow');
   if(brandEl) brandEl.textContent = courseName;
   if(eyebrow) eyebrow.textContent = courseName;
+}
+
+function setVideoCallUrl(url){
+  courseVideoCallUrl = url || null;
+  const btn = document.getElementById('student-videocall-btn');
+  if(btn) btn.style.display = courseVideoCallUrl ? '' : 'none';
 }
 
 function setApiToken(token){
@@ -672,6 +691,7 @@ async function enterAdminSession(user){
 
   syncCourseSlugToUrl(user.course_slug);
   applyCourseName(user.course_name || courseName);
+  setVideoCallUrl(user.course_videocall_url);
   await loadLessons(currentCourseSlug);
   renderAdminGrid();
   go('admin');
@@ -687,6 +707,7 @@ async function enterStudentSession(me){
   }
   syncCourseSlugToUrl(me.course_slug);
   applyCourseName(me.course_name || courseName);
+  setVideoCallUrl(me.course_videocall_url);
   await loadLessons(currentCourseSlug);
   renderStudentGrid();
   go('student');
@@ -719,6 +740,7 @@ async function init(){
     try {
       const course = await api('GET', '/courses/' + encodeURIComponent(currentCourseSlug));
       applyCourseName(course.name);
+      setVideoCallUrl(course.videocall_url);
     } catch(e){
       console.error('Failed to load course:', e);
     }
@@ -953,6 +975,22 @@ async function saveCourseName(){
   } catch(e){
     console.error('Save course name failed', e);
     alert('Could not save. Please try again.');
+  }
+}
+
+async function saveVideoCallUrl(){
+  const input = document.getElementById('settings-videocall-url');
+  const url = input.value.trim();
+  try {
+    const course = await api('PATCH', '/courses/mine', { videocall_url: url });
+    setVideoCallUrl(course.videocall_url);
+    if(currentUser) currentUser.course_videocall_url = course.videocall_url;
+    const msg = document.getElementById('videocall-saved-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 2500);
+  } catch(e){
+    console.error('Save video call link failed', e);
+    alert(e.code ? e.message : 'Could not save. Please try again.');
   }
 }
 
@@ -1284,46 +1322,70 @@ document.getElementById('notes-area').addEventListener('input', function(){
 
 function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 
+function quizIsCorrect(q, given){
+  if(given === undefined) return false;
+  if(q.multi){
+    const correctSet = (q.correct||[]).slice().sort((a,b)=>a-b);
+    const givenSet    = Array.isArray(given) ? given.slice().sort((a,b)=>a-b) : [];
+    return correctSet.length > 0 &&
+      correctSet.length === givenSet.length &&
+      correctSet.every((v,i) => v === givenSet[i]);
+  }
+  return given === q.answer;
+}
+
 function renderQuiz(l){
   const ans = (currentStudent?.answers?.[l.id]) || {};
   document.getElementById('quiz-questions').innerHTML = l.quiz.map((q,i) => {
-    const answered  = ans[i] !== undefined;
-    const isCorrect = answered && ans[i] === q.answer;
+    const given     = ans[i];
+    const answered  = q.multi ? Array.isArray(given) && given.length > 0 : given !== undefined;
+    const isCorrect = answered && quizIsCorrect(q, given);
     const optionsHtml = q.options.map((opt,oi) => {
       let cls = '';
       if(answered){
-        if(oi === q.answer)    cls = 'correct';
-        else if(oi === ans[i]) cls = 'wrong';
+        const isRight = q.multi ? (q.correct||[]).includes(oi) : oi === q.answer;
+        const isPicked = q.multi ? Array.isArray(given) && given.includes(oi) : oi === given;
+        if(isRight)        cls = 'correct';
+        else if(isPicked)  cls = 'wrong';
       }
-      return `<label class="option ${cls}" onclick="answerQuiz(${l.id},${i},${oi})">
-        <input type="radio" name="q${i}" ${ans[i]===oi?'checked':''}> ${opt}
+      const picked = q.multi ? (Array.isArray(given) && given.includes(oi)) : (given===oi);
+      const inputType = q.multi ? 'checkbox' : 'radio';
+      return `<label class="option ${cls}" onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi})">
+        <input type="${inputType}" name="q${i}" ${picked?'checked':''}> ${opt}
       </label>`;
     }).join('');
-    // Google Forms-style feedback: once answered, show why the answer was right
-    // or wrong (whatever the lesson author wrote), not just a colored highlight.
-    const explanationHtml = (answered && q.explanation)
-      ? `<div class="quiz-explanation ${isCorrect ? 'correct' : 'wrong'}">
-           <strong>${isCorrect ? 'Correct — ' : 'Not quite — '}</strong>${escapeHtml(q.explanation)}
+    // Google Forms-style feedback: once answered, show the explanation only
+    // when the student's answer is wrong — no explanation on a correct answer.
+    const explanationHtml = (answered && !isCorrect && q.explanation)
+      ? `<div class="quiz-explanation wrong">
+           <strong>Not quite — </strong>${escapeHtml(q.explanation)}
          </div>`
       : '';
     return `
       <div class="quiz-q">
-        <div class="qnum mono">Question ${i+1} of ${l.quiz.length}</div>
+        <div class="qnum mono">Question ${i+1} of ${l.quiz.length}${q.multi ? ' · select all that apply' : ''}</div>
         <h4>${q.q}</h4>
         ${optionsHtml}
         ${explanationHtml}
       </div>`;
   }).join('');
   const total   = l.quiz.length;
-  const correct = Object.keys(ans).filter(qi => ans[qi] === l.quiz[+qi]?.answer).length;
+  const correct = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
   document.getElementById('quiz-score').textContent = `${correct} / ${total} correct`;
 }
 
-async function answerQuiz(lid, qi, oi){
+async function answerQuiz(lid, qi, oi, isMulti){
   if(!currentStudent) return;
   if(!currentStudent.answers)      currentStudent.answers = {};
   if(!currentStudent.answers[lid]) currentStudent.answers[lid] = {};
-  currentStudent.answers[lid][qi] = oi;
+  if(isMulti){
+    const current = Array.isArray(currentStudent.answers[lid][qi]) ? currentStudent.answers[lid][qi].slice() : [];
+    const idx = current.indexOf(oi);
+    if(idx === -1) current.push(oi); else current.splice(idx,1);
+    currentStudent.answers[lid][qi] = current;
+  } else {
+    currentStudent.answers[lid][qi] = oi;
+  }
   renderQuiz(lessons.find(x=>x.id===lid));
   try {
     await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
@@ -1495,18 +1557,26 @@ function renderEditorQuiz(l){
           </div>
           <input class="eq-qtext" type="text" value="${q.q.replace(/"/g,'&quot;')}"
             oninput="updateQText(${qi},this.value)" placeholder="Question text">
-          ${q.options.map((opt,oi) => `
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-dim);margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" ${q.multi?'checked':''} onchange="toggleMulti(${qi},this.checked)">
+            Multiple correct answers (students pick as many as apply)
+          </label>
+          ${q.options.map((opt,oi) => {
+            const isCorrectOpt = q.multi ? (q.correct||[]).includes(oi) : q.answer===oi;
+            const changeHandler = q.multi ? `toggleCorrectOption(${qi},${oi},this.checked)` : `setCorrect(${qi},${oi})`;
+            return `
             <div class="eq-opt-row">
-              <input type="radio" name="correct-${qi}" ${q.answer===oi?'checked':''}
-                onchange="setCorrect(${qi},${oi})" title="Mark as correct answer">
+              <input type="${q.multi?'checkbox':'radio'}" name="correct-${qi}" ${isCorrectOpt?'checked':''}
+                onchange="${changeHandler}" title="Mark as correct answer">
               <input type="text" value="${opt.replace(/"/g,'&quot;')}"
                 oninput="updateOptText(${qi},${oi},this.value)" placeholder="Option text">
               <button class="eq-small-btn" onclick="removeOption(${qi},${oi})">✕</button>
-            </div>`).join('')}
+            </div>`;
+          }).join('')}
           <button class="eq-add-opt" onclick="addOption(${qi})">+ Add option</button>
           <div style="margin-top:12px;">
             <label style="font-size:11px;color:var(--ink-faint);display:block;margin-bottom:6px;">
-              Explanation — shown to students after they answer, right or wrong (optional)
+              Explanation — shown to students only if they get this question wrong (optional)
             </label>
             <textarea class="field-textarea" style="min-height:60px;font-size:13px;"
               oninput="updateExplanation(${qi},this.value)"
@@ -1521,6 +1591,32 @@ function updateOptText(qi,oi,v){ lessons.find(x=>x.id===currentEditorId).quiz[qi
 function setCorrect(qi,oi){ lessons.find(x=>x.id===currentEditorId).quiz[qi].answer = oi; saveLessonDebounced(currentEditorId); }
 function updateExplanation(qi,v){ lessons.find(x=>x.id===currentEditorId).quiz[qi].explanation = v; saveLessonDebounced(currentEditorId); }
 
+function toggleMulti(qi, checked){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  q.multi = checked;
+  if(checked){
+    // Carry the previously-single correct answer over as the first checked box.
+    q.correct = [q.answer || 0];
+  } else {
+    // Going back to single-answer — use the first checked box as the one correct answer.
+    q.answer = (q.correct && q.correct.length) ? q.correct[0] : 0;
+  }
+  renderEditorQuiz(l);
+  saveLessonDebounced(currentEditorId);
+}
+
+function toggleCorrectOption(qi, oi, checked){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  if(!Array.isArray(q.correct)) q.correct = [];
+  const idx = q.correct.indexOf(oi);
+  if(checked && idx === -1) q.correct.push(oi);
+  if(!checked && idx !== -1) q.correct.splice(idx,1);
+  renderEditorQuiz(l);
+  saveLessonDebounced(currentEditorId);
+}
+
 function addOption(qi){
   const l = lessons.find(x=>x.id===currentEditorId);
   l.quiz[qi].options.push('New option');
@@ -1529,10 +1625,16 @@ function addOption(qi){
 
 function removeOption(qi,oi){
   const l = lessons.find(x=>x.id===currentEditorId);
-  if(l.quiz[qi].options.length <= 2){ alert('A question needs at least two options.'); return; }
-  l.quiz[qi].options.splice(oi,1);
-  if(l.quiz[qi].answer === oi)       l.quiz[qi].answer = 0;
-  else if(l.quiz[qi].answer > oi)    l.quiz[qi].answer -= 1;
+  const q = l.quiz[qi];
+  if(q.options.length <= 2){ alert('A question needs at least two options.'); return; }
+  q.options.splice(oi,1);
+  if(q.multi){
+    q.correct = (q.correct||[]).filter(ci => ci !== oi).map(ci => ci > oi ? ci - 1 : ci);
+    if(!q.correct.length) q.correct = [0];
+  } else {
+    if(q.answer === oi)       q.answer = 0;
+    else if(q.answer > oi)    q.answer -= 1;
+  }
   renderEditorQuiz(l); saveLessonDebounced(currentEditorId);
 }
 
@@ -1544,7 +1646,7 @@ function removeQuestion(qi){
 
 function addQuestion(){
   const l = lessons.find(x=>x.id===currentEditorId);
-  l.quiz.push({ q:'New question', options:['Option A','Option B'], answer:0, explanation:'' });
+  l.quiz.push({ q:'New question', options:['Option A','Option B'], answer:0, explanation:'', multi:false, correct:[] });
   renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
 }
 
@@ -1585,6 +1687,7 @@ function activateAdminTab(panelName){
   if(panelName === 'settings'){
     document.getElementById('settings-course-name').value = courseName;
     document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
+    document.getElementById('settings-videocall-url').value = courseVideoCallUrl || '';
   }
   if(panelName === 'platform') renderPlatformPanel();
 }
