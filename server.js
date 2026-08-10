@@ -319,7 +319,7 @@ app.get('/api/files/:fileId', async (req, res) => {
     if (!result.rows.length) return res.status(404).json({ error: 'File not found' });
     const file = result.rows[0];
     const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
-    const safeName = (file.name || 'download').replace(/[\r\n"]/g, '');
+    const safeName = ensureExtension((file.name || 'download').replace(/[\r\n"]/g, ''), file.mimetype);
     res.setHeader('Content-Type', file.mimetype || 'application/octet-stream');
     res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
     res.send(file.data);
@@ -365,20 +365,68 @@ async function fetchGoogleDriveFile(fileId) {
   return { resp, stillHtml: resp.ok && contentType.includes('text/html') };
 }
 
-// GET /api/download — proxies an external link (Google Drive, Dropbox, etc.) and
-// forces a real download via Content-Disposition, since the browser's <a download>
-// attribute is ignored for cross-origin links.
+// docs.google.com links (Google Docs/Sheets/Slides — these are NOT drive.google.com
+// file links, they're Google's own editors) have a built-in export endpoint that
+// returns the real file directly, no confirmation-page dance needed, as long as
+// the doc is shared as "Anyone with the link".
+function googleDocsExportUrl(target) {
+  let m = target.match(/docs\.google\.com\/presentation\/d\/([^/]+)/);
+  if (m) return `https://docs.google.com/presentation/d/${m[1]}/export/pdf`;
+  m = target.match(/docs\.google\.com\/document\/d\/([^/]+)/);
+  if (m) return `https://docs.google.com/document/d/${m[1]}/export?format=pdf`;
+  m = target.match(/docs\.google\.com\/spreadsheets\/d\/([^/]+)/);
+  if (m) return `https://docs.google.com/spreadsheets/d/${m[1]}/export?format=pdf`;
+  return null;
+}
+
+const MIME_EXTENSIONS = {
+  'application/pdf': '.pdf',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation': '.pptx',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': '.docx',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': '.xlsx',
+  'application/msword': '.doc',
+  'application/vnd.ms-powerpoint': '.ppt',
+  'application/vnd.ms-excel': '.xls',
+  'application/zip': '.zip',
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'text/plain': '.txt',
+};
+// Browsers won't infer a file type for a download with no extension, so if the
+// material's label doesn't already end in one, append one based on the real mimetype.
+function ensureExtension(name, mimetype) {
+  if (/\.[a-z0-9]{2,5}$/i.test(name)) return name;
+  const ext = MIME_EXTENSIONS[(mimetype || '').split(';')[0].trim()];
+  return ext ? name + ext : name;
+}
+
+// GET /api/download — proxies an external link (Google Docs/Slides/Sheets, Google
+// Drive, Dropbox, etc.) and forces a real download via Content-Disposition, since
+// the browser's <a download> attribute is ignored for cross-origin links.
 app.get('/api/download', async (req, res) => {
   const { url, name } = req.query;
   if (!url) return res.status(400).json({ error: 'url is required' });
   let target = String(url);
   if (!/^https?:\/\//i.test(target)) return res.status(400).json({ error: 'Only http(s) links are supported' });
 
-  const gdrive = target.match(/drive\.google\.com\/file\/d\/([^/]+)/) || target.match(/drive\.google\.com\/open\?id=([^&]+)/) || target.match(/drive\.google\.com\/uc\?.*[?&]id=([^&]+)/);
+  const docsExport = googleDocsExportUrl(target);
+  const gdrive = !docsExport && (
+    target.match(/drive\.google\.com\/file\/d\/([^/]+)/) ||
+    target.match(/drive\.google\.com\/open\?id=([^&]+)/) ||
+    target.match(/drive\.google\.com\/uc\?.*[?&]id=([^&]+)/)
+  );
 
   try {
     let upstream;
-    if (gdrive) {
+    if (docsExport) {
+      upstream = await fetch(docsExport, { redirect: 'follow' });
+      const ct = upstream.headers.get('content-type') || '';
+      if (upstream.ok && ct.includes('text/html')) {
+        return res.status(502).json({
+          error: 'Google would not export this doc — make sure it\'s shared as "Anyone with the link" (Share → General access), then try again.'
+        });
+      }
+    } else if (gdrive) {
       const { resp, stillHtml } = await fetchGoogleDriveFile(gdrive[1]);
       if (stillHtml) {
         return res.status(502).json({
@@ -397,13 +445,13 @@ app.get('/api/download', async (req, res) => {
     }
 
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-    if (!gdrive && contentType.includes('text/html')) {
+    if (!docsExport && !gdrive && contentType.includes('text/html')) {
       // The source handed back a webpage, not a file — sending that through would just
       // produce a "corrupt"/unreadable download labeled with the wrong extension.
       return res.status(502).json({ error: 'That link points to a webpage, not a direct file — the download would come out unreadable. Use a direct file link instead.' });
     }
 
-    const safeName = String(name || 'download').replace(/[\r\n"]/g, '');
+    const safeName = ensureExtension(String(name || 'download').replace(/[\r\n"]/g, ''), contentType);
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
     res.send(Buffer.from(await upstream.arrayBuffer()));
