@@ -437,12 +437,17 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           </div>
         </div>
         <div class="editor-block">
-          <h3>Materials — links for students to open</h3>
+          <h3>Materials — links for students to open or download</h3>
           <div id="editor-slides"></div>
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
             <input type="text" class="field-input" id="link-name-input" placeholder="Label (e.g. Lecture Slides Week 1)">
-            <input type="text" class="field-input" id="link-url-input" placeholder="URL (Google Drive, Dropbox, etc.)">
+            <input type="text" class="field-input" id="link-url-input" placeholder="URL (Google Drive, Dropbox, direct PDF link, etc.)">
             <button class="upload-drop" style="border:none;cursor:pointer;" onclick="addLink()">+ Add link</button>
+            <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0;">
+              Students get an Open and a Download button for every link. For Download to save the file directly
+              (instead of just opening it), use a direct file link — e.g. a Google Drive "download" link, a Dropbox
+              link with <span class="mono">?dl=1</span>, or a direct PDF URL.
+            </p>
           </div>
         </div>
         <div class="editor-block">
@@ -1142,8 +1147,11 @@ function openDetail(id){
             <div class="slide-icon">🔗</div>
             <div><div class="slide-name">${s.name}</div></div>
           </div>
-          ${s.url
-            ? `<button class="dl-btn" onclick="window.open('${s.url}','_blank')">Open</button>`
+          ${s.url ? `
+            <div style="display:flex;gap:8px;flex-shrink:0;">
+              <button class="dl-btn" onclick="window.open('${s.url}','_blank')">Open</button>
+              <a class="dl-btn" style="text-decoration:none;" href="${(s.url||'').replace(/"/g,'&quot;')}" download="${(s.name||'material').replace(/"/g,'&quot;')}" target="_blank" rel="noopener">Download</a>
+            </div>`
             : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
         </div>`).join('')
     : `<p style="color:var(--ink-faint);font-size:13px;">No materials added for this lesson yet.</p>`;
