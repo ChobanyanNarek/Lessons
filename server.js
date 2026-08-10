@@ -343,6 +343,28 @@ app.delete('/api/lessons/:id/files/:fileId', auth, adminOnly, async (req, res) =
   }
 });
 
+// Google Drive shows an HTML "can't scan this file for viruses" / confirmation
+// page instead of the actual bytes for some files (usually driven by file size
+// or link settings), even on the direct uc?export=download URL. This walks
+// through that interstitial to reach the real file, retrying with the confirm
+// (and, for large files, uuid) token pulled out of the HTML.
+async function fetchGoogleDriveFile(fileId) {
+  let target = `https://drive.google.com/uc?export=download&id=${fileId}`;
+  let resp = await fetch(target, { redirect: 'follow' });
+  let contentType = resp.headers.get('content-type') || '';
+
+  if (resp.ok && contentType.includes('text/html')) {
+    const html = await resp.text();
+    const confirmMatch = html.match(/name="confirm"\s+value="([^"]+)"/) || html.match(/confirm=([0-9A-Za-z_-]+)&/);
+    const uuidMatch = html.match(/name="uuid"\s+value="([^"]+)"/);
+    const params = new URLSearchParams({ export: 'download', id: fileId, confirm: confirmMatch ? confirmMatch[1] : 't' });
+    if (uuidMatch) params.set('uuid', uuidMatch[1]);
+    resp = await fetch(`https://drive.google.com/uc?${params.toString()}`, { redirect: 'follow' });
+    contentType = resp.headers.get('content-type') || '';
+  }
+  return { resp, stillHtml: resp.ok && contentType.includes('text/html') };
+}
+
 // GET /api/download — proxies an external link (Google Drive, Dropbox, etc.) and
 // forces a real download via Content-Disposition, since the browser's <a download>
 // attribute is ignored for cross-origin links.
@@ -352,12 +374,21 @@ app.get('/api/download', async (req, res) => {
   let target = String(url);
   if (!/^https?:\/\//i.test(target)) return res.status(400).json({ error: 'Only http(s) links are supported' });
 
-  // Rewrite common Google Drive "view" share links to their direct-download form.
-  const gdrive = target.match(/drive\.google\.com\/file\/d\/([^/]+)/) || target.match(/drive\.google\.com\/open\?id=([^&]+)/);
-  if (gdrive) target = `https://drive.google.com/uc?export=download&id=${gdrive[1]}`;
+  const gdrive = target.match(/drive\.google\.com\/file\/d\/([^/]+)/) || target.match(/drive\.google\.com\/open\?id=([^&]+)/) || target.match(/drive\.google\.com\/uc\?.*[?&]id=([^&]+)/);
 
   try {
-    const upstream = await fetch(target, { redirect: 'follow' });
+    let upstream;
+    if (gdrive) {
+      const { resp, stillHtml } = await fetchGoogleDriveFile(gdrive[1]);
+      if (stillHtml) {
+        return res.status(502).json({
+          error: 'Google Drive would not hand over the raw file for this link — this usually means the link isn\'t set to "Anyone with the link", or Drive is showing a confirmation page it wouldn\'t skip. Double-check the sharing setting and try again.'
+        });
+      }
+      upstream = resp;
+    } else {
+      upstream = await fetch(target, { redirect: 'follow' });
+    }
     if (!upstream.ok) return res.status(502).json({ error: 'Could not fetch the file from its source.' });
 
     const contentLength = parseInt(upstream.headers.get('content-length') || '0', 10);
@@ -366,6 +397,12 @@ app.get('/api/download', async (req, res) => {
     }
 
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
+    if (!gdrive && contentType.includes('text/html')) {
+      // The source handed back a webpage, not a file — sending that through would just
+      // produce a "corrupt"/unreadable download labeled with the wrong extension.
+      return res.status(502).json({ error: 'That link points to a webpage, not a direct file — the download would come out unreadable. Use a direct file link instead.' });
+    }
+
     const safeName = String(name || 'download').replace(/[\r\n"]/g, '');
     res.setHeader('Content-Type', contentType);
     res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
