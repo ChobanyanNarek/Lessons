@@ -345,7 +345,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <!-- ════ LESSON DETAIL ════ -->
 <div class="screen" id="screen-detail">
   <div class="wrap">
-    <div class="back-link" onclick="go('student')">&larr; Back to dashboard</div>
+    <div class="back-link" onclick="renderStudentGrid();go('student')">&larr; Back to dashboard</div>
     <div class="detail-head">
       <div><h1 class="display" id="detail-title"></h1></div>
       <span class="status-badge open"><span class="dot"></span>Open</span>
@@ -1452,6 +1452,10 @@ async function answerQuiz(lid, qi, oi, isMulti){
   }
   currentStudent.answers[lid][qi] = oi;
   renderQuiz(lessons.find(x=>x.id===lid));
+  // Keep the dashboard grid current in the background — so the moment the
+  // student answers the last question of a lesson's quiz, the next lesson's
+  // card is already unlocked underneath, no hard refresh needed to see it.
+  renderStudentGrid();
   try {
     await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
   } catch(e){ console.error('Answer save failed', e); }
@@ -1468,6 +1472,7 @@ async function submitMultiAnswer(lid, qi){
   currentStudent.answers[lid][qi] = draft.slice();
   delete quizDraftMulti[key];
   renderQuiz(lessons.find(x=>x.id===lid));
+  renderStudentGrid();
   try {
     await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
   } catch(e){ console.error('Answer save failed', e); }
