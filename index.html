@@ -449,6 +449,11 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <div>
         <div class="editor-block">
           <h3>Lesson details</h3>
+          <div class="field" style="margin-bottom:14px;max-width:160px;">
+            <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Lesson number</label>
+            <input type="number" min="1" step="1" class="field-input" id="editor-num-input" onchange="updateLessonNumber(this.value)">
+            <p style="font-size:11px;color:var(--ink-faint);margin:6px 0 0;">Sets where this lesson sits in the course order — students always see clean, gap-free numbering.</p>
+          </div>
           <div class="field" style="margin-bottom:14px;">
             <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Title</label>
             <input type="text" class="field-input" id="editor-title-input" oninput="updateTitle(this.value)">
@@ -629,10 +634,24 @@ const DEFAULT_LESSONS = [
   },
 ];
 
-// Lesson numbers aren't stored in the database — derive them from sort order
-// so every lesson always has a clean, gap-free "01", "02", ... label.
+// The displayed "01", "02", ... label is always just this lesson's position
+// in the (now admin-controlled) order — clean and gap-free no matter what
+// raw sort_order values are behind it.
 function renumberLessons(){
   lessons.forEach((l, i) => { l.num = String(i + 1).padStart(2, '0'); });
+}
+
+// Admins can manually reorder/renumber lessons via sort_order (see the editor's
+// "Lesson number" field); ties (e.g. two lessons never explicitly ordered)
+// fall back to creation order so nothing is ambiguous.
+function sortLessonsByOrder(){
+  lessons.sort((a,b) => {
+    const ao = a.sort_order, bo = b.sort_order;
+    if(ao != null && bo != null && ao !== bo) return ao - bo;
+    if(ao != null && bo == null) return -1;
+    if(ao == null && bo != null) return 1;
+    return (a.id||0) - (b.id||0);
+  });
 }
 
 /* ─ COURSE HELPERS ─ */
@@ -640,7 +659,7 @@ async function loadLessons(slug){
   if(!slug){ lessons = []; return; }
   try {
     lessons = await api('GET', '/lessons?course=' + encodeURIComponent(slug));
-    lessons.sort((a,b)=>(a.id||0)-(b.id||0));
+    sortLessonsByOrder();
     renumberLessons();
   } catch(e){
     console.error('Failed to load lessons:', e);
@@ -1564,12 +1583,45 @@ function openEditor(id){
   currentEditorId = id;
   const l = lessons.find(x=>x.id===id);
   document.getElementById('editor-heading').textContent = 'Edit — Lesson ' + l.num;
+  document.getElementById('editor-num-input').value      = parseInt(l.num, 10);
   document.getElementById('editor-title-input').value   = l.title;
   document.getElementById('editor-desc-input').value    = l.blurb;
   renderEditorSlides(l);
   renderEditorQuiz(l);
   document.getElementById('editor-toggle').classList.toggle('on', l.status==='open');
   go('editor');
+}
+
+// Admin manually repositions this lesson in the course order. We translate
+// "put this at position N" into a concrete sort_order value that lands it
+// between its new neighbors, then resort/renumber and re-render everywhere
+// the order matters (admin grid, student grid + its lock logic, editor heading).
+async function updateLessonNumber(v){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  if(!l) return;
+  const total = lessons.length;
+  let targetPos = parseInt(v, 10);
+  if(!Number.isFinite(targetPos)) { document.getElementById('editor-num-input').value = parseInt(l.num,10); return; }
+  targetPos = Math.max(1, Math.min(total, targetPos));
+
+  const others = lessons.filter(x => x.id !== l.id);
+  others.splice(targetPos - 1, 0, l);
+  others.forEach((x, i) => { x.sort_order = i + 1; });
+
+  sortLessonsByOrder();
+  renumberLessons();
+  document.getElementById('editor-heading').textContent = 'Edit — Lesson ' + l.num;
+  document.getElementById('editor-num-input').value      = parseInt(l.num, 10);
+  renderAdminGrid();
+
+  try {
+    // Persist every lesson whose sort_order actually moved, so ordering
+    // survives a reload — not just this one lesson's new position.
+    await Promise.all(others.map(x => api('PATCH', '/lessons/'+x.id, { sort_order: x.sort_order })));
+  } catch(e){
+    console.error('Reorder failed', e);
+    alert('Could not save the new lesson order. Please try again.');
+  }
 }
 
 function updateTitle(v){ lessons.find(x=>x.id===currentEditorId).title = v; saveLessonDebounced(currentEditorId); }
