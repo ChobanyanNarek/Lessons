@@ -427,13 +427,6 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
         <button class="btn btn-primary" style="width:auto;padding:10px 22px;" onclick="saveVideoCallUrl()">Save</button>
         <span id="videocall-saved-msg" style="display:none;color:var(--green);font-size:13px;margin-left:12px;">Saved.</span>
       </div>
-      <div class="editor-block" style="max-width:520px;">
-        <h3>Lesson numbering</h3>
-        <label style="display:flex;align-items:center;gap:9px;font-size:13px;color:var(--ink-dim);cursor:pointer;margin-bottom:0;">
-          <input type="checkbox" id="settings-numbering-zero" onchange="saveLessonNumberBase(this.checked)">
-          Start numbering at "Lesson 0" — useful for an intro/orientation session before Lesson 1. Lesson 0 is always open to students regardless of quiz progress.
-        </label>
-      </div>
     </div>
     <div class="admin-panel" id="apanel-platform">
       <div id="platform-panel"></div>
@@ -458,7 +451,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           <h3>Lesson details</h3>
           <div class="field" style="margin-bottom:14px;max-width:160px;">
             <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Lesson number</label>
-            <input type="number" min="1" step="1" class="field-input" id="editor-num-input" onchange="updateLessonNumber(this.value)">
+            <input type="number" min="0" step="1" class="field-input" id="editor-num-input" onchange="updateLessonNumber(this.value)">
             <p style="font-size:11px;color:var(--ink-faint);margin:6px 0 0;">Sets where this lesson sits in the course order — students always see clean, gap-free numbering.</p>
           </div>
           <div class="field" style="margin-bottom:14px;">
@@ -533,7 +526,6 @@ var courseName  = 'IT Project Management Course'; // fallback until course info 
 var currentCourseSlug = new URLSearchParams(window.location.search).get('course') || null;
 var currentUser = null; // { id, name, email, is_admin, role, course_id, course_slug, course_name }
 var courseVideoCallUrl = null;
-var lessonNumberBase   = 1; // 0 lets the course start at "Lesson 0" (e.g. an intro session)
 
 function applyCourseName(name){
   courseName = name || courseName;
@@ -548,13 +540,6 @@ function setVideoCallUrl(url){
   courseVideoCallUrl = url || null;
   const btn = document.getElementById('student-videocall-btn');
   if(btn) btn.style.display = courseVideoCallUrl ? '' : 'none';
-}
-
-function setLessonNumberBase(base){
-  lessonNumberBase = (base === 0 || base === '0') ? 0 : 1;
-  renumberLessons();
-  renderAdminGrid();
-  renderStudentGrid();
 }
 
 function setApiToken(token){
@@ -649,17 +634,19 @@ const DEFAULT_LESSONS = [
   },
 ];
 
-// The displayed "01", "02", ... label is always just this lesson's position
-// in the (now admin-controlled) order — clean and gap-free no matter what
-// raw sort_order values are behind it. lessonNumberBase shifts everything
-// down by one so the course can start at "Lesson 0" instead of "Lesson 1".
+// The displayed lesson number IS sort_order — fully admin-controlled, so it
+// can be 0 (e.g. an intro/orientation lesson before "Lesson 1"), skip
+// numbers, whatever the admin sets via the editor's "Lesson number" field.
 function renumberLessons(){
-  lessons.forEach((l, i) => { l.num = String(i + lessonNumberBase).padStart(2, '0'); });
+  lessons.forEach((l, i) => {
+    const n = (l.sort_order != null) ? l.sort_order : i + 1;
+    l.num = String(n).padStart(2, '0');
+  });
 }
 
-// Admins can manually reorder/renumber lessons via sort_order (see the editor's
-// "Lesson number" field); ties (e.g. two lessons never explicitly ordered)
-// fall back to creation order so nothing is ambiguous.
+// Lessons are ordered by that same admin-set sort_order; ties (e.g. two
+// lessons given the same number, or one never explicitly numbered) fall
+// back to creation order so nothing is ambiguous.
 function sortLessonsByOrder(){
   lessons.sort((a,b) => {
     const ao = a.sort_order, bo = b.sort_order;
@@ -734,7 +721,6 @@ async function enterAdminSession(user){
   syncCourseSlugToUrl(user.course_slug);
   applyCourseName(user.course_name || courseName);
   setVideoCallUrl(user.course_videocall_url);
-  lessonNumberBase = (user.course_lesson_number_base === 0) ? 0 : 1;
   await loadLessons(currentCourseSlug);
   renderAdminGrid();
   go('admin');
@@ -751,7 +737,6 @@ async function enterStudentSession(me){
   syncCourseSlugToUrl(me.course_slug);
   applyCourseName(me.course_name || courseName);
   setVideoCallUrl(me.course_videocall_url);
-  lessonNumberBase = (me.course_lesson_number_base === 0) ? 0 : 1;
   await loadLessons(currentCourseSlug);
   renderStudentGrid();
   go('student');
@@ -785,7 +770,6 @@ async function init(){
       const course = await api('GET', '/courses/' + encodeURIComponent(currentCourseSlug));
       applyCourseName(course.name);
       setVideoCallUrl(course.videocall_url);
-      lessonNumberBase = (course.lesson_number_base === 0) ? 0 : 1;
     } catch(e){
       console.error('Failed to load course:', e);
     }
@@ -1084,19 +1068,6 @@ async function saveVideoCallUrl(){
   } catch(e){
     console.error('Save video call link failed', e);
     alert(e.code ? e.message : 'Could not save. Please try again.');
-  }
-}
-
-async function saveLessonNumberBase(checked){
-  const toggle = document.getElementById('settings-numbering-zero');
-  try {
-    const course = await api('PATCH', '/courses/mine', { lesson_number_base: checked ? 0 : 1 });
-    setLessonNumberBase(course.lesson_number_base);
-    if(currentUser) currentUser.course_lesson_number_base = course.lesson_number_base;
-  } catch(e){
-    console.error('Save lesson numbering failed', e);
-    if(toggle) toggle.checked = !checked; // revert the checkbox if the save failed
-    alert('Could not save. Please try again.');
   }
 }
 
@@ -1615,7 +1586,6 @@ function openEditor(id){
   currentEditorId = id;
   const l = lessons.find(x=>x.id===id);
   document.getElementById('editor-heading').textContent = 'Edit — Lesson ' + l.num;
-  document.getElementById('editor-num-input').min        = lessonNumberBase;
   document.getElementById('editor-num-input').value      = parseInt(l.num, 10);
   document.getElementById('editor-title-input').value   = l.title;
   document.getElementById('editor-desc-input').value    = l.blurb;
@@ -1625,25 +1595,16 @@ function openEditor(id){
   go('editor');
 }
 
-// Admin manually repositions this lesson in the course order. We translate
-// "put this at position N" into a concrete sort_order value that lands it
-// between its new neighbors, then resort/renumber and re-render everywhere
-// the order matters (admin grid, student grid + its lock logic, editor heading).
+// The number the admin types IS the lesson's number — including 0 for an
+// intro/orientation lesson before "Lesson 1". No separate toggle, no
+// position math: we just re-sort by these values and persist this lesson's.
 async function updateLessonNumber(v){
   const l = lessons.find(x=>x.id===currentEditorId);
   if(!l) return;
-  const total = lessons.length;
-  let targetPos = parseInt(v, 10);
-  if(!Number.isFinite(targetPos)) { document.getElementById('editor-num-input').value = parseInt(l.num,10); return; }
-  // The admin types the displayed number (which may start at 0) — convert
-  // that to a 1-based slot in the order before repositioning.
-  targetPos = targetPos - lessonNumberBase + 1;
-  targetPos = Math.max(1, Math.min(total, targetPos));
+  let n = parseInt(v, 10);
+  if(!Number.isFinite(n) || n < 0) { document.getElementById('editor-num-input').value = parseInt(l.num,10); return; }
 
-  const others = lessons.filter(x => x.id !== l.id);
-  others.splice(targetPos - 1, 0, l);
-  others.forEach((x, i) => { x.sort_order = i + 1; });
-
+  l.sort_order = n;
   sortLessonsByOrder();
   renumberLessons();
   document.getElementById('editor-heading').textContent = 'Edit — Lesson ' + l.num;
@@ -1651,12 +1612,10 @@ async function updateLessonNumber(v){
   renderAdminGrid();
 
   try {
-    // Persist every lesson whose sort_order actually moved, so ordering
-    // survives a reload — not just this one lesson's new position.
-    await Promise.all(others.map(x => api('PATCH', '/lessons/'+x.id, { sort_order: x.sort_order })));
+    await api('PATCH', '/lessons/'+l.id, { sort_order: n });
   } catch(e){
-    console.error('Reorder failed', e);
-    alert('Could not save the new lesson order. Please try again.');
+    console.error('Save lesson number failed', e);
+    alert('Could not save the lesson number. Please try again.');
   }
 }
 
@@ -1882,7 +1841,6 @@ function activateAdminTab(panelName){
     document.getElementById('settings-course-name').value = courseName;
     document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
     document.getElementById('settings-videocall-url').value = courseVideoCallUrl || '';
-    document.getElementById('settings-numbering-zero').checked = (lessonNumberBase === 0);
   }
   if(panelName === 'platform') renderPlatformPanel();
 }
