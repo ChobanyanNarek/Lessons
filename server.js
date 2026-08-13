@@ -81,7 +81,7 @@ function normalizeVideoCallUrl(raw) {
 // GET /api/courses/:slug — public, used to brand the portal for a given course link
 app.get('/api/courses/:slug', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, slug, name, videocall_url, lesson_number_base FROM courses WHERE slug = $1', [req.params.slug]);
+    const r = await pool.query('SELECT id, slug, name, videocall_url FROM courses WHERE slug = $1', [req.params.slug]);
     if (!r.rows.length) return res.status(404).json({ error: 'course-not-found' });
     res.json(r.rows[0]);
   } catch (e) {
@@ -95,8 +95,8 @@ app.get('/api/courses/:slug', async (req, res) => {
 // The shareable link's slug is regenerated from a new name so the link always
 // reflects the course's current name.
 app.patch('/api/courses/mine', auth, adminOnly, async (req, res) => {
-  const { name, videocall_url, lesson_number_base } = req.body;
-  if (name === undefined && videocall_url === undefined && lesson_number_base === undefined) {
+  const { name, videocall_url } = req.body;
+  if (name === undefined && videocall_url === undefined) {
     return res.status(400).json({ error: 'Nothing to update' });
   }
   if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
@@ -124,13 +124,9 @@ app.patch('/api/courses/mine', auth, adminOnly, async (req, res) => {
       }
       fields.push(`videocall_url = $${i++}`); values.push(normalized || null);
     }
-    if (lesson_number_base !== undefined) {
-      const base = parseInt(lesson_number_base, 10) === 0 ? 0 : 1;
-      fields.push(`lesson_number_base = $${i++}`); values.push(base);
-    }
     values.push(req.user.course_id);
     const r = await pool.query(
-      `UPDATE courses SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, slug, name, videocall_url, lesson_number_base`,
+      `UPDATE courses SET ${fields.join(', ')} WHERE id = $${i} RETURNING id, slug, name, videocall_url`,
       values
     );
     res.json(r.rows[0]);
@@ -179,8 +175,7 @@ app.post('/api/auth/login', async (req, res) => {
   }
   try {
     const result = await pool.query(
-      `SELECT u.*, c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url,
-              c.lesson_number_base AS course_lesson_number_base
+      `SELECT u.*, c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url
        FROM users u LEFT JOIN courses c ON u.course_id = c.id
        WHERE u.email = $1`,
       [email]
@@ -201,8 +196,7 @@ app.post('/api/auth/login', async (req, res) => {
         id: user.id, name: user.name, email: user.email, phone: user.phone,
         is_admin: user.is_admin, role: user.role,
         course_id: user.course_id, course_slug: user.course_slug, course_name: user.course_name,
-        course_videocall_url: user.course_videocall_url,
-        course_lesson_number_base: user.course_lesson_number_base
+        course_videocall_url: user.course_videocall_url
       }
     });
   } catch (e) {
@@ -216,8 +210,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const userRes = await pool.query(
       `SELECT u.id, u.name, u.email, u.phone, u.is_admin, u.role, u.course_id,
-              c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url,
-              c.lesson_number_base AS course_lesson_number_base
+              c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url
        FROM users u LEFT JOIN courses c ON u.course_id = c.id
        WHERE u.id = $1`,
       [req.user.id]
@@ -775,9 +768,6 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS videocall_url TEXT`);
-  // 0 lets a course start its lesson numbering at "Lesson 0" (e.g. an intro/
-  // orientation session) instead of "Lesson 1"; 1 is the normal default.
-  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS lesson_number_base INTEGER DEFAULT 1`);
 
   // Lesson ordering used to be purely derived from creation order (id ASC).
   // sort_order lets an admin manually reorder/renumber lessons instead.
