@@ -243,7 +243,7 @@ app.get('/api/lessons', async (req, res) => {
     const courseRes = await pool.query('SELECT id FROM courses WHERE slug = $1', [course]);
     if (!courseRes.rows.length) return res.status(404).json({ error: 'course-not-found' });
     const result = await pool.query(
-      'SELECT * FROM lessons WHERE course_id = $1 ORDER BY id ASC',
+      'SELECT * FROM lessons WHERE course_id = $1 ORDER BY sort_order ASC NULLS LAST, id ASC',
       [courseRes.rows[0].id]
     );
     res.json(result.rows);
@@ -259,11 +259,18 @@ app.post('/api/lessons', auth, adminOnly, async (req, res) => {
   if (!title) return res.status(400).json({ error: 'title is required' });
   if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
   try {
+    // New lessons land at the end of the manual order by default — the admin
+    // can move them elsewhere afterwards via sort_order.
+    const maxOrder = await pool.query(
+      'SELECT COALESCE(MAX(sort_order), 0) AS max FROM lessons WHERE course_id = $1',
+      [req.user.course_id]
+    );
+    const nextOrder = Number(maxOrder.rows[0].max) + 1;
     const result = await pool.query(
-      `INSERT INTO lessons (title, blurb, status, quiz, slides, course_id)
-       VALUES ($1, $2, $3, $4, $5, $6)
+      `INSERT INTO lessons (title, blurb, status, quiz, slides, course_id, sort_order)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *`,
-      [title, blurb || '', status || 'draft', JSON.stringify(quiz || []), JSON.stringify(slides || []), req.user.course_id]
+      [title, blurb || '', status || 'draft', JSON.stringify(quiz || []), JSON.stringify(slides || []), req.user.course_id, nextOrder]
     );
     res.status(201).json(result.rows[0]);
   } catch (e) {
@@ -274,7 +281,7 @@ app.post('/api/lessons', auth, adminOnly, async (req, res) => {
 
 // PATCH /api/lessons/:id  — admin only, must own the lesson's course
 app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
-  const { title, blurb, status, quiz, slides } = req.body;
+  const { title, blurb, status, quiz, slides, sort_order } = req.body;
   const { id } = req.params;
   try {
     const existing = await pool.query('SELECT course_id FROM lessons WHERE id = $1', [id]);
@@ -289,6 +296,11 @@ app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
     if (status  !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
     if (quiz    !== undefined) { fields.push(`quiz   = $${i++}`); values.push(JSON.stringify(quiz)); }
     if (slides  !== undefined) { fields.push(`slides = $${i++}`); values.push(JSON.stringify(slides)); }
+    if (sort_order !== undefined) {
+      const n = parseInt(sort_order, 10);
+      if (!Number.isFinite(n)) return res.status(400).json({ error: 'sort_order must be a number' });
+      fields.push(`sort_order = $${i++}`); values.push(n);
+    }
     if (!fields.length) return res.status(400).json({ error: 'Nothing to update' });
     values.push(id);
     const result = await pool.query(
@@ -756,6 +768,21 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS videocall_url TEXT`);
+
+  // Lesson ordering used to be purely derived from creation order (id ASC).
+  // sort_order lets an admin manually reorder/renumber lessons instead.
+  await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS sort_order INTEGER`);
+  // Backfill any lesson that predates this column (or was created before a
+  // sibling got a manual number) using its existing id-based position, so
+  // nothing jumps around the first time this runs.
+  await pool.query(`
+    UPDATE lessons l SET sort_order = sub.rn
+    FROM (
+      SELECT id, ROW_NUMBER() OVER (PARTITION BY course_id ORDER BY id ASC) AS rn
+      FROM lessons
+    ) sub
+    WHERE l.id = sub.id AND l.sort_order IS NULL
+  `);
 
   // Admins are always approved automatically.
   await pool.query(`UPDATE users SET approved = true WHERE is_admin = true AND approved = false`);
