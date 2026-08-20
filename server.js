@@ -533,6 +533,62 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
   }
 });
 
+// ─── NOTE ATTACHMENTS (student-uploaded files attached to their own notes) ───
+// Kept in a separate table from lesson_files (course materials) because these
+// are personal to each student, not shared with the class — so unlike the
+// public GET /api/files/:fileId route, these downloads are auth-gated and
+// checked against ownership.
+
+// POST /api/notes/:lessonId/files — any logged-in user, attaches a file to
+// their own note for that lesson (max 15MB, same cap as lesson materials).
+app.post('/api/notes/:lessonId/files', auth, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file is required' });
+  try {
+    const result = await pool.query(
+      `INSERT INTO note_files (user_id, lesson_id, name, mimetype, data)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id, name, mimetype, octet_length(data) AS size`,
+      [req.user.id, req.params.lessonId, req.file.originalname, req.file.mimetype || 'application/octet-stream', req.file.buffer]
+    );
+    res.status(201).json(result.rows[0]);
+  } catch (e) {
+    console.error('Note file upload error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// GET /api/notes/files/:fileId — owner (or an admin) only.
+app.get('/api/notes/files/:fileId', auth, async (req, res) => {
+  try {
+    const result = await pool.query('SELECT user_id, name, mimetype, data FROM note_files WHERE id = $1', [req.params.fileId]);
+    if (!result.rows.length) return res.status(404).json({ error: 'File not found' });
+    const file = result.rows[0];
+    if (file.user_id !== req.user.id && !req.user.is_admin) return res.status(403).json({ error: 'Forbidden' });
+    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+    const safeName = (file.name || 'download').replace(/[\r\n"]/g, '');
+    res.setHeader('Content-Type', file.mimetype || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
+    res.send(file.data);
+  } catch (e) {
+    console.error('Note file download error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/notes/files/:fileId — owner only.
+app.delete('/api/notes/files/:fileId', auth, async (req, res) => {
+  try {
+    const existing = await pool.query('SELECT user_id FROM note_files WHERE id = $1', [req.params.fileId]);
+    if (!existing.rows.length) return res.status(404).json({ error: 'File not found' });
+    if (existing.rows[0].user_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+    await pool.query('DELETE FROM note_files WHERE id = $1', [req.params.fileId]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Note file delete error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── ADMIN ROUTES (scoped to the admin's own course) ─────────────────────────
 
 // PATCH /api/users/:id/approval — approve or revoke a student account (admin only, own course)
@@ -759,6 +815,16 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS note_files (
+      id         SERIAL PRIMARY KEY,
+      user_id    UUID    REFERENCES users(id)   ON DELETE CASCADE,
+      lesson_id  INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
+      name       TEXT NOT NULL,
+      mimetype   TEXT NOT NULL,
+      data       BYTEA NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
     );
   `);
 
