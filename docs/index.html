@@ -175,8 +175,21 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .dl-btn:hover{border-color:var(--blue);color:var(--blue);}
 .dl-btn.danger{border-color:rgba(209,67,67,0.35);color:var(--red);}
 .dl-btn.danger:hover{border-color:var(--red);color:var(--red);filter:brightness(0.96);}
-textarea.notes{width:100%;min-height:260px;background:var(--surface);border:1px solid var(--line-strong);border-radius:8px;color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:16px;resize:vertical;}
-textarea.notes:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.notes-toolbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line-strong);border-bottom:none;border-radius:8px 8px 0 0;padding:6px;}
+.notes-toolbar .ntb-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:1px solid transparent;border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;cursor:pointer;}
+.notes-toolbar .ntb-btn:hover{background:var(--blue-soft);border-color:var(--blue-soft2);}
+.notes-toolbar .ntb-sep{width:1px;height:20px;background:var(--line);margin:0 4px;}
+.notes[contenteditable]{width:100%;min-height:260px;background:var(--surface);border:1px solid var(--line-strong);border-radius:0 0 8px 8px;color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:16px;overflow-wrap:break-word;}
+.notes[contenteditable]:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.notes[contenteditable]:empty:before{content:attr(data-placeholder);color:var(--ink-faint);pointer-events:none;}
+.notes[contenteditable] ul,.notes[contenteditable] ol{margin:0 0 10px;padding-left:24px;}
+.notes[contenteditable] .note-check{display:flex;align-items:flex-start;gap:8px;margin:2px 0;}
+.notes[contenteditable] .note-check input{margin-top:3px;flex-shrink:0;}
+.notes[contenteditable] .note-check span[contenteditable]{outline:none;}
+.note-attachment{display:inline-flex;align-items:center;gap:6px;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:6px;padding:4px 10px 4px 8px;margin:2px 4px 2px 0;color:var(--blue-deep);font-size:13px;text-decoration:none;cursor:pointer;}
+.note-attachment:hover{border-color:var(--blue);}
+.note-attachment .na-remove{color:var(--ink-faint);font-weight:600;margin-left:2px;}
+.note-attachment .na-remove:hover{color:var(--red);}
 .notes-status{font-size:12px;color:var(--ink-faint);margin-top:8px;}
 .score-bar{display:flex;align-items:center;justify-content:space-between;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:8px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
 .score-bar .label{font-size:13px;color:var(--blue-deep);font-weight:500;}
@@ -362,7 +375,19 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     </div>
     <div class="panel active" id="panel-slides"></div>
     <div class="panel" id="panel-notes">
-      <textarea class="notes" id="notes-area" placeholder="Write anything you want to remember from this lesson…"></textarea>
+      <div class="notes-toolbar">
+        <button type="button" class="ntb-btn" title="Bold" onclick="noteCmd('bold')"><b>B</b></button>
+        <button type="button" class="ntb-btn" title="Italic" onclick="noteCmd('italic')"><i>I</i></button>
+        <button type="button" class="ntb-btn" title="Underline" onclick="noteCmd('underline')"><u>U</u></button>
+        <span class="ntb-sep"></span>
+        <button type="button" class="ntb-btn" title="Bulleted list" onclick="noteCmd('insertUnorderedList')">&#8226;&#8226;&#8226;</button>
+        <button type="button" class="ntb-btn" title="Numbered list" onclick="noteCmd('insertOrderedList')">1.2.</button>
+        <button type="button" class="ntb-btn" title="Checklist" onclick="noteInsertChecklist()">&#9745;</button>
+        <span class="ntb-sep"></span>
+        <button type="button" class="ntb-btn" title="Attach a file" onclick="document.getElementById('note-file-input').click()">&#128206;</button>
+        <input type="file" id="note-file-input" style="display:none;" onchange="uploadNoteFile(this)">
+      </div>
+      <div class="notes" id="notes-area" contenteditable="true" data-placeholder="Write anything you want to remember from this lesson…"></div>
       <div class="notes-status" id="notes-status">Notes are saved automatically as you type.</div>
     </div>
     <div class="panel" id="panel-quiz">
@@ -1372,8 +1397,9 @@ function openDetail(id){
     ? l.slides.map(renderMaterialRow).join('')
     : `<p style="color:var(--ink-faint);font-size:13px;">No materials added for this lesson yet.</p>`;
 
-  // Notes
-  document.getElementById('notes-area').value = (currentStudent?.notes?.[id]) || '';
+  // Notes — stored as HTML (bold/italic/lists/checklists/attachment chips),
+  // not plain text, so we set innerHTML rather than .value.
+  document.getElementById('notes-area').innerHTML = (currentStudent?.notes?.[id]) || '';
 
   // Quiz init
   if(currentStudent && !currentStudent.answers[id]) currentStudent.answers[id] = {};
@@ -1396,16 +1422,155 @@ const saveNoteDebounced = debounce(async (lessonId, text) => {
   } catch(e){ console.error('Note save failed', e); }
 }, 900);
 
-document.getElementById('notes-area').addEventListener('input', function(){
+function saveNotesNow(){
+  const el = document.getElementById('notes-area');
   if(currentStudent && currentDetailId !== null){
     if(!currentStudent.notes) currentStudent.notes = {};
-    currentStudent.notes[currentDetailId] = this.value;
+    currentStudent.notes[currentDetailId] = el.innerHTML;
     document.getElementById('notes-status').textContent = 'Saving…';
-    saveNoteDebounced(currentDetailId, this.value);
+    saveNoteDebounced(currentDetailId, el.innerHTML);
+  }
+}
+
+document.getElementById('notes-area').addEventListener('input', saveNotesNow);
+
+// Standard fast-formatting toolbar — execCommand is old but still the
+// simplest way to get bold/italic/underline/lists working across browsers
+// inside a contenteditable box without pulling in a full editor library.
+function noteCmd(cmd){
+  const el = document.getElementById('notes-area');
+  el.focus();
+  document.execCommand(cmd, false, null);
+  saveNotesNow();
+}
+
+// Checklist items are plain checkboxes + editable text, not a native
+// execCommand feature. Built with the Range API directly rather than
+// execCommand('insertHTML') — Chrome silently strips the wrapping <div>/
+// <label> from inserted markup when the caret sits in plain inline text,
+// which would leave a bare checkbox with no styling or line break.
+function noteInsertChecklist(){
+  const el = document.getElementById('notes-area');
+  el.focus();
+  const sel = window.getSelection();
+  let range;
+  if(sel && sel.rangeCount && el.contains(sel.anchorNode)){
+    range = sel.getRangeAt(0);
+  } else {
+    range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+  }
+  const wrap  = document.createElement('div');
+  wrap.className = 'note-check';
+  const label = document.createElement('label');
+  const cb    = document.createElement('input');
+  cb.type = 'checkbox';
+  const span  = document.createElement('span');
+  span.setAttribute('contenteditable', 'true');
+  span.textContent = 'To-do item';
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(' '));
+  label.appendChild(span);
+  wrap.appendChild(label);
+  const brDiv = document.createElement('div');
+  brDiv.appendChild(document.createElement('br'));
+  const frag = document.createDocumentFragment();
+  frag.appendChild(wrap);
+  frag.appendChild(brDiv);
+  range.deleteContents();
+  range.insertNode(frag);
+  // Select the placeholder text so the next keystroke replaces it outright.
+  const newRange = document.createRange();
+  newRange.selectNodeContents(span);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+  saveNotesNow();
+}
+
+// Checkbox toggling inside contenteditable changes the DOM property but not
+// the serialized "checked" attribute — sync it so the checked state survives
+// a reload, since notes are saved as an HTML string.
+document.getElementById('notes-area').addEventListener('click', function(e){
+  if(e.target.tagName === 'INPUT' && e.target.type === 'checkbox'){
+    setTimeout(() => {
+      if(e.target.checked) e.target.setAttribute('checked', 'checked');
+      else e.target.removeAttribute('checked');
+      saveNotesNow();
+    }, 0);
+    return;
+  }
+  const removeBtn = e.target.closest('.na-remove');
+  if(removeBtn){
+    e.preventDefault();
+    const chip = removeBtn.closest('.note-attachment');
+    const fileId = chip?.dataset.fileId;
+    if(fileId) removeNoteAttachment(fileId, chip);
+    return;
+  }
+  const chip = e.target.closest('.note-attachment');
+  if(chip){
+    e.preventDefault();
+    downloadNoteFile(chip.dataset.fileId, chip.dataset.fileName);
   }
 });
 
-function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+async function uploadNoteFile(input){
+  const file = input.files[0];
+  if(!file || currentDetailId === null) return;
+  if(file.size > 15 * 1024 * 1024){
+    alert('That file is larger than 15MB — please attach a smaller file.');
+    input.value = '';
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/notes/' + currentDetailId + '/files', { method: 'POST', headers, body: fd });
+    const d = await r.json();
+    if(!r.ok) throw Object.assign(new Error(d.error || 'Upload failed'), { code: d.error });
+
+    const el = document.getElementById('notes-area');
+    el.focus();
+    const chipHtml = `<a href="#" class="note-attachment" contenteditable="false" data-file-id="${d.id}" data-file-name="${escapeHtml(file.name)}">&#128206; ${escapeHtml(file.name)} <span class="na-remove">&times;</span></a>`;
+    document.execCommand('insertHTML', false, chipHtml + '&nbsp;');
+    saveNotesNow();
+  } catch(e){
+    console.error('Note file upload failed', e);
+    alert('Could not attach the file. Please try again.');
+  } finally {
+    input.value = '';
+  }
+}
+
+async function downloadNoteFile(fileId, name){
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/notes/files/' + fileId, { headers });
+    if(!r.ok) throw new Error('Download failed');
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name || 'attachment';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch(e){
+    console.error('Note file download failed', e);
+    alert('Could not download that file.');
+  }
+}
+
+async function removeNoteAttachment(fileId, chipEl){
+  chipEl.remove();
+  saveNotesNow();
+  try { await api('DELETE', '/notes/files/'+fileId); }
+  catch(e){ console.error('Note file delete failed', e); }
+}
+
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
 
 function quizIsCorrect(q, given){
   if(given === undefined) return false;
