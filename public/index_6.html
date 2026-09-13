@@ -1,0 +1,2254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IT Project Management Course</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --bg:#F4F7FC;
+  --surface:#FFFFFF;
+  --surface-alt:#EDF2FB;
+  --line:#DEE6F3;
+  --line-strong:#C3D1E8;
+  --ink:#0F2039;
+  --ink-dim:#4E5F7D;
+  --ink-faint:#8A99B5;
+  --blue:#2451D6;
+  --blue-deep:#16327E;
+  --blue-soft:rgba(36,81,214,0.08);
+  --blue-soft2:rgba(36,81,214,0.14);
+  --grey:#9AA7BC;
+  --grey-soft:rgba(154,167,188,0.16);
+  --green:#1C9A6C;
+  --green-soft:rgba(28,154,108,0.10);
+  --red:#D14343;
+  --red-soft:rgba(209,67,67,0.09);
+  --amber:#C07A00;
+  --amber-soft:rgba(192,122,0,0.10);
+}
+*{box-sizing:border-box;}
+html,body{margin:0;padding:0;}
+body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
+.display{font-family:'Fraunces',serif;}
+.mono{font-family:'IBM Plex Mono',monospace;letter-spacing:0.02em;}
+
+/* ── Chrome ── */
+.chrome{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 40px;border-bottom:1px solid var(--line);
+  background:var(--surface);position:sticky;top:0;z-index:30;
+  transition:background .25s,border-color .25s;
+}
+.chrome.mode-admin{background:var(--blue-deep);border-bottom-color:rgba(255,255,255,0.08);}
+.brand{display:flex;align-items:center;gap:12px;}
+.brand-mark{
+  width:30px;height:30px;border:1.5px solid var(--blue);
+  display:flex;align-items:center;justify-content:center;
+  transform:rotate(45deg);flex-shrink:0;
+}
+.chrome.mode-admin .brand-mark{border-color:#fff;}
+.brand-icon{transform:rotate(-45deg);color:var(--blue);}
+.chrome.mode-admin .brand-icon{color:#fff;}
+.brand-text{}
+.brand-name{font-size:15px;font-weight:600;line-height:1.2;letter-spacing:0.01em;}
+.chrome.mode-admin .brand-name{color:#fff;}
+.brand-tagline{font-size:10px;color:var(--ink-faint);letter-spacing:0.07em;text-transform:uppercase;margin-top:1px;}
+.chrome.mode-admin .brand-tagline{color:#7A97D4;}
+.chrome-right{display:flex;align-items:center;gap:14px;}
+.chrome-link{font-size:13px;color:var(--ink-dim);cursor:pointer;background:none;border:none;font-family:inherit;padding:0;}
+.chrome-link:hover{color:var(--blue);}
+.chrome.mode-admin .chrome-link{color:#9DB4E8;}
+.chrome.mode-admin .chrome-link:hover{color:#fff;}
+.admin-tag{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9DB4E8;border:1px solid #2D4F99;padding:4px 11px;border-radius:100px;}
+.chrome-user{font-size:13px;color:var(--ink-dim);}
+
+/* ── Screens ── */
+.screen{display:none;animation:fadein .3s ease;}
+.screen.active{display:block;}
+@keyframes fadein{from{opacity:0;transform:translateY(5px);}to{opacity:1;transform:translateY(0);}}
+.wrap{max-width:1100px;margin:0 auto;padding:48px 40px 90px;}
+
+/* ── Portal / unified auth ── */
+.portal-wrap{min-height:calc(100vh - 61px);display:flex;align-items:center;justify-content:center;padding:60px 20px;}
+.eyebrow{color:var(--blue);font-size:11px;letter-spacing:0.14em;text-transform:uppercase;margin-bottom:14px;}
+
+/* ── Auth card ── */
+.auth-wrap{min-height:calc(100vh - 61px);display:flex;align-items:center;justify-content:center;padding:60px 20px;}
+.auth-card{width:440px;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:42px 38px 36px;position:relative;}
+.auth-card::before{content:'';position:absolute;left:32px;top:0;width:50px;height:5px;background:var(--blue);border-radius:0 0 4px 4px;}
+.auth-card.admin-flavor{background:var(--blue-deep);border-color:var(--blue-deep);}
+.auth-card.admin-flavor::before{background:#9DB4E8;}
+.auth-card .eyebrow{color:var(--blue);font-size:11px;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:10px;}
+.auth-card.admin-flavor .eyebrow{color:#9DB4E8;}
+.auth-card h1{font-size:27px;margin:0 0 6px;font-weight:500;}
+.auth-card.admin-flavor h1{color:#fff;}
+.auth-card .lead{color:var(--ink-dim);font-size:14px;margin:0 0 26px;line-height:1.55;}
+.auth-card.admin-flavor .lead{color:#B8CCEE;}
+.field{margin-bottom:16px;}
+.field-row{display:flex;gap:12px;}
+.field-row .field{flex:1;}
+.field label{display:block;font-size:12px;color:var(--ink-faint);margin-bottom:6px;letter-spacing:0.02em;}
+.auth-card.admin-flavor .field label{color:#7A97D4;}
+.field input{width:100%;padding:11px 13px;background:var(--surface-alt);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;}
+.auth-card.admin-flavor .field input{background:rgba(255,255,255,0.07);border-color:#2D4F99;color:#fff;}
+.auth-card.admin-flavor .field input::placeholder{color:#4D6DA8;}
+.field input:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.error-msg{background:var(--red-soft);border:1px solid rgba(209,67,67,0.35);color:var(--red);font-size:13px;padding:10px 14px;border-radius:6px;margin-bottom:16px;display:none;}
+.error-msg.show{display:block;}
+.fineprint{font-size:12px;color:var(--ink-faint);text-align:center;margin-top:16px;}
+.fineprint a{color:var(--blue);cursor:pointer;}
+.auth-card.admin-flavor .fineprint{color:#4D6DA8;}
+.auth-card.admin-flavor .fineprint a{color:#9DB4E8;}
+
+/* ── Buttons ── */
+.btn{border:none;border-radius:6px;padding:12px 22px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:filter .15s,transform .1s;display:block;width:100%;text-align:center;}
+.btn:active{transform:scale(0.98);}
+.btn-primary{background:var(--blue);color:#fff;}
+.btn-primary:hover{filter:brightness(1.1);}
+.btn-white{background:#fff;color:var(--blue-deep);}
+.btn-white:hover{filter:brightness(0.95);}
+.btn-ghost{background:transparent;border:1px solid var(--line-strong);color:var(--ink);}
+.btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
+.btn-sm{padding:9px 18px;font-size:13px;width:auto;}
+/* Reset for elements that need to be real <button>s for keyboard/AT access
+   but must keep visually matching a sibling class (.back-link, .add-card,
+   .upload-drop) rather than looking like a default browser button. Defined
+   here, before those classes are declared below, so a same-specificity tie
+   resolves in favor of each class's own border/background/color. */
+.btn-reset{appearance:none;-webkit-appearance:none;background:none;border:none;margin:0;font:inherit;color:inherit;text-align:inherit;cursor:pointer;}
+.btn-reset:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+/* Visible keyboard focus for the custom interactive controls below
+   (lesson cards, toggles) that aren't plain buttons/links. */
+[role="button"]:focus-visible,[role="switch"]:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+/* ── Toast (visible feedback for background save/load failures) ── */
+.toast-stack{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;padding:0 16px;pointer-events:none;}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;background:var(--ink);color:#fff;font-size:13px;padding:11px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(15,32,57,0.25);max-width:420px;animation:toast-in .18s ease;}
+.toast.error{background:var(--red);}
+.toast.success{background:var(--green);}
+.toast-retry{background:rgba(255,255,255,0.18);border:none;color:#fff;font-family:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:5px;cursor:pointer;flex-shrink:0;}
+.toast-retry:hover{background:rgba(255,255,255,0.3);}
+@keyframes toast-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+
+/* ── Dashboard header ── */
+.dash-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:34px;flex-wrap:wrap;gap:16px;}
+.dash-head h1{font-size:32px;font-weight:500;margin:0 0 5px;}
+.dash-head .sub{color:var(--ink-dim);font-size:14px;}
+
+/* ── Lesson grid ── */
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
+@media(max-width:820px){.grid{grid-template-columns:1fr 1fr;}}
+@media(max-width:560px){.grid{grid-template-columns:1fr;}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;position:relative;padding:24px 22px 20px;cursor:pointer;box-shadow:0 1px 2px rgba(16,45,110,0.04);transition:transform .15s ease,border-color .15s ease,box-shadow .15s,opacity .15s;}
+.card.st-open{box-shadow:0 3px 14px rgba(16,45,110,0.08);}
+.card:hover{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 10px 28px rgba(16,45,110,0.10);}
+.card.locked{cursor:pointer;opacity:.68;}
+.card.locked:hover{transform:none;box-shadow:0 1px 2px rgba(16,45,110,0.04);border-color:var(--line);}
+.card-tab{position:absolute;left:22px;top:-1px;width:40px;height:6px;border-radius:0 0 3px 3px;}
+.card-tab.open{background:var(--blue);}
+.card-tab.closed{background:var(--grey);}
+.card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
+.card-num{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);}
+.status-badge{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;border-radius:100px;display:inline-flex;align-items:center;white-space:nowrap;}
+.status-badge.open{background:var(--blue-soft);color:var(--blue);}
+.status-badge.closed{background:var(--grey-soft);color:var(--ink-faint);}
+.card h3{font-size:17px;font-weight:500;margin:0 0 8px;line-height:1.3;}
+.card p{font-size:13px;color:var(--ink-dim);line-height:1.55;margin:0 0 18px;min-height:38px;}
+.card-foot{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-faint);}
+.enter-link{color:var(--blue);font-weight:600;font-size:13px;}
+.card.locked .enter-link{color:var(--ink-faint);}
+.toggle{width:38px;height:20px;border-radius:100px;background:var(--grey);position:relative;cursor:pointer;flex-shrink:0;transition:background .2s;}
+.toggle.on{background:var(--blue);}
+.toggle .knob{position:absolute;top:2px;left:2px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;}
+.toggle.on .knob{transform:translateX(18px);}
+.admin-controls{display:flex;align-items:center;gap:8px;}
+.icon-btn{width:28px;height:28px;border-radius:5px;border:1px solid var(--line-strong);background:transparent;color:var(--ink-dim);display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:13px;}
+.icon-btn:hover{border-color:var(--blue);color:var(--blue);}
+.add-card{border:1.5px dashed var(--line-strong);background:transparent;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;color:var(--ink-faint);min-height:184px;}
+.add-card:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft);}
+.add-card .plus{font-size:30px;line-height:1;font-family:'Fraunces',serif;}
+
+/* ── Lesson detail ── */
+.back-link{color:var(--ink-dim);font-size:13px;cursor:pointer;display:inline-flex;align-items:center;gap:6px;margin-bottom:22px;}
+.back-link:hover{color:var(--blue);}
+.detail-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:20px;}
+.detail-head h1{font-size:30px;font-weight:500;margin:0 0 8px;}
+.detail-meta{color:var(--ink-dim);font-size:14px;margin-bottom:30px;}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:28px;}
+.tab-btn{padding:11px 4px;margin-right:28px;background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.tab-btn.active{color:var(--ink);border-bottom-color:var(--blue);}
+.panel{display:none;}
+.panel.active{display:block;animation:fadein .2s ease;}
+.slide-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
+.slide-info{display:flex;align-items:center;gap:12px;}
+.slide-icon{width:36px;height:36px;border-radius:6px;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0;}
+.slide-name{font-size:14px;}
+.slide-size{font-size:12px;color:var(--ink-faint);}
+.dl-btn{background:transparent;border:1px solid var(--line-strong);color:var(--ink-dim);padding:7px 14px;border-radius:5px;font-size:12px;cursor:pointer;font-family:inherit;}
+.dl-btn:hover{border-color:var(--blue);color:var(--blue);}
+.dl-btn.danger{border-color:rgba(209,67,67,0.35);color:var(--red);}
+.dl-btn.danger:hover{border-color:var(--red);color:var(--red);filter:brightness(0.96);}
+.notes-toolbar{display:flex;align-items:center;gap:4px;flex-wrap:wrap;background:var(--surface);border:1px solid var(--line-strong);border-bottom:none;border-radius:8px 8px 0 0;padding:6px;}
+.notes-toolbar .ntb-btn{width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:none;border:1px solid transparent;border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;cursor:pointer;}
+.notes-toolbar .ntb-btn:hover{background:var(--blue-soft);border-color:var(--blue-soft2);}
+.notes-toolbar .ntb-sep{width:1px;height:20px;background:var(--line);margin:0 4px;}
+.notes[contenteditable]{width:100%;min-height:260px;background:var(--surface);border:1px solid var(--line-strong);border-radius:0 0 8px 8px;color:var(--ink);font-family:'IBM Plex Sans',sans-serif;font-size:14px;line-height:1.6;padding:16px;overflow-wrap:break-word;}
+.notes[contenteditable]:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.notes[contenteditable]:empty:before{content:attr(data-placeholder);color:var(--ink-faint);pointer-events:none;}
+.notes[contenteditable] ul,.notes[contenteditable] ol{margin:0 0 10px;padding-left:24px;}
+.notes[contenteditable] .note-check{display:flex;align-items:flex-start;gap:8px;margin:2px 0;}
+.notes[contenteditable] .note-check input{margin-top:3px;flex-shrink:0;}
+.notes[contenteditable] .note-check span[contenteditable]{outline:none;}
+.note-attachment{display:inline-flex;align-items:center;gap:6px;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:6px;padding:4px 10px 4px 8px;margin:2px 4px 2px 0;color:var(--blue-deep);font-size:13px;text-decoration:none;cursor:pointer;}
+.note-attachment:hover{border-color:var(--blue);}
+.note-attachment .na-remove{color:var(--ink-faint);font-weight:600;margin-left:2px;}
+.note-attachment .na-remove:hover{color:var(--red);}
+.notes-status{font-size:12px;color:var(--ink-faint);margin-top:8px;}
+.score-bar{display:flex;align-items:center;gap:14px;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:8px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
+.score-bar .label{font-size:13px;color:var(--blue-deep);font-weight:500;flex:1;}
+.score-bar .score-num{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--blue);}
+.score-ring{width:32px;height:32px;border-radius:50%;flex-shrink:0;position:relative;background:conic-gradient(var(--blue) 0deg,var(--blue-soft2) 0deg);}
+.score-ring::before{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--surface);}
+.quiz-q{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;margin-bottom:16px;}
+.quiz-q .qnum{font-size:11px;color:var(--blue);margin-bottom:8px;letter-spacing:0.06em;}
+.quiz-q h4{font-size:16px;font-weight:500;margin:0 0 16px;}
+.option{display:flex;align-items:center;gap:10px;padding:11px 14px;border:1px solid var(--line-strong);border-radius:6px;margin-bottom:8px;cursor:pointer;font-size:14px;transition:border-color .15s,background .15s;user-select:none;}
+.option:hover{border-color:var(--blue);}
+.option.correct{border-color:var(--green);background:var(--green-soft);}
+.option.wrong{border-color:var(--red);background:var(--red-soft);}
+.option.locked{cursor:default;}
+.option.locked:hover{border-color:var(--line-strong);}
+.quiz-submit-btn{margin:4px 0 8px;}
+.quiz-explanation{margin-top:12px;padding:12px 14px;border-radius:8px;font-size:13px;line-height:1.5;}
+.quiz-explanation.correct{background:var(--green-soft);color:var(--green);border:1px solid rgba(28,154,108,0.25);}
+.quiz-explanation.wrong{background:var(--red-soft);color:var(--red);border:1px solid rgba(209,67,67,0.25);}
+.option input{accent-color:var(--blue);flex-shrink:0;}
+/* Correct/wrong tag — a text cue alongside the border color, so the right
+   answer isn't only distinguishable by a colorblind-unsafe green/red. */
+.opt-tag{margin-left:auto;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;}
+.opt-tag.g{color:var(--green);}
+.opt-tag.r{color:var(--red);}
+.lock-caption{font-size:12px;color:var(--ink-faint);margin-top:10px;}
+
+/* ── Admin tabs ── */
+.admin-tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:30px;}
+.admin-tab-btn{padding:12px 4px;margin-right:30px;background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.admin-tab-btn.active{color:var(--ink);border-bottom-color:var(--blue);}
+.admin-panel{display:none;}
+.admin-panel.active{display:block;animation:fadein .2s ease;}
+
+/* ── Students table ── */
+.table-wrap{overflow-x:auto;border-radius:10px;border:1px solid var(--line);}
+table{width:100%;border-collapse:collapse;background:var(--surface);font-size:13px;}
+thead th{padding:12px 16px;text-align:left;font-size:11px;letter-spacing:0.06em;text-transform:uppercase;color:var(--ink-faint);background:var(--surface-alt);border-bottom:1px solid var(--line);white-space:nowrap;font-weight:500;}
+tbody td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle;}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover td{background:var(--surface-alt);}
+/* Keeps the student's name in view while a wide, one-column-per-lesson
+   table scrolls horizontally — otherwise later columns are unreadable
+   without knowing whose row you're on. */
+.sticky-col{position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:2px 0 4px rgba(15,32,57,0.05);}
+thead th.sticky-col{background:var(--surface-alt);z-index:2;}
+tbody tr:hover td.sticky-col{background:var(--surface-alt);}
+.score-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;}
+.score-chip.done{background:var(--green-soft);color:var(--green);}
+.score-chip.partial{background:var(--amber-soft);color:var(--amber);}
+.score-chip.none{background:var(--grey-soft);color:var(--ink-faint);}
+.user-name{font-weight:500;}
+.user-email{color:var(--ink-dim);font-size:12px;margin-top:2px;}
+.empty-state{text-align:center;padding:64px 20px;color:var(--ink-faint);}
+.empty-state .ei{font-size:38px;margin-bottom:12px;}
+.empty-state p{font-size:14px;}
+.students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
+.pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
+.pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
+.pending-row .p-avatar{width:36px;height:36px;border-radius:50%;background:var(--blue-soft);color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;flex-shrink:0;}
+.pending-row .p-text{min-width:0;}
+.pending-row .p-phone{font-size:13px;color:var(--ink-dim);white-space:nowrap;margin-left:auto;padding-right:8px;}
+.pending-row .p-actions{display:flex;align-items:center;gap:8px;flex-shrink:0;}
+.status-badge.pending{background:var(--grey-soft);color:var(--ink-dim);}
+.btn-approve{background:var(--blue);color:#fff;border:none;padding:8px 16px;border-radius:5px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;}
+.btn-approve:hover{filter:brightness(1.1);}
+
+/* ── Admin editor ── */
+.editor-grid{display:grid;grid-template-columns:1.3fr 1fr;gap:28px;}
+@media(max-width:760px){.editor-grid{grid-template-columns:1fr;}}
+.editor-block{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;margin-bottom:20px;}
+.editor-block h3{font-size:11px;text-transform:uppercase;letter-spacing:0.08em;color:var(--ink-faint);margin:0 0 18px;font-weight:500;}
+.status-row{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;background:var(--surface-alt);border-radius:8px;}
+.status-row .s-label{font-size:14px;}
+.status-row .s-desc{font-size:12px;color:var(--ink-faint);margin-top:2px;}
+.upload-drop{border:1.5px dashed var(--line-strong);border-radius:8px;padding:26px 20px;text-align:center;color:var(--ink-faint);font-size:13px;cursor:pointer;transition:border-color .15s,background .15s,color .15s;}
+.upload-drop:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft);}
+.field-input{width:100%;padding:11px 13px;background:var(--surface-alt);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;}
+.field-input:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.field-input.field-error{border-color:var(--red);}
+textarea.field-textarea{width:100%;min-height:90px;background:var(--surface-alt);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;padding:12px;resize:vertical;}
+textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.eq-block{border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;background:var(--surface-alt);}
+.eq-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+.eq-label{font-size:11px;color:var(--ink-faint);letter-spacing:0.06em;text-transform:uppercase;}
+.eq-qtext{width:100%;padding:9px 11px;border:1px solid var(--line-strong);border-radius:5px;font-family:inherit;font-size:14px;margin-bottom:10px;background:#fff;color:var(--ink);}
+.eq-qtext:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.eq-opt-row{display:flex;align-items:center;gap:8px;margin-bottom:6px;}
+.eq-opt-row input[type="text"]{flex:1;padding:8px 10px;border:1px solid var(--line-strong);border-radius:5px;font-family:inherit;font-size:13px;background:#fff;color:var(--ink);}
+.eq-opt-row input[type="text"]:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.eq-opt-row input[type="radio"]{accent-color:var(--green);flex-shrink:0;}
+.eq-small-btn{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:13px;padding:8px 10px;font-family:inherit;min-height:32px;}
+.eq-small-btn:hover{color:var(--red);}
+.eq-top-actions{display:flex;align-items:center;gap:2px;}
+.eq-order-btn{background:none;border:1px solid var(--line-strong);color:var(--ink-dim);cursor:pointer;font-size:12px;padding:0;width:28px;height:28px;border-radius:5px;font-family:inherit;}
+.eq-order-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue);}
+.eq-order-btn:disabled{opacity:0.35;cursor:default;}
+.eq-add-opt{font-size:12px;color:var(--blue);cursor:pointer;background:none;border:none;font-family:inherit;padding:4px 0;}
+.slide-row-editable{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--surface-alt);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;font-size:13px;}
+.radio-hint{font-size:11px;color:var(--ink-faint);margin-bottom:10px;}
+</style>
+</head>
+<body>
+
+<!-- ════ TOASTS ════ -->
+<div class="toast-stack" id="toast-stack" aria-live="polite"></div>
+
+<!-- ════ LOADING OVERLAY ════ -->
+<div id="loading-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(244,247,252,0.92);align-items:center;justify-content:center;flex-direction:column;gap:16px;">
+  <div style="width:40px;height:40px;border:3px solid var(--line);border-top-color:var(--blue);border-radius:50%;animation:spin .75s linear infinite;"></div>
+  <p style="font-size:14px;color:var(--ink-dim);margin:0;text-align:center;max-width:320px;" id="loading-text">Loading course…</p>
+</div>
+<style>@keyframes spin{to{transform:rotate(360deg);}}</style>
+
+<!-- ════ CHROME ════ -->
+<div class="chrome" id="chrome">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg class="brand-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M12 5C10.5 3.8 8.2 3 6 3C4.9 3 4 3.3 3 3.8V17.3C4 16.8 4.9 16.5 6 16.5C8.2 16.5 10.5 17.3 12 18.5C13.5 17.3 15.8 16.5 18 16.5C19.1 16.5 20 16.8 21 17.3V3.8C20 3.3 19.1 3 18 3C15.8 3 13.5 3.8 12 5Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M12 5V18.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <div class="brand-name" id="brand-name-text">IT Project Management Course</div>
+      <div class="brand-tagline" id="brand-tagline-text">Online Course</div>
+    </div>
+  </div>
+  <div class="chrome-right" id="chrome-right"></div>
+</div>
+
+<!-- ════ PORTAL — unified sign-in ════ -->
+<div class="screen active" id="screen-portal">
+  <div class="portal-wrap">
+    <div class="auth-card" style="width:440px;">
+      <div class="eyebrow mono" id="auth-eyebrow">IT Project Management Course</div>
+      <h1 class="display" id="auth-heading">Sign in</h1>
+      <p class="lead" id="auth-lead">Welcome back. Enter your credentials to continue.</p>
+      <div class="error-msg" id="auth-error">Incorrect email or password.</div>
+
+      <div id="signup-only" style="display:none;">
+        <div class="field-row">
+          <div class="field">
+            <label>First name</label>
+            <input type="text" id="s-first" placeholder="Ana">
+          </div>
+          <div class="field">
+            <label>Last name</label>
+            <input type="text" id="s-last" placeholder="Petrosyan">
+          </div>
+        </div>
+        <div class="field">
+          <label>Phone number</label>
+          <input type="tel" id="s-phone" placeholder="+374 55 000 000">
+        </div>
+      </div>
+
+      <div class="field">
+        <label>Email address</label>
+        <input type="email" id="s-email" placeholder="you@example.com">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" id="s-pw" placeholder="••••••••" onkeydown="if(event.key==='Enter')unifiedAuth()">
+      </div>
+      <button class="btn btn-primary" id="auth-btn" onclick="unifiedAuth()">Sign in →</button>
+      <div class="fineprint" id="auth-switch" style="margin-top:16px;">
+        New here? <a onclick="setAuthMode('signup')">Create a student account</a>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ STUDENT DASHBOARD ════ -->
+<div class="screen" id="screen-student">
+  <div class="wrap">
+    <div class="dash-head">
+      <div>
+        <h1 class="display" id="student-greeting">Welcome back</h1>
+        <div class="sub" id="student-sub"></div>
+      </div>
+      <button class="btn btn-primary btn-sm" id="student-videocall-btn" style="display:none;width:auto;padding:11px 20px;" onclick="if(courseVideoCallUrl) window.open(courseVideoCallUrl,'_blank')">🎥 Join video call</button>
+    </div>
+    <div class="score-bar" id="dash-score-bar" style="position:static;">
+      <span class="label">Your quiz results — all lessons combined</span>
+      <span class="score-num" id="dash-score-num">0 / 0 correct</span>
+      <div class="score-ring" id="dash-score-ring"></div>
+    </div>
+    <div class="grid" id="student-grid"></div>
+  </div>
+</div>
+
+<!-- ════ LESSON DETAIL ════ -->
+<div class="screen" id="screen-detail">
+  <div class="wrap">
+    <button type="button" class="back-link btn-reset" onclick="renderStudentGrid();go('student')">&larr; Back to dashboard</button>
+    <div class="detail-head">
+      <div><h1 class="display" id="detail-title"></h1></div>
+      <span class="status-badge open">Open</span>
+    </div>
+    <div class="detail-meta" id="detail-meta"></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-panel="slides">Materials</button>
+      <button class="tab-btn" data-panel="notes">My notes</button>
+      <button class="tab-btn" data-panel="quiz">Quiz</button>
+    </div>
+    <div class="panel active" id="panel-slides"></div>
+    <div class="panel" id="panel-notes">
+      <div class="notes-toolbar">
+        <button type="button" class="ntb-btn" title="Bold" aria-label="Bold" onclick="noteCmd('bold')"><b>B</b></button>
+        <button type="button" class="ntb-btn" title="Italic" aria-label="Italic" onclick="noteCmd('italic')"><i>I</i></button>
+        <button type="button" class="ntb-btn" title="Underline" aria-label="Underline" onclick="noteCmd('underline')"><u>U</u></button>
+        <span class="ntb-sep"></span>
+        <button type="button" class="ntb-btn" title="Bulleted list" aria-label="Bulleted list" onclick="noteCmd('insertUnorderedList')">&#8226;&#8226;&#8226;</button>
+        <button type="button" class="ntb-btn" title="Numbered list" aria-label="Numbered list" onclick="noteCmd('insertOrderedList')">1.2.</button>
+        <button type="button" class="ntb-btn" title="Checklist" aria-label="Checklist" onclick="noteInsertChecklist()">&#9745;</button>
+        <span class="ntb-sep"></span>
+        <button type="button" class="ntb-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('note-file-input').click()">&#128206;</button>
+        <input type="file" id="note-file-input" style="display:none;" onchange="uploadNoteFile(this)">
+      </div>
+      <div class="notes" id="notes-area" contenteditable="true" data-placeholder="Write anything you want to remember from this lesson…"></div>
+      <div class="notes-status" id="notes-status">Notes are saved automatically as you type.</div>
+    </div>
+    <div class="panel" id="panel-quiz">
+      <div class="score-bar" style="position:static;">
+        <span class="label">Score updates as you answer each question</span>
+        <span class="score-num" id="quiz-score">0 / 0 correct</span>
+        <div class="score-ring" id="quiz-score-ring"></div>
+      </div>
+      <div id="quiz-questions"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ADMIN DASHBOARD ════ -->
+<div class="screen" id="screen-admin">
+  <div class="wrap">
+    <div class="dash-head">
+      <div>
+        <h1 class="display">Admin Console</h1>
+        <div class="sub">Manage course content and monitor student progress.</div>
+      </div>
+    </div>
+    <div class="admin-tabs">
+      <button class="admin-tab-btn active" data-apanel="content" id="content-tab-btn">Course Content</button>
+      <button class="admin-tab-btn" data-apanel="students" id="students-tab-btn">Students</button>
+      <button class="admin-tab-btn" data-apanel="settings" id="settings-tab-btn">Settings</button>
+      <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
+    </div>
+    <div class="admin-panel active" id="apanel-content">
+      <div class="grid" id="admin-grid"></div>
+    </div>
+    <div class="admin-panel" id="apanel-students">
+      <div id="students-panel"></div>
+    </div>
+    <div class="admin-panel" id="apanel-settings">
+      <div class="editor-block" style="max-width:520px;">
+        <h3>Product name</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">
+            Shown on the sign-in page, browser tab, and header for your students
+          </label>
+          <input type="text" class="field-input" id="settings-course-name">
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;" onclick="saveCourseName()">Save</button>
+        <span id="settings-saved-msg" style="display:none;color:var(--green);font-size:13px;margin-left:12px;">Saved.</span>
+      </div>
+      <div class="editor-block" style="max-width:520px;">
+        <h3>Your course link</h3>
+        <p style="font-size:13px;color:var(--ink-dim);margin:0 0 12px;">Share this link with students so they can find your course and sign up.</p>
+        <div style="display:flex;gap:8px;">
+          <input type="text" class="field-input" id="settings-course-link" readonly>
+          <button class="btn btn-primary" style="width:auto;padding:10px 18px;white-space:nowrap;" onclick="copySettingsCourseLink()">Copy</button>
+        </div>
+      </div>
+      <div class="editor-block" style="max-width:520px;">
+        <h3>Video call link</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">
+            A Zoom, Google Meet, or Microsoft Teams link — shown to students as a "Join video call" button on their dashboard. Leave blank to hide it.
+          </label>
+          <input type="text" class="field-input" id="settings-videocall-url" placeholder="https://zoom.us/j/... or meet.google.com/... or teams.live.com/...">
+        </div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;" onclick="saveVideoCallUrl()">Save</button>
+        <span id="videocall-saved-msg" style="display:none;color:var(--green);font-size:13px;margin-left:12px;">Saved.</span>
+      </div>
+    </div>
+    <div class="admin-panel" id="apanel-platform">
+      <div id="platform-panel"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ADMIN EDITOR ════ -->
+<div class="screen" id="screen-editor">
+  <div class="wrap">
+    <button type="button" class="back-link btn-reset" onclick="go('admin')">&larr; Back to course content</button>
+    <div class="dash-head">
+      <div>
+        <h1 class="display" id="editor-heading">Edit lesson</h1>
+        <div class="sub">Changes are saved as you make them.</div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="go('admin')">Done editing</button>
+    </div>
+    <div class="editor-grid">
+      <div>
+        <div class="editor-block">
+          <h3>Lesson details</h3>
+          <div class="field" style="margin-bottom:14px;max-width:160px;">
+            <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Lesson number</label>
+            <input type="number" min="0" step="1" class="field-input" id="editor-num-input" onchange="updateLessonNumber(this.value)">
+            <p style="font-size:11px;color:var(--ink-faint);margin:6px 0 0;">Sets where this lesson sits in the course order — students always see clean, gap-free numbering.</p>
+          </div>
+          <div class="field" style="margin-bottom:14px;">
+            <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Title</label>
+            <input type="text" class="field-input" id="editor-title-input" oninput="updateTitle(this.value)">
+          </div>
+          <div class="field" style="margin-bottom:0;">
+            <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Description</label>
+            <textarea class="field-textarea" id="editor-desc-input" oninput="updateDesc(this.value)"></textarea>
+          </div>
+        </div>
+        <div class="editor-block">
+          <h3>Materials — students get an Open and a Download button for each</h3>
+          <div id="editor-slides"></div>
+          <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
+            <input type="text" class="field-input" id="link-name-input" placeholder="Label (e.g. Lecture Slides Week 1)">
+            <input type="text" class="field-input" id="link-url-input" placeholder="Link URL (Google Drive, Dropbox, etc.)">
+            <div class="error-msg" id="link-error" style="margin-bottom:0;">Please enter both a label and a URL.</div>
+            <button class="upload-drop" style="border:none;cursor:pointer;" onclick="addLink()">+ Add link</button>
+            <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0 0;">
+              Downloading a link routes through the server so it saves the actual file — even a regular Google Drive share link.
+            </p>
+            <div style="display:flex;gap:8px;align-items:center;margin-top:10px;">
+              <input type="file" id="material-file-input" style="flex:1;font-size:13px;">
+              <button class="upload-drop" id="upload-file-btn" style="border:none;cursor:pointer;padding:11px 16px;white-space:nowrap;" onclick="uploadMaterialFile()">+ Upload file</button>
+            </div>
+            <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0 0;">
+              Upload a PDF, Word doc, PowerPoint, etc. directly (max 15MB). Larger files should be shared as a link instead.
+            </p>
+          </div>
+        </div>
+        <div class="editor-block">
+          <h3>Quiz questions</h3>
+          <div class="radio-hint">Select the radio button next to the correct answer for each question.</div>
+          <div id="editor-quiz"></div>
+          <button type="button" class="upload-drop btn-reset" onclick="addQuestion()">+ Add a question</button>
+        </div>
+      </div>
+      <div>
+        <div class="editor-block">
+          <h3>Session visibility</h3>
+          <div class="status-row">
+            <div>
+              <div class="s-label">Visible to students</div>
+              <div class="s-desc">Closed lessons are listed but locked.</div>
+            </div>
+            <div class="toggle" id="editor-toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Visible to students" onclick="toggleFromEditor()" onkeydown="onActivateKey(event, toggleFromEditor)"><div class="knob"></div></div>
+          </div>
+        </div>
+        <div class="editor-block" style="border-color:rgba(209,67,67,0.3);">
+          <h3 style="color:var(--red);">Danger zone</h3>
+          <div class="status-row">
+            <div>
+              <div class="s-label">Delete this lesson</div>
+              <div class="s-desc">Permanently removes the lesson, its materials, and quiz.</div>
+            </div>
+            <button class="dl-btn" style="border-color:rgba(209,67,67,0.4);color:var(--red);" onclick="deleteLessonFromEditor()">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ════ SCRIPT ════ -->
+<script>
+
+/* ─ API HELPERS ─ */
+var API_BASE    = '/api'; // rewritten to the full Render URL in the GitHub Pages build
+var API_ORIGIN  = 'https://lessons-d4zi.onrender.com'; // absolute backend origin — needed when a URL has to be fetched by a third party (e.g. Office viewer), not just the user's own browser
+var apiToken    = localStorage.getItem('apiToken') || null;
+var courseName  = 'IT Project Management Course'; // fallback until course info loads
+var currentCourseSlug = new URLSearchParams(window.location.search).get('course') || null;
+var currentUser = null; // { id, name, email, is_admin, role, course_id, course_slug, course_name }
+var courseVideoCallUrl = null;
+
+function applyCourseName(name){
+  courseName = name || courseName;
+  document.title = courseName;
+  const brandEl  = document.getElementById('brand-name-text');
+  const eyebrow  = document.getElementById('auth-eyebrow');
+  if(brandEl) brandEl.textContent = courseName;
+  if(eyebrow) eyebrow.textContent = courseName;
+}
+
+function setVideoCallUrl(url){
+  courseVideoCallUrl = url || null;
+  const btn = document.getElementById('student-videocall-btn');
+  if(btn) btn.style.display = courseVideoCallUrl ? '' : 'none';
+}
+
+function setApiToken(token){
+  apiToken = token;
+  if(token) localStorage.setItem('apiToken', token);
+  else      localStorage.removeItem('apiToken');
+}
+
+async function api(method, path, body){
+  const opts = { method, headers: { 'Content-Type': 'application/json' } };
+  if(apiToken) opts.headers['Authorization'] = 'Bearer ' + apiToken;
+  if(body)     opts.body = JSON.stringify(body);
+  const r = await fetch(API_BASE + path, opts);
+  const d = await r.json();
+  if(!r.ok) throw Object.assign(new Error(d.error || 'Request failed'), { code: d.error, status: r.status });
+  return d;
+}
+
+/* ─ STATE ─ */
+var currentStudent  = null;   // { uid, name, email, phone, answers:{}, notes:{} }
+var currentDetailId = null;
+var currentEditorId = null;
+var authMode        = 'login';
+var lessons         = [];     // loaded from API on init
+
+/* ─ DEBOUNCE ─ */
+function debounce(fn, delay){
+  let t;
+  return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), delay); };
+}
+
+/* ─ KEYBOARD ACTIVATION — for the handful of custom controls (toggles,
+   lesson cards) that can't be plain <button>/<a> elements without breaking
+   their layout, so Space/Enter needs to be wired up by hand. Call from
+   onkeydown="onActivateKey(event, () => ...)" alongside the existing
+   onclick. ─ */
+function onActivateKey(e, handler){
+  if(e.key === 'Enter' || e.key === ' '){
+    e.preventDefault();
+    handler();
+  }
+}
+
+/* ─ TOAST — visible feedback for background actions that used to fail
+   silently (console.error only). Pass a retry() callback to add a button
+   that re-runs the failed action. ─ */
+function showToast(message, { type = 'error', retry, timeout = 6000 } = {}){
+  const stack = document.getElementById('toast-stack');
+  if(!stack) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  const text = document.createElement('span');
+  text.textContent = message;
+  el.appendChild(text);
+  if(retry){
+    const btn = document.createElement('button');
+    btn.className = 'toast-retry';
+    btn.type = 'button';
+    btn.textContent = 'Retry';
+    btn.onclick = () => { el.remove(); retry(); };
+    el.appendChild(btn);
+  }
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), timeout);
+}
+
+/* ─ DEFAULT LESSON SEED (used only on first load) ─ */
+const DEFAULT_LESSONS = [
+  { id:1, num:'01',
+    title:'Introduction to IT Project Management',
+    blurb:'Project lifecycle, key roles, and the difference between projects and ongoing operations.',
+    status:'open',
+    slides:[],
+    quiz:[
+      { q:'Which statement best defines a project?',
+        options:['Ongoing day-to-day operational work','A temporary endeavor with a defined goal and end date','A department budget proposal'],
+        answer:1 },
+      { q:'Who holds primary accountability for delivering the project?',
+        options:['Business Analyst','Project Manager','Department Head'],
+        answer:1 },
+      { q:'Which phase comes first in a typical project lifecycle?',
+        options:['Execution','Planning','Initiation'],
+        answer:2 },
+    ]
+  },
+  { id:2, num:'02',
+    title:'Agile & Scrum Fundamentals',
+    blurb:'Sprints, ceremonies, team roles, and when Agile outperforms Waterfall.',
+    status:'open',
+    slides:[],
+    quiz:[
+      { q:'What is the recommended length of a Scrum sprint?',
+        options:['1–4 weeks','1–3 months','6 weeks minimum'],
+        answer:0 },
+      { q:'Who is responsible for maintaining the product backlog?',
+        options:['Scrum Master','Development Team','Product Owner'],
+        answer:2 },
+    ]
+  },
+  { id:3, num:'03',
+    title:'Risk Management in IT Projects',
+    blurb:'Identifying, assessing, and mitigating risks before they derail delivery.',
+    status:'closed',
+    slides:[],
+    quiz:[
+      { q:'What does risk mitigation involve?',
+        options:['Ignoring low-probability risks','Accepting all risks as unavoidable','Taking action to reduce a risk\'s probability or impact'],
+        answer:2 },
+      { q:'A risk register is primarily used to…',
+        options:['Track and manage identified project risks','Store team HR records','Approve budget changes'],
+        answer:0 },
+    ]
+  },
+  { id:4, num:'04',
+    title:'Project Scheduling & PM Tools',
+    blurb:'Gantt charts, critical path method, and hands-on overview of modern PM tools.',
+    status:'closed',
+    slides:[],
+    quiz:[
+      { q:'The critical path in a project schedule is…',
+        options:['The shortest route through all tasks','The longest sequence of dependent tasks that determines project duration','The planned budget allocation'],
+        answer:1 },
+      { q:'Which tool is most commonly used for Agile task tracking?',
+        options:['Gantt chart only','Jira or Azure DevOps','Microsoft Excel only'],
+        answer:1 },
+    ]
+  },
+];
+
+// The displayed lesson number IS sort_order — fully admin-controlled, so it
+// can be 0 (e.g. an intro/orientation lesson before "Lesson 1"), skip
+// numbers, whatever the admin sets via the editor's "Lesson number" field.
+function renumberLessons(){
+  lessons.forEach((l, i) => {
+    const n = (l.sort_order != null) ? l.sort_order : i + 1;
+    l.num = String(n).padStart(2, '0');
+  });
+}
+
+// Lessons are ordered by that same admin-set sort_order; ties (e.g. two
+// lessons given the same number, or one never explicitly numbered) fall
+// back to creation order so nothing is ambiguous.
+function sortLessonsByOrder(){
+  lessons.sort((a,b) => {
+    const ao = a.sort_order, bo = b.sort_order;
+    if(ao != null && bo != null && ao !== bo) return ao - bo;
+    if(ao != null && bo == null) return -1;
+    if(ao == null && bo != null) return 1;
+    return (a.id||0) - (b.id||0);
+  });
+}
+
+/* ─ COURSE HELPERS ─ */
+async function loadLessons(slug){
+  if(!slug){ lessons = []; return; }
+  try {
+    lessons = await api('GET', '/lessons?course=' + encodeURIComponent(slug));
+    sortLessonsByOrder();
+    renumberLessons();
+  } catch(e){
+    console.error('Failed to load lessons:', e);
+    lessons = [];
+  }
+}
+
+// Makes sure the URL carries ?course=SLUG so bookmarks/shares point at the right place.
+function syncCourseSlugToUrl(slug){
+  if(!slug || currentCourseSlug === slug) return;
+  currentCourseSlug = slug;
+  const url = new URL(window.location.href);
+  url.searchParams.set('course', slug);
+  window.history.replaceState({}, '', url);
+}
+
+// Bare URL / no course in context — used for the Platform sign-in screen and after
+// a Super Admin signs out (when there's no course slug to fall back on).
+function applyBareLoginBranding(){
+  document.title = 'Course Platform';
+  const brandEl   = document.getElementById('brand-name-text');
+  const taglineEl = document.getElementById('brand-tagline-text');
+  const eyebrowEl = document.getElementById('auth-eyebrow');
+  if(brandEl)   brandEl.textContent   = 'Course Platform';
+  if(taglineEl) taglineEl.textContent = 'Platform sign in';
+  if(eyebrowEl) eyebrowEl.textContent = 'Platform sign in';
+}
+
+// Super Admin sees a generic, product-name-free header — they manage admins, not a
+// specific course, so no course/product name should ever show while in this role.
+function applySuperAdminBranding(){
+  document.title = 'Admin Platform';
+  const brandEl   = document.getElementById('brand-name-text');
+  const taglineEl = document.getElementById('brand-tagline-text');
+  if(brandEl)   brandEl.textContent   = 'Admin Platform';
+  if(taglineEl) taglineEl.textContent = 'Super Admin';
+}
+
+async function enterAdminSession(user){
+  currentUser = user;
+  const isSuperAdmin = user.role === 'super_admin';
+
+  document.getElementById('platform-tab-btn').style.display = isSuperAdmin ? '' : 'none';
+  document.getElementById('settings-tab-btn').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('content-tab-btn').style.display  = isSuperAdmin ? 'none' : '';
+  document.getElementById('students-tab-btn').style.display = isSuperAdmin ? 'none' : '';
+
+  if(isSuperAdmin){
+    // The Super Admin only manages admins — no course context, no product name, no lessons/students.
+    applySuperAdminBranding();
+    go('admin');
+    activateAdminTab('platform');
+    return;
+  }
+
+  syncCourseSlugToUrl(user.course_slug);
+  applyCourseName(user.course_name || courseName);
+  setVideoCallUrl(user.course_videocall_url);
+  await loadLessons(currentCourseSlug);
+  renderAdminGrid();
+  go('admin');
+  activateAdminTab('content');
+}
+
+async function enterStudentSession(me){
+  currentUser = me;
+  currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {} };
+  for(const p of (me.progress || [])){
+    currentStudent.answers[p.lesson_id] = p.answers || {};
+    currentStudent.notes[p.lesson_id]   = p.note    || '';
+  }
+  syncCourseSlugToUrl(me.course_slug);
+  applyCourseName(me.course_name || courseName);
+  setVideoCallUrl(me.course_videocall_url);
+  await loadLessons(currentCourseSlug);
+  renderStudentGrid();
+  go('student');
+}
+
+/* ─ INIT — load course/lessons from API, restore session if a token was saved ─ */
+async function init(){
+  showLoading(true);
+
+  // Try to restore a previous session from the saved token first — this works
+  // even from a bare URL (no ?course=), since we know the user's course from their token.
+  if(apiToken){
+    try {
+      const me = await api('GET', '/auth/me');
+      if(me.is_admin){
+        await enterAdminSession(me);
+        showLoading(false);
+        return;
+      }
+      await enterStudentSession(me);
+      showLoading(false);
+      return;
+    } catch(e){
+      // Token invalid/expired — clear it and fall through to the login screen.
+      setApiToken(null);
+    }
+  }
+
+  if(currentCourseSlug){
+    try {
+      const course = await api('GET', '/courses/' + encodeURIComponent(currentCourseSlug));
+      applyCourseName(course.name);
+      setVideoCallUrl(course.videocall_url);
+    } catch(e){
+      console.error('Failed to load course:', e);
+    }
+    await loadLessons(currentCourseSlug);
+    document.getElementById('auth-switch').style.display = '';
+  } else {
+    // Bare URL, no course context — this is the Super Admin / platform sign-in.
+    // No signup is possible here since we don't know which course to join.
+    applyBareLoginBranding();
+    document.getElementById('auth-switch').style.display = 'none';
+  }
+
+  showLoading(false);
+  setAuthMode('login');
+  updateChrome('portal');
+}
+
+var loadingHintTimer = null;
+function showLoading(show){
+  document.getElementById('loading-overlay').style.display = show ? 'flex' : 'none';
+  const text = document.getElementById('loading-text');
+  clearTimeout(loadingHintTimer);
+  if(show){
+    text.textContent = 'Loading course…';
+    // The free server this app runs on falls asleep after inactivity and takes a
+    // little while to wake back up on the first request — explain the delay
+    // instead of leaving people staring at a spinner that looks stuck.
+    loadingHintTimer = setTimeout(() => {
+      text.textContent = 'Waking up the server — this can take up to a minute after inactivity. Thanks for your patience…';
+    }, 4000);
+  }
+}
+
+function signOutStudent(){
+  setApiToken(null);
+  currentStudent = null;
+  setAuthMode('login');
+  go('portal');
+}
+
+function adminSignOut(){
+  const wasSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  setApiToken(null);
+  currentUser = null;
+  if(wasSuperAdmin && !currentCourseSlug){
+    applyBareLoginBranding();
+    document.getElementById('auth-switch').style.display = 'none';
+  }
+  setAuthMode('login');
+  go('portal');
+}
+
+/* ─ HELPERS ─ */
+function badge(status){
+  return status==='open'
+    ? '<span class="status-badge open">Open</span>'
+    : '<span class="status-badge closed">Closed</span>';
+}
+
+function studentScore(answers, lessonId){
+  const l = lessons.find(x=>x.id===lessonId);
+  if(!l) return null;
+  const ans = (answers && answers[lessonId]) || {};
+  const attempted = Object.keys(ans).length;
+  if(!attempted) return null;
+  const correct = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
+  return { correct, total: l.quiz.length };
+}
+
+// A lesson's quiz is "done" once every question has a locked-in answer —
+// doesn't need to be all correct, just attempted (matches the fact that once
+// answered, a question can't be changed, so an answer here is final).
+function isQuizComplete(l, answers){
+  if(!l || !l.quiz || l.quiz.length === 0) return true;
+  const ans = (answers && answers[l.id]) || {};
+  return l.quiz.every((q,qi) => {
+    const given = ans[qi];
+    return q.multi ? Array.isArray(given) : given !== undefined;
+  });
+}
+
+// Lessons unlock sequentially: lesson N (after the first) only becomes
+// enterable once the student has completed lesson N-1's quiz — independent
+// of whether the admin has separately opened lesson N for the whole class.
+function isPrereqDone(index){
+  if(index <= 0) return true;
+  return isQuizComplete(lessons[index-1], currentStudent?.answers);
+}
+
+// The dashboard-level "final result" — every quiz question across every
+// lesson tallied into one combined score, so a student can see how they're
+// doing overall rather than lesson-by-lesson.
+function updateScoreRing(id, correct, total){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const pct = total > 0 ? Math.round((correct/total)*360) : 0;
+  el.style.background = `conic-gradient(var(--blue) ${pct}deg, var(--blue-soft2) ${pct}deg)`;
+}
+function globalQuizScore(){
+  let correct = 0, total = 0;
+  lessons.forEach(l => {
+    total += l.quiz.length;
+    const ans = (currentStudent?.answers?.[l.id]) || {};
+    correct += l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
+  });
+  return { correct, total };
+}
+
+/* ─ RENDERS ─ */
+function renderStudentGrid(){
+  const open = lessons.filter(l=>l.status==='open').length;
+  document.getElementById('student-sub').textContent =
+    `${lessons.length} lessons on your syllabus · ${open} currently open`;
+  if(currentStudent)
+    document.getElementById('student-greeting').textContent =
+      'Welcome back, ' + currentStudent.name.split(' ')[0];
+  const g = globalQuizScore();
+  const scoreNumEl = document.getElementById('dash-score-num');
+  if(scoreNumEl) scoreNumEl.textContent = `${g.correct} / ${g.total} correct`;
+  updateScoreRing('dash-score-ring', g.correct, g.total);
+  document.getElementById('student-grid').innerHTML = (lessons.length ? lessons.map((l,i) => {
+    const adminOpen  = l.status === 'open';
+    const prereqDone = isPrereqDone(i);
+    const enterable  = adminOpen && prereqDone;
+    let footLabel = 'Enter →';
+    let lockReason = '';
+    if(!enterable){
+      lockReason = !adminOpen ? 'This lesson isn\'t open yet — check back once your admin opens it.' : `Complete Lesson ${lessons[i-1].num}'s quiz to unlock this lesson.`;
+      footLabel = !adminOpen ? 'Locked' : `Complete Lesson ${lessons[i-1].num}'s quiz to unlock`;
+    }
+    // Locked cards stay focusable/clickable too — instead of doing nothing,
+    // they explain (via toast) exactly what unlocks them, so a click or a
+    // keyboard Enter never just silently fails.
+    const activateJs = enterable ? `openDetail(${l.id})` : `showToast(${JSON.stringify(lockReason)}, {type:'success'})`;
+    return `
+    <div class="card${enterable?'':' locked'}${l.status==='open'?' st-open':''}" role="button" tabindex="0" aria-label="Lesson ${l.num}: ${escapeHtml(l.title)}${enterable?'':' — '+lockReason}" onclick="${activateJs}" onkeydown="onActivateKey(event, () => { ${activateJs} })">
+      <div class="card-tab ${l.status}"></div>
+      <div class="card-top">
+        <span class="card-num mono">PM-${l.num}</span>
+        ${badge(l.status)}
+      </div>
+      <h3>${l.title}</h3>
+      <p>${l.blurb}</p>
+      <div class="card-foot">
+        <span>${l.slides.length} file${l.slides.length!==1?'s':''} · ${l.quiz.length} ${l.quiz.length===1?'question':'questions'}</span>
+        <span class="enter-link">${footLabel}</span>
+      </div>
+    </div>`;
+  }).join('') : `<div class="empty-state" style="grid-column:1/-1;"><div class="ei">📚</div><p>No lessons on your syllabus yet — check back once your admin adds the first one.</p></div>`);
+}
+
+function renderAdminGrid(){
+  document.getElementById('admin-grid').innerHTML = lessons.map(l => `
+    <div class="card">
+      <div class="card-tab ${l.status}"></div>
+      <div class="card-top">
+        <span class="card-num mono">Lesson ${l.num}</span>
+        <div class="admin-controls">
+          <button class="icon-btn" title="Edit lesson" aria-label="Edit lesson ${l.num}" onclick="openEditor(${l.id})">✎</button>
+          <button class="icon-btn" title="Delete lesson" aria-label="Delete lesson ${l.num}" onclick="deleteLesson(${l.id},'${(l.title||'').replace(/'/g,"\\'")}')">✕</button>
+          <div class="toggle${l.status==='open'?' on':''}" role="switch" tabindex="0" data-toggle-lesson="${l.id}" aria-checked="${l.status==='open'?'true':'false'}" aria-label="${l.status==='open'?'Open':'Closed'} to students — Lesson ${l.num}" onclick="toggleStatus(${l.id})" onkeydown="onActivateKey(event, () => toggleStatus(${l.id}))"><div class="knob"></div></div>
+        </div>
+      </div>
+      <h3>${l.title}</h3>
+      <p>${l.blurb}</p>
+      <div class="card-foot">
+        <span>${l.slides.length} file${l.slides.length!==1?'s':''} · ${l.quiz.length} ${l.quiz.length===1?'question':'questions'}</span>
+        ${badge(l.status)}
+      </div>
+    </div>
+  `).join('') + `
+    <button type="button" class="card add-card btn-reset" onclick="createLesson()">
+      <div class="plus">+</div>
+      <div style="font-size:14px;">New lesson</div>
+    </button>`;
+}
+
+async function renderStudentsPanel(){
+  const panel = document.getElementById('students-panel');
+  panel.innerHTML = `<div class="empty-state"><div class="ei">⏳</div><p>Loading students…</p></div>`;
+  try {
+    const allUsers     = await api('GET', '/users');
+    const studentsData = allUsers.filter(u => !u.is_admin);
+    if(!studentsData.length){
+      panel.innerHTML = `<div class="empty-state"><div class="ei">👤</div><p>No students have registered yet.</p></div>`;
+      return;
+    }
+
+    const pending  = studentsData.filter(s => !s.approved);
+    const approved = studentsData.filter(s => s.approved);
+
+    // ── Pending approval section ──
+    const pendingHtml = pending.length ? `
+      <div class="students-meta">
+        ${pending.length} account${pending.length!==1?'s':''} awaiting approval
+      </div>
+      <div style="margin-bottom:26px;">
+        ${pending.map(s => `
+          <div class="pending-row">
+            <div class="p-info">
+              <div class="p-avatar">${(s.name||'?').trim().charAt(0).toUpperCase()}</div>
+              <div class="p-text">
+                <div class="user-name">${s.name} <span class="status-badge pending">Pending</span></div>
+                <div class="user-email">${s.email}</div>
+              </div>
+            </div>
+            <div class="p-phone">${s.phone || '—'}</div>
+            <div class="p-actions">
+              <button class="btn-approve" onclick="setApproval('${s.id}', true)">Approve</button>
+              <button class="dl-btn danger" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">Delete</button>
+            </div>
+          </div>`).join('')}
+      </div>` : '';
+
+    // ── Approved students table (with score columns + revoke toggle) ──
+    const lessonTh = lessons.map(l =>
+      `<th style="width:1%;white-space:nowrap;">Lesson ${l.num}<br><span style="font-weight:400;text-transform:none;letter-spacing:0;font-size:11px;color:var(--ink-dim);display:block;margin-top:2px;">${l.title}</span></th>`
+    ).join('');
+    const approvedRows = approved.map(s => {
+      const answers = {};
+      for(const p of (s.progress || [])){ answers[p.lesson_id] = p.answers || {}; }
+      const scoreCells = lessons.map(l => {
+        const sc = studentScore(answers, l.id);
+        if(!sc) return `<td style="width:1%;white-space:nowrap;"><span class="score-chip none">—</span></td>`;
+        const pct = sc.correct / sc.total;
+        const cls = pct===1 ? 'done' : sc.correct>0 ? 'partial' : 'none';
+        return `<td style="width:1%;white-space:nowrap;"><span class="score-chip ${cls}">${sc.correct}/${sc.total}</span></td>`;
+      }).join('');
+      return `<tr>
+        <td class="sticky-col"><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
+        <td style="width:1%;white-space:nowrap;">${s.phone || '—'}</td>
+        ${scoreCells}
+        <td style="width:1%;text-align:right;white-space:nowrap;">
+          <button class="dl-btn" style="opacity:0.75;" onclick="setApproval('${s.id}', false)">Revoke</button>
+          <button class="dl-btn danger" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">Delete</button>
+        </td>
+      </tr>`;
+    }).join('');
+    const approvedHtml = approved.length ? `
+      <div class="students-meta">${approved.length} approved student${approved.length!==1?'s':''}</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="sticky-col">Student</th><th style="width:1%;white-space:nowrap;">Phone</th>${lessonTh}<th style="width:1%;"></th></tr></thead>
+          <tbody>${approvedRows}</tbody>
+        </table>
+      </div>` : (pending.length ? '' : `<div class="empty-state"><div class="ei">👤</div><p>No approved students yet.</p></div>`);
+
+    panel.innerHTML = pendingHtml + approvedHtml;
+  } catch(e){
+    panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load students.</p></div>`;
+    console.error(e);
+  }
+}
+
+async function setApproval(userId, approved){
+  try {
+    await api('PATCH', '/users/'+userId+'/approval', { approved });
+    renderStudentsPanel();
+  } catch(e){
+    console.error('Approval change failed', e);
+    alert('Could not update approval status. Please try again.');
+  }
+}
+
+async function deleteStudent(userId, name){
+  if(!confirm(`Delete ${name}'s account? This permanently removes their profile, quiz answers, and notes. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/users/'+userId);
+    renderStudentsPanel();
+  } catch(e){
+    console.error('Delete student failed', e);
+    alert('Could not delete this account. Please try again.');
+  }
+}
+
+async function saveCourseName(){
+  const input = document.getElementById('settings-course-name');
+  const name  = input.value.trim();
+  if(!name){ alert('Please enter a name.'); return; }
+  try {
+    const course = await api('PATCH', '/courses/mine', { name });
+    applyCourseName(course.name);
+    syncCourseSlugToUrl(course.slug);
+    if(currentUser){ currentUser.course_slug = course.slug; currentUser.course_name = course.name; }
+    document.getElementById('settings-course-link').value = courseLinkFor(course.slug);
+    const msg = document.getElementById('settings-saved-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 2500);
+  } catch(e){
+    console.error('Save course name failed', e);
+    alert('Could not save. Please try again.');
+  }
+}
+
+async function saveVideoCallUrl(){
+  const input = document.getElementById('settings-videocall-url');
+  const url = input.value.trim();
+  try {
+    const course = await api('PATCH', '/courses/mine', { videocall_url: url });
+    setVideoCallUrl(course.videocall_url);
+    // The server may have pulled a bare "meet.google.com/xxx" or a pasted
+    // invite block down to the real https:// link — reflect that back so
+    // the field shows exactly what got saved.
+    input.value = course.videocall_url || '';
+    if(currentUser) currentUser.course_videocall_url = course.videocall_url;
+    const msg = document.getElementById('videocall-saved-msg');
+    msg.style.display = 'inline';
+    setTimeout(() => { msg.style.display = 'none'; }, 2500);
+  } catch(e){
+    console.error('Save video call link failed', e);
+    alert(e.code ? e.message : 'Could not save. Please try again.');
+  }
+}
+
+var GITHUB_PAGES_BASE = 'https://chobanyannarek.github.io/Lessons/';
+function courseLinkFor(slug){
+  return GITHUB_PAGES_BASE + '?course=' + slug;
+}
+
+function copyLinkToClipboard(link){
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(link).then(
+      () => alert('Link copied:\n' + link),
+      () => alert(link)
+    );
+  } else {
+    alert(link);
+  }
+}
+
+function copySettingsCourseLink(){
+  const input = document.getElementById('settings-course-link');
+  copyLinkToClipboard(input.value);
+}
+
+/* ─ PLATFORM (SUPER ADMIN) ─ */
+async function renderPlatformPanel(){
+  const panel = document.getElementById('platform-panel');
+  panel.innerHTML = `<div class="empty-state"><div class="ei">⏳</div><p>Loading admins…</p></div>`;
+  try {
+    const admins = await api('GET', '/super/admins');
+    const rows = admins.map(a => `<tr>
+        <td><div class="user-name">${a.name}</div><div class="user-email">${a.email}</div></td>
+        <td style="width:1%;white-space:nowrap;text-align:center;">${a.course_count}</td>
+        <td style="width:1%;white-space:nowrap;text-align:center;">${a.student_count}</td>
+        <td style="width:1%;white-space:nowrap;"><button class="dl-btn danger" onclick="deleteAdmin('${a.id}','${(a.name||'').replace(/'/g,"\\'")}')">Delete</button></td>
+      </tr>`).join('');
+    const tableHtml = `
+      <div class="students-meta">${admins.length} admin${admins.length!==1?'s':''} on the platform</div>
+      <div class="table-wrap" style="margin-bottom:26px;">
+        <table>
+          <thead><tr><th>Admin</th><th style="width:1%;">Courses</th><th style="width:1%;">Students</th><th style="width:1%;"></th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="4" style="text-align:center;color:var(--ink-faint);padding:30px;">No admins yet.</td></tr>'}</tbody>
+        </table>
+      </div>`;
+    panel.innerHTML = tableHtml + `
+      <div class="editor-block" style="max-width:560px;">
+        <h3>Create a new admin</h3>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin name</label>
+          <input type="text" class="field-input" id="new-admin-name" placeholder="Full name">
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin email</label>
+          <input type="email" class="field-input" id="new-admin-email" placeholder="admin@example.com">
+        </div>
+        <div class="field" style="margin-bottom:14px;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Admin password</label>
+          <input type="password" class="field-input" id="new-admin-password" placeholder="••••••••">
+        </div>
+        <div class="field" style="margin-bottom:0;">
+          <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Their course name</label>
+          <input type="text" class="field-input" id="new-admin-course-name" placeholder="e.g. Data Analytics Fundamentals">
+        </div>
+        <div class="error-msg" id="new-admin-error" style="margin-top:14px;margin-bottom:0;"></div>
+        <button class="btn btn-primary" style="width:auto;padding:10px 22px;margin-top:14px;" onclick="createAdmin()">Create admin</button>
+      </div>`;
+  } catch(e){
+    console.error('Failed to load admins', e);
+    panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load admins.</p></div>`;
+  }
+}
+
+async function createAdmin(){
+  const nameEl    = document.getElementById('new-admin-name');
+  const emailEl   = document.getElementById('new-admin-email');
+  const pwEl      = document.getElementById('new-admin-password');
+  const courseEl  = document.getElementById('new-admin-course-name');
+  const errEl     = document.getElementById('new-admin-error');
+  const adminName     = nameEl.value.trim();
+  const adminEmail    = emailEl.value.trim();
+  const adminPassword = pwEl.value;
+  const courseNameVal = courseEl.value.trim();
+  [nameEl, emailEl, pwEl, courseEl].forEach(el => el.classList.remove('field-error'));
+  errEl.classList.remove('show');
+  if(!adminName || !adminEmail || !adminPassword || !courseNameVal){
+    nameEl.classList.toggle('field-error', !adminName);
+    emailEl.classList.toggle('field-error', !adminEmail);
+    pwEl.classList.toggle('field-error', !adminPassword);
+    courseEl.classList.toggle('field-error', !courseNameVal);
+    errEl.textContent = 'Please fill in all fields.';
+    errEl.classList.add('show');
+    return;
+  }
+  try {
+    await api('POST', '/super/admins', { courseName: courseNameVal, adminName, adminEmail, adminPassword });
+    renderPlatformPanel();
+  } catch(e){
+    console.error('Create admin failed', e);
+    if(e.code === 'email-already-in-use') emailEl.classList.add('field-error');
+    errEl.textContent = e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the admin. Please try again.';
+    errEl.classList.add('show');
+  }
+}
+
+async function deleteAdmin(id, name){
+  if(!confirm(`Delete admin "${name}"? This permanently removes their course, its lessons, and all their students. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/super/admins/' + id);
+    renderPlatformPanel();
+  } catch(e){
+    console.error('Delete admin failed', e);
+    alert('Could not delete this admin. Please try again.');
+  }
+}
+
+/* ─ AUTH ─ */
+function setAuthMode(mode){
+  authMode = mode;
+  const signup = mode === 'signup';
+  document.getElementById('signup-only').style.display = signup ? '' : 'none';
+  document.getElementById('auth-heading').textContent  = signup ? 'Create an account' : 'Sign in';
+  document.getElementById('auth-lead').textContent     = signup
+    ? 'Join the course — it only takes a moment.'
+    : 'Welcome back. Enter your credentials to continue.';
+  document.getElementById('auth-btn').textContent      = signup ? 'Create account →' : 'Sign in →';
+  document.getElementById('auth-switch').innerHTML     = signup
+    ? 'Already have an account? <a onclick="setAuthMode(\'login\')">Sign in</a>'
+    : 'New here? <a onclick="setAuthMode(\'signup\')">Create a student account</a>';
+  document.getElementById('auth-error').classList.remove('show');
+}
+
+async function unifiedAuth(){
+  const email = document.getElementById('s-email').value.trim();
+  const pw    = document.getElementById('s-pw').value;
+  const err   = document.getElementById('auth-error');
+  const btn   = document.getElementById('auth-btn');
+  err.classList.remove('show');
+
+  if(!email || !pw){
+    err.textContent = 'Please enter your email and password.';
+    err.classList.add('show'); return;
+  }
+
+  btn.textContent = 'Please wait…';
+  btn.disabled = true;
+
+  let pendingMsg = null; // set on successful signup; shown after mode reset below
+  let errorMsg   = null; // set on any failure; shown after mode reset below
+
+  try {
+    if(authMode === 'signup'){
+      const first = document.getElementById('s-first').value.trim();
+      const last  = document.getElementById('s-last').value.trim();
+      const phone = document.getElementById('s-phone').value.trim();
+      if(!first || !last){
+        err.textContent = 'Please enter your first and last name.';
+        err.classList.add('show');
+        btn.disabled = false;
+        setAuthMode(authMode);
+        return;
+      }
+      if(!currentCourseSlug){
+        err.textContent = 'This link is missing a course — ask your admin for the correct sign-up link.';
+        err.classList.add('show');
+        btn.disabled = false;
+        setAuthMode(authMode);
+        return;
+      }
+      await api('POST', '/auth/register', { name: first+' '+last, email, phone, password: pw, course: currentCourseSlug });
+      // Account created but pending admin approval — no token issued, don't log in.
+      authMode = 'login';
+      pendingMsg = 'Account created. An admin needs to approve it before you can sign in — check back shortly.';
+      return;
+    }
+
+    const data = await api('POST', '/auth/login', { email, password: pw });
+    setApiToken(data.token);
+
+    if(data.user.is_admin){
+      await enterAdminSession(data.user);
+      return;
+    }
+
+    // Load full profile + progress
+    const me = await api('GET', '/auth/me');
+    await enterStudentSession(me);
+  } catch(e){
+    console.error('Auth error:', e.code, e.message);
+    let msg = 'Something went wrong. Please try again.';
+    if(e.code === 'email-already-in-use') msg = 'An account with this email exists — sign in instead.';
+    if(e.code === 'user-not-found')       msg = 'No account found with this email.';
+    if(e.code === 'wrong-password')       msg = 'Incorrect email or password.';
+    if(e.code === 'account-pending')      msg = 'Your account is awaiting admin approval. Please check back later.';
+    if(e.code === 'course-not-found')     msg = 'This course link is invalid or no longer exists.';
+    errorMsg = msg;
+  } finally {
+    btn.disabled = false;
+    setAuthMode(authMode); // resets auth-error's 'show' class — re-applied below if needed
+    if(pendingMsg){
+      err.textContent = pendingMsg;
+      err.classList.add('show');
+      err.style.background  = 'var(--green-soft)';
+      err.style.borderColor = 'rgba(28,154,108,0.35)';
+      err.style.color       = 'var(--green)';
+    } else if(errorMsg){
+      err.textContent = errorMsg;
+      err.classList.add('show');
+      err.style.background  = '';
+      err.style.borderColor = '';
+      err.style.color       = '';
+    } else {
+      err.style.background  = '';
+      err.style.borderColor = '';
+      err.style.color       = '';
+    }
+  }
+}
+
+/* ─ MATERIALS (links or uploaded files) ─ */
+// A material is either an uploaded file ({name, fileId, mimetype} — served straight
+// from our own DB, so a real download always works) or a link ({name, url} — e.g.
+// Google Drive/Dropbox, proxied through /api/download so the download actually
+// saves the file instead of just opening it, which is all a plain <a download>
+// can do for a cross-origin link).
+// Browsers can preview PDFs and images natively, but not Word/PowerPoint/Excel —
+// those just download regardless of the inline disposition since there's no
+// built-in viewer for them. Route those through Microsoft's free Office viewer
+// instead, which can render them right in the browser tab.
+var OFFICE_MIME_TYPES = new Set([
+  'application/msword',
+  'application/vnd.ms-powerpoint',
+  'application/vnd.ms-excel',
+  'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+]);
+function materialOpenUrl(s){
+  if(!s.fileId) return s.url;
+  const inlineUrl = API_BASE + '/files/' + s.fileId + '?disposition=inline';
+  if(OFFICE_MIME_TYPES.has(s.mimetype)){
+    // The Office viewer fetches the file itself, so it needs a fully-qualified
+    // absolute URL — not the relative /api path used when this page's own
+    // fetch calls already know their origin.
+    const absoluteUrl = API_ORIGIN + '/api/files/' + s.fileId + '?disposition=inline';
+    return 'https://view.officeapps.live.com/op/view.aspx?src=' + encodeURIComponent(absoluteUrl);
+  }
+  return inlineUrl;
+}
+function materialDownloadUrl(s){
+  return s.fileId
+    ? (API_BASE + '/files/' + s.fileId)
+    : (API_BASE + '/download?url=' + encodeURIComponent(s.url) + '&name=' + encodeURIComponent(s.name || 'material'));
+}
+function jsEscape(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\\'"); }
+
+// Downloads via fetch+blob instead of a plain <a href> so a failed proxy request
+// (e.g. Google Drive wouldn't hand over the raw file) shows a clear message
+// instead of navigating the whole app away to a page of raw JSON.
+async function downloadMaterial(btn, name, url){
+  // Disable + relabel for the whole round trip — otherwise an impatient
+  // double-click can fire the same download twice with nothing on screen
+  // showing the first one is still in flight.
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Downloading…';
+  try {
+    const r = await fetch(url);
+    if(!r.ok){
+      let msg = 'Could not download this file. Please try again.';
+      try { const d = await r.json(); if(d.error) msg = d.error; } catch(e){}
+      showToast(msg, { retry: () => downloadMaterial(btn, name, url) });
+      return;
+    }
+    const blob = await r.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = objectUrl;
+    a.download = name || 'download';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
+  } catch(e){
+    console.error('Download failed', e);
+    showToast('Could not download this file. Please check your connection and try again.', { retry: () => downloadMaterial(btn, name, url) });
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+function renderMaterialRow(s){
+  const hasTarget = !!(s.fileId || s.url);
+  const openUrl = materialOpenUrl(s);
+  const dlUrl   = materialDownloadUrl(s);
+  return `
+    <div class="slide-row">
+      <div class="slide-info">
+        <div class="slide-icon">${s.fileId ? '📄' : '🔗'}</div>
+        <div><div class="slide-name">${s.name}</div></div>
+      </div>
+      ${hasTarget ? `
+        <div style="display:flex;gap:8px;flex-shrink:0;">
+          <button class="dl-btn" onclick="window.open('${jsEscape(openUrl)}','_blank')">Open</button>
+          <button class="dl-btn" onclick="downloadMaterial(this,'${jsEscape(s.name)}','${jsEscape(dlUrl)}')">Download</button>
+        </div>`
+        : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
+    </div>`;
+}
+
+/* ─ LESSON DETAIL ─ */
+function openDetail(id){
+  const idx = lessons.findIndex(x=>x.id===id);
+  const l   = lessons[idx];
+  if(!l) return;
+  // Guard the direct entry point too — not just the card's onclick — so a
+  // stale render or a manual openDetail() call can't bypass the gate.
+  if(currentStudent && (l.status !== 'open' || !isPrereqDone(idx))){
+    renderStudentGrid();
+    return;
+  }
+  currentDetailId = id;
+  document.getElementById('detail-title').textContent = l.title;
+  document.getElementById('detail-meta').textContent  = `Lesson ${l.num} · ${courseName}`;
+  document.getElementById('panel-slides').innerHTML   = l.slides.length
+    ? l.slides.map(renderMaterialRow).join('')
+    : `<div class="empty-state"><div class="ei">📎</div><p>No materials added for this lesson yet.</p></div>`;
+
+  // Notes — stored as HTML (bold/italic/lists/checklists/attachment chips),
+  // not plain text, so we set innerHTML rather than .value.
+  document.getElementById('notes-area').innerHTML = (currentStudent?.notes?.[id]) || '';
+
+  // Quiz init
+  if(currentStudent && !currentStudent.answers[id]) currentStudent.answers[id] = {};
+  renderQuiz(l);
+
+  // Reset tabs
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.tab-btn[data-panel="slides"]').classList.add('active');
+  document.getElementById('panel-slides').classList.add('active');
+
+  go('detail');
+}
+
+const saveNoteDebounced = debounce(async (lessonId, text) => {
+  if(!currentStudent) return;
+  try {
+    await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lessonId, { note: text });
+    const statusEl = document.getElementById('notes-status');
+    if(statusEl) statusEl.textContent = 'Saved.';
+  } catch(e){
+    console.error('Note save failed', e);
+    const statusEl = document.getElementById('notes-status');
+    if(statusEl) statusEl.textContent = "Couldn't save — check your connection.";
+    showToast("Couldn't save your note — check your connection.", { retry: () => saveNoteDebounced(lessonId, text) });
+  }
+}, 900);
+
+function saveNotesNow(){
+  const el = document.getElementById('notes-area');
+  if(currentStudent && currentDetailId !== null){
+    if(!currentStudent.notes) currentStudent.notes = {};
+    currentStudent.notes[currentDetailId] = el.innerHTML;
+    document.getElementById('notes-status').textContent = 'Saving…';
+    saveNoteDebounced(currentDetailId, el.innerHTML);
+  }
+}
+
+document.getElementById('notes-area').addEventListener('input', saveNotesNow);
+
+// Standard fast-formatting toolbar — execCommand is old but still the
+// simplest way to get bold/italic/underline/lists working across browsers
+// inside a contenteditable box without pulling in a full editor library.
+function noteCmd(cmd){
+  const el = document.getElementById('notes-area');
+  el.focus();
+  document.execCommand(cmd, false, null);
+  saveNotesNow();
+}
+
+// Checklist items are plain checkboxes + editable text, not a native
+// execCommand feature. Built with the Range API directly rather than
+// execCommand('insertHTML') — Chrome silently strips the wrapping <div>/
+// <label> from inserted markup when the caret sits in plain inline text,
+// which would leave a bare checkbox with no styling or line break.
+function noteInsertChecklist(){
+  const el = document.getElementById('notes-area');
+  el.focus();
+  const sel = window.getSelection();
+  let range;
+  if(sel && sel.rangeCount && el.contains(sel.anchorNode)){
+    range = sel.getRangeAt(0);
+  } else {
+    range = document.createRange();
+    range.selectNodeContents(el);
+    range.collapse(false);
+  }
+  const wrap  = document.createElement('div');
+  wrap.className = 'note-check';
+  const label = document.createElement('label');
+  const cb    = document.createElement('input');
+  cb.type = 'checkbox';
+  const span  = document.createElement('span');
+  span.setAttribute('contenteditable', 'true');
+  span.textContent = 'To-do item';
+  label.appendChild(cb);
+  label.appendChild(document.createTextNode(' '));
+  label.appendChild(span);
+  wrap.appendChild(label);
+  const brDiv = document.createElement('div');
+  brDiv.appendChild(document.createElement('br'));
+  const frag = document.createDocumentFragment();
+  frag.appendChild(wrap);
+  frag.appendChild(brDiv);
+  range.deleteContents();
+  range.insertNode(frag);
+  // Select the placeholder text so the next keystroke replaces it outright.
+  const newRange = document.createRange();
+  newRange.selectNodeContents(span);
+  sel.removeAllRanges();
+  sel.addRange(newRange);
+  saveNotesNow();
+}
+
+// Checkbox toggling inside contenteditable changes the DOM property but not
+// the serialized "checked" attribute — sync it so the checked state survives
+// a reload, since notes are saved as an HTML string.
+document.getElementById('notes-area').addEventListener('click', function(e){
+  if(e.target.tagName === 'INPUT' && e.target.type === 'checkbox'){
+    setTimeout(() => {
+      if(e.target.checked) e.target.setAttribute('checked', 'checked');
+      else e.target.removeAttribute('checked');
+      saveNotesNow();
+    }, 0);
+    return;
+  }
+  const removeBtn = e.target.closest('.na-remove');
+  if(removeBtn){
+    e.preventDefault();
+    const chip = removeBtn.closest('.note-attachment');
+    const fileId = chip?.dataset.fileId;
+    if(fileId) removeNoteAttachment(fileId, chip);
+    return;
+  }
+  const chip = e.target.closest('.note-attachment');
+  if(chip){
+    e.preventDefault();
+    downloadNoteFile(chip.dataset.fileId, chip.dataset.fileName);
+  }
+});
+
+async function uploadNoteFile(input){
+  const file = input.files[0];
+  if(!file || currentDetailId === null) return;
+  if(file.size > 15 * 1024 * 1024){
+    alert('That file is larger than 15MB — please attach a smaller file.');
+    input.value = '';
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/notes/' + currentDetailId + '/files', { method: 'POST', headers, body: fd });
+    const d = await r.json();
+    if(!r.ok) throw Object.assign(new Error(d.error || 'Upload failed'), { code: d.error });
+
+    const el = document.getElementById('notes-area');
+    el.focus();
+    const chipHtml = `<a href="#" class="note-attachment" contenteditable="false" data-file-id="${d.id}" data-file-name="${escapeHtml(file.name)}">&#128206; ${escapeHtml(file.name)} <span class="na-remove">&times;</span></a>`;
+    document.execCommand('insertHTML', false, chipHtml + '&nbsp;');
+    saveNotesNow();
+  } catch(e){
+    console.error('Note file upload failed', e);
+    alert('Could not attach the file. Please try again.');
+  } finally {
+    input.value = '';
+  }
+}
+
+async function downloadNoteFile(fileId, name){
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/notes/files/' + fileId, { headers });
+    if(!r.ok) throw new Error('Download failed');
+    const blob = await r.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href = url; a.download = name || 'attachment';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch(e){
+    console.error('Note file download failed', e);
+    alert('Could not download that file.');
+  }
+}
+
+async function removeNoteAttachment(fileId, chipEl){
+  chipEl.remove();
+  saveNotesNow();
+  try { await api('DELETE', '/notes/files/'+fileId); }
+  catch(e){ console.error('Note file delete failed', e); }
+}
+
+function escapeHtml(s){ return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;'); }
+
+function quizIsCorrect(q, given){
+  if(given === undefined) return false;
+  if(q.multi){
+    const correctSet = (q.correct||[]).slice().sort((a,b)=>a-b);
+    const givenSet    = Array.isArray(given) ? given.slice().sort((a,b)=>a-b) : [];
+    return correctSet.length > 0 &&
+      correctSet.length === givenSet.length &&
+      correctSet.every((v,i) => v === givenSet[i]);
+  }
+  return given === q.answer;
+}
+
+// Multi-select questions need several clicks before the student is "done" —
+// selections are held here, un-persisted, until they hit Submit. Once
+// submitted (or, for single-choice, once the first option is clicked), the
+// question is locked in currentStudent.answers and can't be changed.
+var quizDraftMulti = {};
+
+function renderQuiz(l){
+  const ans = (currentStudent?.answers?.[l.id]) || {};
+  document.getElementById('quiz-questions').innerHTML = l.quiz.map((q,i) => {
+    const given     = ans[i];
+    const answered  = q.multi ? Array.isArray(given) : given !== undefined;
+    const isCorrect = answered && quizIsCorrect(q, given);
+    const draft     = quizDraftMulti[l.id+'_'+i] || [];
+    const optionsHtml = q.options.map((opt,oi) => {
+      let cls = '';
+      if(answered){
+        const isRight = q.multi ? (q.correct||[]).includes(oi) : oi === q.answer;
+        const isPicked = q.multi ? given.includes(oi) : oi === given;
+        if(isRight)        cls = 'correct';
+        else if(isPicked)  cls = 'wrong';
+      }
+      const picked = answered
+        ? (q.multi ? given.includes(oi) : given===oi)
+        : (q.multi ? draft.includes(oi) : false);
+      const inputType = q.multi ? 'checkbox' : 'radio';
+      // The click handler lives on the <input> itself (not the wrapping <label>)
+      // and returns false to suppress the browser's own native check/toggle —
+      // we fully own the checked state via re-render, so there's no race between
+      // the native default action and the DOM we just replaced.
+      const clickAttr = answered ? '' : ` onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi});return false;"`;
+      // Correct/wrong gets a text tag, not just a border color, so the
+      // signal doesn't rely on color alone (colorblind-safe) — text instead
+      // of a glyph so it reads clearly at any size.
+      const markHtml = cls ? `<span class="opt-tag ${cls==='correct'?'g':'r'}">${cls==='correct'?'Correct':'Incorrect'}</span>` : '';
+      return `<label class="option ${cls}${answered?' locked':''}">
+        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}${clickAttr}> ${opt}${markHtml}
+      </label>`;
+    }).join('');
+    const submitBtnHtml = (q.multi && !answered && draft.length > 0)
+      ? `<button class="btn btn-primary btn-sm quiz-submit-btn" style="width:auto;padding:9px 18px;" onclick="submitMultiAnswer(${l.id},${i})">Submit answer</button>`
+      : '';
+    // Google Forms-style feedback: once answered, show the explanation only
+    // when the student's answer is wrong — no explanation on a correct answer.
+    const explanationHtml = (answered && !isCorrect && q.explanation)
+      ? `<div class="quiz-explanation wrong">
+           <strong>Not quite — </strong>${escapeHtml(q.explanation)}
+         </div>`
+      : '';
+    // Once locked, say WHY the options stopped responding rather than
+    // leaving the student to guess.
+    const lockCaptionHtml = answered
+      ? `<div class="lock-caption">Locked in — answers can't be changed after submitting</div>`
+      : '';
+    return `
+      <div class="quiz-q">
+        <div class="qnum mono">Question ${i+1} of ${l.quiz.length}${q.multi ? ' · select all that apply' : ''}</div>
+        <h4>${q.q}</h4>
+        ${optionsHtml}
+        ${submitBtnHtml}
+        ${explanationHtml}
+        ${lockCaptionHtml}
+      </div>`;
+  }).join('');
+  const total   = l.quiz.length;
+  const correct = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
+  document.getElementById('quiz-score').textContent = `${correct} / ${total} correct`;
+  updateScoreRing('quiz-score-ring', correct, total);
+}
+
+async function answerQuiz(lid, qi, oi, isMulti){
+  if(!currentStudent) return;
+  if(!currentStudent.answers)      currentStudent.answers = {};
+  if(!currentStudent.answers[lid]) currentStudent.answers[lid] = {};
+  // A question is locked in as soon as it has a saved answer — no re-picking.
+  if(currentStudent.answers[lid][qi] !== undefined) return;
+  if(isMulti){
+    const key = lid+'_'+qi;
+    const current = quizDraftMulti[key] ? quizDraftMulti[key].slice() : [];
+    const idx = current.indexOf(oi);
+    if(idx === -1) current.push(oi); else current.splice(idx,1);
+    quizDraftMulti[key] = current;
+    renderQuiz(lessons.find(x=>x.id===lid));
+    return; // draft only — not locked or saved until Submit is clicked
+  }
+  currentStudent.answers[lid][qi] = oi;
+  renderQuiz(lessons.find(x=>x.id===lid));
+  // Keep the dashboard grid current in the background — so the moment the
+  // student answers the last question of a lesson's quiz, the next lesson's
+  // card is already unlocked underneath, no hard refresh needed to see it.
+  renderStudentGrid();
+  saveQuizAnswer(lid);
+}
+
+async function submitMultiAnswer(lid, qi){
+  if(!currentStudent) return;
+  const key = lid+'_'+qi;
+  const draft = quizDraftMulti[key] || [];
+  if(!draft.length) return;
+  if(!currentStudent.answers)      currentStudent.answers = {};
+  if(!currentStudent.answers[lid]) currentStudent.answers[lid] = {};
+  if(currentStudent.answers[lid][qi] !== undefined) return;
+  currentStudent.answers[lid][qi] = draft.slice();
+  delete quizDraftMulti[key];
+  renderQuiz(lessons.find(x=>x.id===lid));
+  renderStudentGrid();
+  saveQuizAnswer(lid);
+}
+
+// The answer is already locked in locally (and reflected on screen) before
+// this fires, so a failed save can't be silent — the student needs to know
+// their progress may not have actually persisted.
+async function saveQuizAnswer(lid){
+  try {
+    await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
+  } catch(e){
+    console.error('Answer save failed', e);
+    showToast("Couldn't save your answer — check your connection.", { retry: () => saveQuizAnswer(lid) });
+  }
+}
+
+/* ─ ADMIN LESSON MANAGEMENT ─ */
+const saveLessonDebounced = debounce(async (id) => {
+  const l = lessons.find(x=>x.id===id);
+  if(!l) return;
+  try { await api('PATCH', '/lessons/'+id, { title:l.title, blurb:l.blurb, quiz:l.quiz }); }
+  catch(e){
+    console.error('Save lesson failed', e);
+    showToast("Couldn't save your changes — check your connection.", { retry: () => saveLessonDebounced(id) });
+  }
+}, 800);
+
+async function toggleStatus(id){
+  const l = lessons.find(x=>x.id===id);
+  l.status = l.status==='open' ? 'closed' : 'open';
+  renderAdminGrid();
+  renderStudentGrid();
+  syncToggleAria(id);
+  try { await api('PATCH', '/lessons/'+id, { status: l.status }); }
+  catch(e){
+    console.error('Toggle status failed', e);
+    showToast("Couldn't save that change — check your connection.", { retry: () => toggleStatus(id) });
+    // Roll the visible toggle back since the server never got the change —
+    // otherwise the switch shows a state that isn't actually saved.
+    l.status = l.status==='open' ? 'closed' : 'open';
+    renderAdminGrid();
+    renderStudentGrid();
+    syncToggleAria(id);
+  }
+}
+
+// Keeps role="switch" aria-checked in sync with the visual .on class,
+// since the toggle is a styled <div>, not a native input, and screen
+// readers only get state from the ARIA attribute.
+function syncToggleAria(id){
+  document.querySelectorAll(`[data-toggle-lesson="${id}"]`).forEach(el => {
+    el.setAttribute('aria-checked', el.classList.contains('on') ? 'true' : 'false');
+  });
+}
+
+function toggleFromEditor(){
+  toggleStatus(currentEditorId);
+  const l = lessons.find(x=>x.id===currentEditorId);
+  document.getElementById('editor-toggle').classList.toggle('on', l.status==='open');
+}
+
+async function createLesson(){
+  try {
+    const created = await api('POST', '/lessons', { title:'New lesson', blurb:'Add a short description.', status:'closed', slides:[], quiz:[] });
+    lessons.push(created);
+    renumberLessons();
+    renderAdminGrid();
+    openEditor(created.id);
+  } catch(e){ console.error('Create lesson failed', e); }
+}
+
+async function deleteLesson(id, title){
+  if(!confirm(`Delete "${title}"? This permanently removes the lesson, its materials, and quiz. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/lessons/'+id);
+    lessons = lessons.filter(l => l.id !== id);
+    renumberLessons();
+    renderAdminGrid();
+  } catch(e){
+    console.error('Delete lesson failed', e);
+    alert('Could not delete this lesson. Please try again.');
+  }
+}
+
+async function deleteLessonFromEditor(){
+  const l = lessons.find(x => x.id === currentEditorId);
+  if(!l) return;
+  if(!confirm(`Delete "${l.title}"? This permanently removes the lesson, its materials, and quiz. This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/lessons/'+l.id);
+    lessons = lessons.filter(x => x.id !== l.id);
+    renumberLessons();
+    renderAdminGrid();
+    go('admin');
+  } catch(e){
+    console.error('Delete lesson failed', e);
+    alert('Could not delete this lesson. Please try again.');
+  }
+}
+
+function openEditor(id){
+  currentEditorId = id;
+  const l = lessons.find(x=>x.id===id);
+  document.getElementById('editor-heading').textContent = 'Edit — Lesson ' + l.num;
+  document.getElementById('editor-num-input').value      = parseInt(l.num, 10);
+  document.getElementById('editor-title-input').value   = l.title;
+  document.getElementById('editor-desc-input').value    = l.blurb;
+  renderEditorSlides(l);
+  renderEditorQuiz(l);
+  const editorToggle = document.getElementById('editor-toggle');
+  editorToggle.classList.toggle('on', l.status==='open');
+  editorToggle.setAttribute('data-toggle-lesson', id);
+  editorToggle.setAttribute('aria-checked', l.status==='open' ? 'true' : 'false');
+  go('editor');
+}
+
+// The number the admin types IS the lesson's number — including 0 for an
+// intro/orientation lesson before "Lesson 1". No separate toggle, no
+// position math: we just re-sort by these values and persist this lesson's.
+async function updateLessonNumber(v){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  if(!l) return;
+  let n = parseInt(v, 10);
+  if(!Number.isFinite(n) || n < 0) { document.getElementById('editor-num-input').value = parseInt(l.num,10); return; }
+
+  l.sort_order = n;
+  sortLessonsByOrder();
+  renumberLessons();
+  document.getElementById('editor-heading').textContent = 'Edit — Lesson ' + l.num;
+  document.getElementById('editor-num-input').value      = parseInt(l.num, 10);
+  renderAdminGrid();
+
+  try {
+    await api('PATCH', '/lessons/'+l.id, { sort_order: n });
+  } catch(e){
+    console.error('Save lesson number failed', e);
+    alert('Could not save the lesson number. Please try again.');
+  }
+}
+
+function updateTitle(v){ lessons.find(x=>x.id===currentEditorId).title = v; saveLessonDebounced(currentEditorId); }
+function updateDesc(v){  lessons.find(x=>x.id===currentEditorId).blurb = v; saveLessonDebounced(currentEditorId); }
+
+function renderEditorSlides(l){
+  document.getElementById('editor-slides').innerHTML = l.slides.length
+    ? l.slides.map((s,i) => `
+        <div class="slide-row-editable">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">
+            <a href="${materialOpenUrl(s)}" target="_blank" style="color:var(--blue);text-decoration:none;">${s.fileId ? '📄 ' : ''}${s.name}</a>
+          </span>
+          <span class="eq-top-actions">
+            <button class="eq-order-btn" title="Move up" aria-label="Move material up" ${i===0?'disabled':''} onclick="moveSlide(${l.id},${i},-1)">↑</button>
+            <button class="eq-order-btn" title="Move down" aria-label="Move material down" ${i===l.slides.length-1?'disabled':''} onclick="moveSlide(${l.id},${i},1)">↓</button>
+            <button class="icon-btn" title="Remove this material" aria-label="Remove material" onclick="removeSlide(${l.id},${i})">✕</button>
+          </span>
+        </div>`).join('')
+    : `<p style="color:var(--ink-faint);font-size:13px;margin:0 0 12px;">No links or files added yet.</p>`;
+}
+
+// Persists the CURRENT state of l.slides — used after any local mutation
+// (add/remove/reorder). Kept separate from the mutation itself so a retry
+// re-sends whatever the array looks like now instead of re-running the
+// mutation a second time (which would, e.g., re-swap an already-swapped pair).
+async function saveSlides(lid){
+  const l = lessons.find(x=>x.id===lid);
+  if(!l) return;
+  try { await api('PATCH', '/lessons/'+lid, { slides: l.slides }); }
+  catch(e){
+    console.error('Save materials failed', e);
+    showToast("Couldn't save that change — check your connection.", { retry: () => saveSlides(lid) });
+  }
+}
+
+async function moveSlide(lid, i, dir){
+  const l = lessons.find(x=>x.id===lid);
+  const j = i + dir;
+  if(j < 0 || j >= l.slides.length) return;
+  [l.slides[i], l.slides[j]] = [l.slides[j], l.slides[i]];
+  renderEditorSlides(l);
+  saveSlides(lid);
+}
+
+async function addLink(){
+  const nameEl = document.getElementById('link-name-input');
+  const urlEl  = document.getElementById('link-url-input');
+  const errEl  = document.getElementById('link-error');
+  const name = nameEl.value.trim();
+  const url  = urlEl.value.trim();
+  if(!name || !url){
+    if(errEl){ errEl.textContent = 'Please enter both a label and a URL.'; errEl.classList.add('show'); }
+    nameEl.classList.toggle('field-error', !name);
+    urlEl.classList.toggle('field-error', !url);
+    return;
+  }
+  if(errEl) errEl.classList.remove('show');
+  nameEl.classList.remove('field-error');
+  urlEl.classList.remove('field-error');
+  const l = lessons.find(x=>x.id===currentEditorId);
+  l.slides.push({ name, url });
+  nameEl.value = '';
+  urlEl.value  = '';
+  renderEditorSlides(l);
+  renderAdminGrid();
+  saveSlides(currentEditorId);
+}
+
+async function uploadMaterialFile(){
+  const input = document.getElementById('material-file-input');
+  const btn   = document.getElementById('upload-file-btn');
+  const file  = input.files[0];
+  if(!file){ alert('Please choose a file first.'); return; }
+  if(file.size > 15 * 1024 * 1024){
+    alert('That file is larger than 15MB — please share it as a link instead (e.g. Google Drive).');
+    return;
+  }
+  const fd = new FormData();
+  fd.append('file', file);
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/lessons/' + currentEditorId + '/files', { method: 'POST', headers, body: fd });
+    const d = await r.json();
+    if(!r.ok) throw Object.assign(new Error(d.error || 'Upload failed'), { code: d.error });
+
+    const l = lessons.find(x=>x.id===currentEditorId);
+    l.slides.push({ name: file.name, fileId: d.id, mimetype: d.mimetype });
+    input.value = '';
+    renderEditorSlides(l);
+    renderAdminGrid();
+    saveSlides(currentEditorId);
+  } catch(e){
+    console.error('File upload failed', e);
+    showToast('Could not upload the file. Please try again.', { retry: () => document.getElementById('upload-file-btn').click() });
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '+ Upload file';
+  }
+}
+
+async function removeSlide(lid, i){
+  const l = lessons.find(x=>x.id===lid);
+  const removed = l.slides[i];
+  if(!removed) return;
+  if(!confirm(`Remove "${removed.name}" from this lesson's materials? This cannot be undone.`)) return;
+  l.slides.splice(i,1);
+  renderEditorSlides(l);
+  renderAdminGrid();
+  saveSlides(lid);
+  if(removed.fileId){
+    try { await api('DELETE', '/lessons/'+lid+'/files/'+removed.fileId); }
+    catch(e){ console.error('Delete uploaded file failed', e); }
+  }
+}
+
+function renderEditorQuiz(l){
+  document.getElementById('editor-quiz').innerHTML = l.quiz.length
+    ? l.quiz.map((q,qi) => `
+        <div class="eq-block">
+          <div class="eq-top">
+            <span class="eq-label mono">Question ${qi+1}</span>
+            <span class="eq-top-actions">
+              <button class="eq-order-btn" title="Move up" aria-label="Move question up" ${qi===0?'disabled':''} onclick="moveQuestion(${qi},-1)">↑</button>
+              <button class="eq-order-btn" title="Move down" aria-label="Move question down" ${qi===l.quiz.length-1?'disabled':''} onclick="moveQuestion(${qi},1)">↓</button>
+              <button class="eq-small-btn" title="Duplicate this question" onclick="duplicateQuestion(${qi})">⧉ duplicate</button>
+              <button class="eq-small-btn" onclick="removeQuestion(${qi})">✕ remove</button>
+            </span>
+          </div>
+          <input class="eq-qtext" type="text" value="${q.q.replace(/"/g,'&quot;')}"
+            oninput="updateQText(${qi},this.value)" placeholder="Question text">
+          <label style="display:flex;align-items:center;gap:7px;font-size:12px;color:var(--ink-dim);margin-bottom:10px;cursor:pointer;">
+            <input type="checkbox" ${q.multi?'checked':''} onchange="toggleMulti(${qi},this.checked)">
+            Multiple correct answers (students pick as many as apply)
+          </label>
+          ${q.options.map((opt,oi) => {
+            const isCorrectOpt = q.multi ? (q.correct||[]).includes(oi) : q.answer===oi;
+            const changeHandler = q.multi ? `toggleCorrectOption(${qi},${oi},this.checked)` : `setCorrect(${qi},${oi})`;
+            return `
+            <div class="eq-opt-row">
+              <input type="${q.multi?'checkbox':'radio'}" name="correct-${qi}" ${isCorrectOpt?'checked':''}
+                onchange="${changeHandler}" title="Mark as correct answer">
+              <input type="text" value="${opt.replace(/"/g,'&quot;')}"
+                oninput="updateOptText(${qi},${oi},this.value)" placeholder="Option text">
+              <button class="eq-small-btn" onclick="removeOption(${qi},${oi})">✕</button>
+            </div>`;
+          }).join('')}
+          <button class="eq-add-opt" onclick="addOption(${qi})">+ Add option</button>
+          <div style="margin-top:12px;">
+            <label style="font-size:11px;color:var(--ink-faint);display:block;margin-bottom:6px;">
+              Explanation — shown to students only if they get this question wrong (optional)
+            </label>
+            <textarea class="field-textarea" style="min-height:60px;font-size:13px;"
+              oninput="updateExplanation(${qi},this.value)"
+              placeholder="e.g. A project has a defined start and end date, which is what separates it from ongoing operations.">${escapeHtml(q.explanation)}</textarea>
+          </div>
+        </div>`).join('')
+    : `<p style="color:var(--ink-faint);font-size:13px;margin:0 0 12px;">No questions yet — add one below.</p>`;
+}
+
+function updateQText(qi,v){  lessons.find(x=>x.id===currentEditorId).quiz[qi].q = v; saveLessonDebounced(currentEditorId); }
+function updateOptText(qi,oi,v){ lessons.find(x=>x.id===currentEditorId).quiz[qi].options[oi] = v; saveLessonDebounced(currentEditorId); }
+function setCorrect(qi,oi){ lessons.find(x=>x.id===currentEditorId).quiz[qi].answer = oi; saveLessonDebounced(currentEditorId); }
+function updateExplanation(qi,v){ lessons.find(x=>x.id===currentEditorId).quiz[qi].explanation = v; saveLessonDebounced(currentEditorId); }
+
+function toggleMulti(qi, checked){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  q.multi = checked;
+  if(checked){
+    // Carry the previously-single correct answer over as the first checked box.
+    q.correct = [q.answer || 0];
+  } else {
+    // Going back to single-answer — use the first checked box as the one correct answer.
+    q.answer = (q.correct && q.correct.length) ? q.correct[0] : 0;
+  }
+  renderEditorQuiz(l);
+  saveLessonDebounced(currentEditorId);
+}
+
+function toggleCorrectOption(qi, oi, checked){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  if(!Array.isArray(q.correct)) q.correct = [];
+  const idx = q.correct.indexOf(oi);
+  if(checked && idx === -1) q.correct.push(oi);
+  if(!checked && idx !== -1) q.correct.splice(idx,1);
+  renderEditorQuiz(l);
+  saveLessonDebounced(currentEditorId);
+}
+
+function addOption(qi){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  l.quiz[qi].options.push('New option');
+  renderEditorQuiz(l); saveLessonDebounced(currentEditorId);
+}
+
+function removeOption(qi,oi){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  if(q.options.length <= 2){ alert('A question needs at least two options.'); return; }
+  q.options.splice(oi,1);
+  if(q.multi){
+    q.correct = (q.correct||[]).filter(ci => ci !== oi).map(ci => ci > oi ? ci - 1 : ci);
+    if(!q.correct.length) q.correct = [0];
+  } else {
+    if(q.answer === oi)       q.answer = 0;
+    else if(q.answer > oi)    q.answer -= 1;
+  }
+  renderEditorQuiz(l); saveLessonDebounced(currentEditorId);
+}
+
+function removeQuestion(qi){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  if(!q) return;
+  if(!confirm(`Remove question ${qi+1} ("${q.q.slice(0,60)}${q.q.length>60?'…':''}")? This cannot be undone.`)) return;
+  l.quiz.splice(qi,1);
+  renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
+}
+
+function moveQuestion(qi, dir){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const qj = qi + dir;
+  if(qj < 0 || qj >= l.quiz.length) return;
+  [l.quiz[qi], l.quiz[qj]] = [l.quiz[qj], l.quiz[qi]];
+  renderEditorQuiz(l);
+  saveLessonDebounced(currentEditorId);
+}
+
+function duplicateQuestion(qi){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const copy = JSON.parse(JSON.stringify(l.quiz[qi]));
+  l.quiz.splice(qi+1, 0, copy);
+  renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
+}
+
+function addQuestion(){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  l.quiz.push({ q:'New question', options:['Option A','Option B'], answer:0, explanation:'', multi:false, correct:[] });
+  renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
+}
+
+/* ─ NAVIGATION ─ */
+const ALL_SCREENS = ['portal','student','detail','admin','editor'];
+
+function go(name){
+  ALL_SCREENS.forEach(s =>
+    document.getElementById('screen-'+s).classList.toggle('active', s===name)
+  );
+  updateChrome(name);
+  window.scrollTo({ top:0, behavior:'auto' });
+}
+
+function updateChrome(s){
+  const chrome = document.getElementById('chrome');
+  const right  = document.getElementById('chrome-right');
+  const isAdmin   = ['admin','editor'].includes(s);
+  const isStudent = ['student','detail'].includes(s);
+  chrome.classList.toggle('mode-admin', isAdmin);
+  if(isAdmin){
+    const tag = (currentUser && currentUser.role === 'super_admin') ? 'Super Admin' : 'Admin';
+    right.innerHTML = `<span class="admin-tag">${tag}</span>
+      <button class="chrome-link" onclick="adminSignOut()">Sign out</button>`;
+  } else if(isStudent && currentStudent){
+    right.innerHTML = `<span class="chrome-user">${currentStudent.name}</span>
+      <button class="chrome-link" onclick="signOutStudent()">Sign out</button>`;
+  } else {
+    right.innerHTML = '';
+  }
+}
+
+/* ─ ADMIN TAB SWITCHING ─ */
+function activateAdminTab(panelName){
+  document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.apanel===panelName));
+  document.querySelectorAll('.admin-panel').forEach(p=>p.classList.toggle('active', p.id === 'apanel-'+panelName));
+  if(panelName === 'students') renderStudentsPanel();
+  if(panelName === 'settings'){
+    document.getElementById('settings-course-name').value = courseName;
+    document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
+    document.getElementById('settings-videocall-url').value = courseVideoCallUrl || '';
+  }
+  if(panelName === 'platform') renderPlatformPanel();
+}
+document.querySelectorAll('.admin-tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => activateAdminTab(btn.dataset.apanel));
+});
+
+/* ─ LESSON DETAIL TAB SWITCHING ─ */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('panel-'+btn.dataset.panel).classList.add('active');
+  });
+});
+
+/* ─ INIT ─ */
+init();
+
+</script>
+</body>
+</html>
