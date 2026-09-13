@@ -5,35 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IT Project Management Course</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
 
 :root{
-  --bg:#F4F7FC;
+  --bg:#F7F6F1;
   --surface:#FFFFFF;
-  --surface-alt:#EDF2FB;
-  --line:#DEE6F3;
-  --line-strong:#C3D1E8;
-  --ink:#0F2039;
-  --ink-dim:#4E5F7D;
-  --ink-faint:#8A99B5;
-  --blue:#2451D6;
-  --blue-deep:#16327E;
-  --blue-soft:rgba(36,81,214,0.08);
-  --blue-soft2:rgba(36,81,214,0.14);
-  --grey:#9AA7BC;
-  --grey-soft:rgba(154,167,188,0.16);
-  --green:#1C9A6C;
-  --green-soft:rgba(28,154,108,0.10);
-  --red:#D14343;
-  --red-soft:rgba(209,67,67,0.09);
-  --amber:#C07A00;
-  --amber-soft:rgba(192,122,0,0.10);
+  --surface-alt:#EFECE2;
+  --line:#E2DECE;
+  --line-strong:#CFC8B4;
+  --ink:#1C2430;
+  --ink-dim:#57616D;
+  --ink-faint:#8B93A0;
+  --blue:#1E4D8C;
+  --blue-deep:#12325C;
+  --blue-soft:rgba(30,77,140,0.07);
+  --blue-soft2:rgba(30,77,140,0.13);
+  --grey:#9CA3AD;
+  --grey-soft:rgba(156,163,173,0.15);
+  --green:#1F8A5F;
+  --green-soft:rgba(31,138,95,0.10);
+  --red:#C0473C;
+  --red-soft:rgba(192,71,60,0.09);
+  --amber:#B3790E;
+  --amber-soft:rgba(179,121,14,0.12);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
-.display{font-family:'Fraunces',serif;}
+.display{font-family:'IBM Plex Sans',sans-serif;font-weight:600;letter-spacing:-0.01em;}
 .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:0.02em;}
 
 /* ── Chrome ── */
@@ -143,11 +143,11 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
 @media(max-width:820px){.grid{grid-template-columns:1fr 1fr;}}
 @media(max-width:560px){.grid{grid-template-columns:1fr;}}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;position:relative;padding:24px 22px 20px;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s;}
-.card:hover{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 10px 28px rgba(16,45,110,0.10);}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;position:relative;padding:24px 22px 20px 25px;cursor:pointer;transition:border-color .15s ease,box-shadow .15s;overflow:hidden;}
+.card:hover{border-color:var(--blue);box-shadow:0 6px 18px rgba(18,50,92,0.08);}
 .card.locked{cursor:pointer;}
-.card.locked:hover{transform:none;box-shadow:none;border-color:var(--line);}
-.card-tab{position:absolute;left:22px;top:-1px;width:40px;height:6px;border-radius:0 0 3px 3px;}
+.card.locked:hover{box-shadow:none;border-color:var(--line);}
+.card-tab{position:absolute;left:0;top:0;bottom:0;width:3px;height:auto;border-radius:0;}
 .card-tab.open{background:var(--blue);}
 .card-tab.closed{background:var(--grey);}
 .card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
@@ -210,9 +210,9 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .note-attachment .na-remove{color:var(--ink-faint);font-weight:600;margin-left:2px;}
 .note-attachment .na-remove:hover{color:var(--red);}
 .notes-status{font-size:12px;color:var(--ink-faint);margin-top:8px;}
-.score-bar{display:flex;align-items:center;justify-content:space-between;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:8px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
-.score-bar .label{font-size:13px;color:var(--blue-deep);font-weight:500;}
-.score-bar .score-num{font-size:15px;font-weight:600;color:var(--blue);}
+.score-bar{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:6px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
+.score-bar .label{font-size:13px;color:var(--ink-dim);font-weight:500;}
+.score-bar .score-num{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--blue);font-variant-numeric:tabular-nums;}
 .quiz-q{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;margin-bottom:16px;}
 .quiz-q .qnum{font-size:11px;color:var(--blue);margin-bottom:8px;letter-spacing:0.06em;}
 .quiz-q h4{font-size:16px;font-weight:500;margin:0 0 16px;}
