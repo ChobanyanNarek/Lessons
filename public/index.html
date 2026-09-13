@@ -5,35 +5,35 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IT Project Management Course</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
 :root{
-  --bg:#F7F6F1;
+  --bg:#F4F7FC;
   --surface:#FFFFFF;
-  --surface-alt:#EFECE2;
-  --line:#E2DECE;
-  --line-strong:#CFC8B4;
-  --ink:#1C2430;
-  --ink-dim:#57616D;
-  --ink-faint:#8B93A0;
-  --blue:#1E4D8C;
-  --blue-deep:#12325C;
-  --blue-soft:rgba(30,77,140,0.07);
-  --blue-soft2:rgba(30,77,140,0.13);
-  --grey:#9CA3AD;
-  --grey-soft:rgba(156,163,173,0.15);
-  --green:#1F8A5F;
-  --green-soft:rgba(31,138,95,0.10);
-  --red:#C0473C;
-  --red-soft:rgba(192,71,60,0.09);
-  --amber:#B3790E;
-  --amber-soft:rgba(179,121,14,0.12);
+  --surface-alt:#EDF2FB;
+  --line:#DEE6F3;
+  --line-strong:#C3D1E8;
+  --ink:#0F2039;
+  --ink-dim:#4E5F7D;
+  --ink-faint:#8A99B5;
+  --blue:#2451D6;
+  --blue-deep:#16327E;
+  --blue-soft:rgba(36,81,214,0.08);
+  --blue-soft2:rgba(36,81,214,0.14);
+  --grey:#9AA7BC;
+  --grey-soft:rgba(154,167,188,0.16);
+  --green:#1C9A6C;
+  --green-soft:rgba(28,154,108,0.10);
+  --red:#D14343;
+  --red-soft:rgba(209,67,67,0.09);
+  --amber:#C07A00;
+  --amber-soft:rgba(192,122,0,0.10);
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
 body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-serif;min-height:100vh;}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important;}}
-.display{font-family:'IBM Plex Sans',sans-serif;font-weight:600;letter-spacing:-0.01em;}
+.display{font-family:'Fraunces',serif;}
 .mono{font-family:'IBM Plex Mono',monospace;letter-spacing:0.02em;}
 
 /* ── Chrome ── */
@@ -143,21 +143,19 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px;}
 @media(max-width:820px){.grid{grid-template-columns:1fr 1fr;}}
 @media(max-width:560px){.grid{grid-template-columns:1fr;}}
-.card{background:var(--surface);border:1px solid var(--line);border-radius:6px;position:relative;padding:24px 22px 20px 25px;cursor:pointer;transition:border-color .15s ease,box-shadow .15s;overflow:hidden;}
-.card:hover{border-color:var(--blue);box-shadow:0 6px 18px rgba(18,50,92,0.08);}
-.card.locked{cursor:pointer;}
-.card.locked:hover{box-shadow:none;border-color:var(--line);}
-.card-tab{position:absolute;left:0;top:0;bottom:0;width:3px;height:auto;border-radius:0;}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:10px;position:relative;padding:24px 22px 20px;cursor:pointer;box-shadow:0 1px 2px rgba(16,45,110,0.04);transition:transform .15s ease,border-color .15s ease,box-shadow .15s,opacity .15s;}
+.card.st-open{box-shadow:0 3px 14px rgba(16,45,110,0.08);}
+.card:hover{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 10px 28px rgba(16,45,110,0.10);}
+.card.locked{cursor:pointer;opacity:.68;}
+.card.locked:hover{transform:none;box-shadow:0 1px 2px rgba(16,45,110,0.04);border-color:var(--line);}
+.card-tab{position:absolute;left:22px;top:-1px;width:40px;height:6px;border-radius:0 0 3px 3px;}
 .card-tab.open{background:var(--blue);}
 .card-tab.closed{background:var(--grey);}
 .card-top{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
-.card-num{font-size:11px;color:var(--ink-faint);}
-.status-badge{font-size:10px;letter-spacing:0.08em;text-transform:uppercase;padding:4px 10px;border-radius:100px;display:inline-flex;align-items:center;gap:5px;white-space:nowrap;}
+.card-num{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);}
+.status-badge{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:0.06em;text-transform:uppercase;padding:4px 10px;border-radius:100px;display:inline-flex;align-items:center;white-space:nowrap;}
 .status-badge.open{background:var(--blue-soft);color:var(--blue);}
 .status-badge.closed{background:var(--grey-soft);color:var(--ink-faint);}
-.status-badge .dot{width:5px;height:5px;border-radius:50%;}
-.status-badge.open .dot{background:var(--blue);}
-.status-badge.closed .dot{background:var(--ink-faint);}
 .card h3{font-size:17px;font-weight:500;margin:0 0 8px;line-height:1.3;}
 .card p{font-size:13px;color:var(--ink-dim);line-height:1.55;margin:0 0 18px;min-height:38px;}
 .card-foot{display:flex;justify-content:space-between;align-items:center;font-size:12px;color:var(--ink-faint);}
@@ -210,9 +208,11 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .note-attachment .na-remove{color:var(--ink-faint);font-weight:600;margin-left:2px;}
 .note-attachment .na-remove:hover{color:var(--red);}
 .notes-status{font-size:12px;color:var(--ink-faint);margin-top:8px;}
-.score-bar{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-left:3px solid var(--blue);border-radius:6px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
-.score-bar .label{font-size:13px;color:var(--ink-dim);font-weight:500;}
-.score-bar .score-num{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--blue);font-variant-numeric:tabular-nums;}
+.score-bar{display:flex;align-items:center;gap:14px;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:8px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
+.score-bar .label{font-size:13px;color:var(--blue-deep);font-weight:500;flex:1;}
+.score-bar .score-num{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--blue);}
+.score-ring{width:32px;height:32px;border-radius:50%;flex-shrink:0;position:relative;background:conic-gradient(var(--blue) 0deg,var(--blue-soft2) 0deg);}
+.score-ring::before{content:'';position:absolute;inset:4px;border-radius:50%;background:var(--surface);}
 .quiz-q{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:24px;margin-bottom:16px;}
 .quiz-q .qnum{font-size:11px;color:var(--blue);margin-bottom:8px;letter-spacing:0.06em;}
 .quiz-q h4{font-size:16px;font-weight:500;margin:0 0 16px;}
@@ -227,12 +227,12 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .quiz-explanation.correct{background:var(--green-soft);color:var(--green);border:1px solid rgba(28,154,108,0.25);}
 .quiz-explanation.wrong{background:var(--red-soft);color:var(--red);border:1px solid rgba(209,67,67,0.25);}
 .option input{accent-color:var(--blue);flex-shrink:0;}
-/* Correct/wrong mark — a shape+icon cue alongside the border color, so the
-   right answer isn't only distinguishable by a colorblind-unsafe green/red. */
-.opt-mark{width:16px;height:16px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:#fff;}
-.option.correct .opt-mark{background:var(--green);}
-.option.wrong .opt-mark{background:var(--red);}
-.lock-caption{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-faint);margin-top:10px;}
+/* Correct/wrong tag — a text cue alongside the border color, so the right
+   answer isn't only distinguishable by a colorblind-unsafe green/red. */
+.opt-tag{margin-left:auto;flex-shrink:0;font-family:'IBM Plex Mono',monospace;font-size:10.5px;font-weight:600;letter-spacing:0.04em;text-transform:uppercase;}
+.opt-tag.g{color:var(--green);}
+.opt-tag.r{color:var(--red);}
+.lock-caption{font-size:12px;color:var(--ink-faint);margin-top:10px;}
 
 /* ── Admin tabs ── */
 .admin-tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:30px;}
@@ -393,6 +393,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <div class="score-bar" id="dash-score-bar" style="position:static;">
       <span class="label">Your quiz results — all lessons combined</span>
       <span class="score-num" id="dash-score-num">0 / 0 correct</span>
+      <div class="score-ring" id="dash-score-ring"></div>
     </div>
     <div class="grid" id="student-grid"></div>
   </div>
@@ -404,7 +405,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <button type="button" class="back-link btn-reset" onclick="renderStudentGrid();go('student')">&larr; Back to dashboard</button>
     <div class="detail-head">
       <div><h1 class="display" id="detail-title"></h1></div>
-      <span class="status-badge open"><span class="dot"></span>Open</span>
+      <span class="status-badge open">Open</span>
     </div>
     <div class="detail-meta" id="detail-meta"></div>
     <div class="tabs">
@@ -433,6 +434,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <div class="score-bar" style="position:static;">
         <span class="label">Score updates as you answer each question</span>
         <span class="score-num" id="quiz-score">0 / 0 correct</span>
+        <div class="score-ring" id="quiz-score-ring"></div>
       </div>
       <div id="quiz-questions"></div>
     </div>
@@ -925,8 +927,8 @@ function adminSignOut(){
 /* ─ HELPERS ─ */
 function badge(status){
   return status==='open'
-    ? '<span class="status-badge open"><span class="dot"></span>Open</span>'
-    : '<span class="status-badge closed"><span class="dot"></span>Closed</span>';
+    ? '<span class="status-badge open">Open</span>'
+    : '<span class="status-badge closed">Closed</span>';
 }
 
 function studentScore(answers, lessonId){
@@ -962,6 +964,12 @@ function isPrereqDone(index){
 // The dashboard-level "final result" — every quiz question across every
 // lesson tallied into one combined score, so a student can see how they're
 // doing overall rather than lesson-by-lesson.
+function updateScoreRing(id, correct, total){
+  const el = document.getElementById(id);
+  if(!el) return;
+  const pct = total > 0 ? Math.round((correct/total)*360) : 0;
+  el.style.background = `conic-gradient(var(--blue) ${pct}deg, var(--blue-soft2) ${pct}deg)`;
+}
 function globalQuizScore(){
   let correct = 0, total = 0;
   lessons.forEach(l => {
@@ -983,6 +991,7 @@ function renderStudentGrid(){
   const g = globalQuizScore();
   const scoreNumEl = document.getElementById('dash-score-num');
   if(scoreNumEl) scoreNumEl.textContent = `${g.correct} / ${g.total} correct`;
+  updateScoreRing('dash-score-ring', g.correct, g.total);
   document.getElementById('student-grid').innerHTML = (lessons.length ? lessons.map((l,i) => {
     const adminOpen  = l.status === 'open';
     const prereqDone = isPrereqDone(i);
@@ -998,10 +1007,10 @@ function renderStudentGrid(){
     // keyboard Enter never just silently fails.
     const activateJs = enterable ? `openDetail(${l.id})` : `showToast(${JSON.stringify(lockReason)}, {type:'success'})`;
     return `
-    <div class="card${enterable?'':' locked'}" role="button" tabindex="0" aria-label="Lesson ${l.num}: ${escapeHtml(l.title)}${enterable?'':' — '+lockReason}" onclick="${activateJs}" onkeydown="onActivateKey(event, () => { ${activateJs} })">
+    <div class="card${enterable?'':' locked'}${l.status==='open'?' st-open':''}" role="button" tabindex="0" aria-label="Lesson ${l.num}: ${escapeHtml(l.title)}${enterable?'':' — '+lockReason}" onclick="${activateJs}" onkeydown="onActivateKey(event, () => { ${activateJs} })">
       <div class="card-tab ${l.status}"></div>
       <div class="card-top">
-        <span class="card-num mono">Lesson ${l.num}</span>
+        <span class="card-num mono">PM-${l.num}</span>
         ${badge(l.status)}
       </div>
       <h3>${l.title}</h3>
@@ -1725,11 +1734,12 @@ function renderQuiz(l){
       // we fully own the checked state via re-render, so there's no race between
       // the native default action and the DOM we just replaced.
       const clickAttr = answered ? '' : ` onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi});return false;"`;
-      // Correct/wrong gets an icon mark, not just a border color, so the
-      // signal doesn't rely on color alone (colorblind-safe).
-      const markHtml = cls ? `<span class="opt-mark">${cls==='correct'?'✓':'✕'}</span>` : '';
+      // Correct/wrong gets a text tag, not just a border color, so the
+      // signal doesn't rely on color alone (colorblind-safe) — text instead
+      // of a glyph so it reads clearly at any size.
+      const markHtml = cls ? `<span class="opt-tag ${cls==='correct'?'g':'r'}">${cls==='correct'?'Correct':'Incorrect'}</span>` : '';
       return `<label class="option ${cls}${answered?' locked':''}">
-        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}${clickAttr}>${markHtml} ${opt}
+        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}${clickAttr}> ${opt}${markHtml}
       </label>`;
     }).join('');
     const submitBtnHtml = (q.multi && !answered && draft.length > 0)
@@ -1745,7 +1755,7 @@ function renderQuiz(l){
     // Once locked, say WHY the options stopped responding rather than
     // leaving the student to guess.
     const lockCaptionHtml = answered
-      ? `<div class="lock-caption">🔒 Locked in — answers can't be changed after submitting</div>`
+      ? `<div class="lock-caption">Locked in — answers can't be changed after submitting</div>`
       : '';
     return `
       <div class="quiz-q">
@@ -1760,6 +1770,7 @@ function renderQuiz(l){
   const total   = l.quiz.length;
   const correct = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
   document.getElementById('quiz-score').textContent = `${correct} / ${total} correct`;
+  updateScoreRing('quiz-score-ring', correct, total);
 }
 
 async function answerQuiz(lid, qi, oi, isMulti){
