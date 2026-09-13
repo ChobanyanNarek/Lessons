@@ -114,6 +114,25 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .btn-ghost{background:transparent;border:1px solid var(--line-strong);color:var(--ink);}
 .btn-ghost:hover{border-color:var(--blue);color:var(--blue);}
 .btn-sm{padding:9px 18px;font-size:13px;width:auto;}
+/* Reset for elements that need to be real <button>s for keyboard/AT access
+   but must keep visually matching a sibling class (.back-link, .add-card,
+   .upload-drop) rather than looking like a default browser button. Defined
+   here, before those classes are declared below, so a same-specificity tie
+   resolves in favor of each class's own border/background/color. */
+.btn-reset{appearance:none;-webkit-appearance:none;background:none;border:none;margin:0;font:inherit;color:inherit;text-align:inherit;cursor:pointer;}
+.btn-reset:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+/* Visible keyboard focus for the custom interactive controls below
+   (lesson cards, toggles) that aren't plain buttons/links. */
+[role="button"]:focus-visible,[role="switch"]:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+
+/* ── Toast (visible feedback for background save/load failures) ── */
+.toast-stack{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);z-index:200;display:flex;flex-direction:column;gap:8px;align-items:center;width:100%;padding:0 16px;pointer-events:none;}
+.toast{pointer-events:auto;display:flex;align-items:center;gap:12px;background:var(--ink);color:#fff;font-size:13px;padding:11px 16px;border-radius:8px;box-shadow:0 8px 24px rgba(15,32,57,0.25);max-width:420px;animation:toast-in .18s ease;}
+.toast.error{background:var(--red);}
+.toast.success{background:var(--green);}
+.toast-retry{background:rgba(255,255,255,0.18);border:none;color:#fff;font-family:inherit;font-size:12px;font-weight:600;padding:5px 11px;border-radius:5px;cursor:pointer;flex-shrink:0;}
+.toast-retry:hover{background:rgba(255,255,255,0.3);}
+@keyframes toast-in{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
 
 /* ── Dashboard header ── */
 .dash-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:34px;flex-wrap:wrap;gap:16px;}
@@ -126,7 +145,7 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 @media(max-width:560px){.grid{grid-template-columns:1fr;}}
 .card{background:var(--surface);border:1px solid var(--line);border-radius:10px;position:relative;padding:24px 22px 20px;cursor:pointer;transition:transform .15s ease,border-color .15s ease,box-shadow .15s;}
 .card:hover{transform:translateY(-2px);border-color:var(--blue);box-shadow:0 10px 28px rgba(16,45,110,0.10);}
-.card.locked{cursor:default;}
+.card.locked{cursor:pointer;}
 .card.locked:hover{transform:none;box-shadow:none;border-color:var(--line);}
 .card-tab{position:absolute;left:22px;top:-1px;width:40px;height:6px;border-radius:0 0 3px 3px;}
 .card-tab.open{background:var(--blue);}
@@ -208,6 +227,12 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .quiz-explanation.correct{background:var(--green-soft);color:var(--green);border:1px solid rgba(28,154,108,0.25);}
 .quiz-explanation.wrong{background:var(--red-soft);color:var(--red);border:1px solid rgba(209,67,67,0.25);}
 .option input{accent-color:var(--blue);flex-shrink:0;}
+/* Correct/wrong mark — a shape+icon cue alongside the border color, so the
+   right answer isn't only distinguishable by a colorblind-unsafe green/red. */
+.opt-mark{width:16px;height:16px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;line-height:1;color:#fff;}
+.option.correct .opt-mark{background:var(--green);}
+.option.wrong .opt-mark{background:var(--red);}
+.lock-caption{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-faint);margin-top:10px;}
 
 /* ── Admin tabs ── */
 .admin-tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:30px;}
@@ -223,6 +248,12 @@ thead th{padding:12px 16px;text-align:left;font-size:11px;letter-spacing:0.06em;
 tbody td{padding:14px 16px;border-bottom:1px solid var(--line);vertical-align:middle;}
 tbody tr:last-child td{border-bottom:none;}
 tbody tr:hover td{background:var(--surface-alt);}
+/* Keeps the student's name in view while a wide, one-column-per-lesson
+   table scrolls horizontally — otherwise later columns are unreadable
+   without knowing whose row you're on. */
+.sticky-col{position:sticky;left:0;z-index:1;background:var(--surface);box-shadow:2px 0 4px rgba(15,32,57,0.05);}
+thead th.sticky-col{background:var(--surface-alt);z-index:2;}
+tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .score-chip{display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:11px;font-weight:600;white-space:nowrap;}
 .score-chip.done{background:var(--green-soft);color:var(--green);}
 .score-chip.partial{background:var(--amber-soft);color:var(--amber);}
@@ -255,6 +286,7 @@ tbody tr:hover td{background:var(--surface-alt);}
 .upload-drop:hover{border-color:var(--blue);color:var(--blue);background:var(--blue-soft);}
 .field-input{width:100%;padding:11px 13px;background:var(--surface-alt);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;}
 .field-input:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
+.field-input.field-error{border-color:var(--red);}
 textarea.field-textarea{width:100%;min-height:90px;background:var(--surface-alt);border:1px solid var(--line-strong);border-radius:6px;color:var(--ink);font-family:inherit;font-size:14px;padding:12px;resize:vertical;}
 textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
 .eq-block{border:1px solid var(--line);border-radius:8px;padding:16px;margin-bottom:14px;background:var(--surface-alt);}
@@ -266,14 +298,21 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 .eq-opt-row input[type="text"]{flex:1;padding:8px 10px;border:1px solid var(--line-strong);border-radius:5px;font-family:inherit;font-size:13px;background:#fff;color:var(--ink);}
 .eq-opt-row input[type="text"]:focus{outline:2px solid var(--blue);outline-offset:1px;border-color:var(--blue);}
 .eq-opt-row input[type="radio"]{accent-color:var(--green);flex-shrink:0;}
-.eq-small-btn{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:13px;padding:2px 6px;font-family:inherit;}
+.eq-small-btn{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:13px;padding:8px 10px;font-family:inherit;min-height:32px;}
 .eq-small-btn:hover{color:var(--red);}
+.eq-top-actions{display:flex;align-items:center;gap:2px;}
+.eq-order-btn{background:none;border:1px solid var(--line-strong);color:var(--ink-dim);cursor:pointer;font-size:12px;padding:0;width:28px;height:28px;border-radius:5px;font-family:inherit;}
+.eq-order-btn:hover:not(:disabled){border-color:var(--blue);color:var(--blue);}
+.eq-order-btn:disabled{opacity:0.35;cursor:default;}
 .eq-add-opt{font-size:12px;color:var(--blue);cursor:pointer;background:none;border:none;font-family:inherit;padding:4px 0;}
 .slide-row-editable{display:flex;align-items:center;justify-content:space-between;padding:11px 14px;background:var(--surface-alt);border:1px solid var(--line);border-radius:6px;margin-bottom:8px;font-size:13px;}
 .radio-hint{font-size:11px;color:var(--ink-faint);margin-bottom:10px;}
 </style>
 </head>
 <body>
+
+<!-- ════ TOASTS ════ -->
+<div class="toast-stack" id="toast-stack" aria-live="polite"></div>
 
 <!-- ════ LOADING OVERLAY ════ -->
 <div id="loading-overlay" style="display:none;position:fixed;inset:0;z-index:999;background:rgba(244,247,252,0.92);align-items:center;justify-content:center;flex-direction:column;gap:16px;">
@@ -362,7 +401,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <!-- ════ LESSON DETAIL ════ -->
 <div class="screen" id="screen-detail">
   <div class="wrap">
-    <div class="back-link" onclick="renderStudentGrid();go('student')">&larr; Back to dashboard</div>
+    <button type="button" class="back-link btn-reset" onclick="renderStudentGrid();go('student')">&larr; Back to dashboard</button>
     <div class="detail-head">
       <div><h1 class="display" id="detail-title"></h1></div>
       <span class="status-badge open"><span class="dot"></span>Open</span>
@@ -376,15 +415,15 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <div class="panel active" id="panel-slides"></div>
     <div class="panel" id="panel-notes">
       <div class="notes-toolbar">
-        <button type="button" class="ntb-btn" title="Bold" onclick="noteCmd('bold')"><b>B</b></button>
-        <button type="button" class="ntb-btn" title="Italic" onclick="noteCmd('italic')"><i>I</i></button>
-        <button type="button" class="ntb-btn" title="Underline" onclick="noteCmd('underline')"><u>U</u></button>
+        <button type="button" class="ntb-btn" title="Bold" aria-label="Bold" onclick="noteCmd('bold')"><b>B</b></button>
+        <button type="button" class="ntb-btn" title="Italic" aria-label="Italic" onclick="noteCmd('italic')"><i>I</i></button>
+        <button type="button" class="ntb-btn" title="Underline" aria-label="Underline" onclick="noteCmd('underline')"><u>U</u></button>
         <span class="ntb-sep"></span>
-        <button type="button" class="ntb-btn" title="Bulleted list" onclick="noteCmd('insertUnorderedList')">&#8226;&#8226;&#8226;</button>
-        <button type="button" class="ntb-btn" title="Numbered list" onclick="noteCmd('insertOrderedList')">1.2.</button>
-        <button type="button" class="ntb-btn" title="Checklist" onclick="noteInsertChecklist()">&#9745;</button>
+        <button type="button" class="ntb-btn" title="Bulleted list" aria-label="Bulleted list" onclick="noteCmd('insertUnorderedList')">&#8226;&#8226;&#8226;</button>
+        <button type="button" class="ntb-btn" title="Numbered list" aria-label="Numbered list" onclick="noteCmd('insertOrderedList')">1.2.</button>
+        <button type="button" class="ntb-btn" title="Checklist" aria-label="Checklist" onclick="noteInsertChecklist()">&#9745;</button>
         <span class="ntb-sep"></span>
-        <button type="button" class="ntb-btn" title="Attach a file" onclick="document.getElementById('note-file-input').click()">&#128206;</button>
+        <button type="button" class="ntb-btn" title="Attach a file" aria-label="Attach a file" onclick="document.getElementById('note-file-input').click()">&#128206;</button>
         <input type="file" id="note-file-input" style="display:none;" onchange="uploadNoteFile(this)">
       </div>
       <div class="notes" id="notes-area" contenteditable="true" data-placeholder="Write anything you want to remember from this lesson…"></div>
@@ -462,7 +501,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <!-- ════ ADMIN EDITOR ════ -->
 <div class="screen" id="screen-editor">
   <div class="wrap">
-    <div class="back-link" onclick="go('admin')">&larr; Back to course content</div>
+    <button type="button" class="back-link btn-reset" onclick="go('admin')">&larr; Back to course content</button>
     <div class="dash-head">
       <div>
         <h1 class="display" id="editor-heading">Edit lesson</h1>
@@ -494,6 +533,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           <div style="display:flex;flex-direction:column;gap:8px;margin-top:4px;">
             <input type="text" class="field-input" id="link-name-input" placeholder="Label (e.g. Lecture Slides Week 1)">
             <input type="text" class="field-input" id="link-url-input" placeholder="Link URL (Google Drive, Dropbox, etc.)">
+            <div class="error-msg" id="link-error" style="margin-bottom:0;">Please enter both a label and a URL.</div>
             <button class="upload-drop" style="border:none;cursor:pointer;" onclick="addLink()">+ Add link</button>
             <p style="font-size:11px;color:var(--ink-faint);margin:2px 0 0 0;">
               Downloading a link routes through the server so it saves the actual file — even a regular Google Drive share link.
@@ -511,7 +551,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           <h3>Quiz questions</h3>
           <div class="radio-hint">Select the radio button next to the correct answer for each question.</div>
           <div id="editor-quiz"></div>
-          <div class="upload-drop" onclick="addQuestion()">+ Add a question</div>
+          <button type="button" class="upload-drop btn-reset" onclick="addQuestion()">+ Add a question</button>
         </div>
       </div>
       <div>
@@ -522,7 +562,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
               <div class="s-label">Visible to students</div>
               <div class="s-desc">Closed lessons are listed but locked.</div>
             </div>
-            <div class="toggle" id="editor-toggle" onclick="toggleFromEditor()"><div class="knob"></div></div>
+            <div class="toggle" id="editor-toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Visible to students" onclick="toggleFromEditor()" onkeydown="onActivateKey(event, toggleFromEditor)"><div class="knob"></div></div>
           </div>
         </div>
         <div class="editor-block" style="border-color:rgba(209,67,67,0.3);">
@@ -594,6 +634,41 @@ var lessons         = [];     // loaded from API on init
 function debounce(fn, delay){
   let t;
   return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), delay); };
+}
+
+/* ─ KEYBOARD ACTIVATION — for the handful of custom controls (toggles,
+   lesson cards) that can't be plain <button>/<a> elements without breaking
+   their layout, so Space/Enter needs to be wired up by hand. Call from
+   onkeydown="onActivateKey(event, () => ...)" alongside the existing
+   onclick. ─ */
+function onActivateKey(e, handler){
+  if(e.key === 'Enter' || e.key === ' '){
+    e.preventDefault();
+    handler();
+  }
+}
+
+/* ─ TOAST — visible feedback for background actions that used to fail
+   silently (console.error only). Pass a retry() callback to add a button
+   that re-runs the failed action. ─ */
+function showToast(message, { type = 'error', retry, timeout = 6000 } = {}){
+  const stack = document.getElementById('toast-stack');
+  if(!stack) return;
+  const el = document.createElement('div');
+  el.className = 'toast ' + type;
+  const text = document.createElement('span');
+  text.textContent = message;
+  el.appendChild(text);
+  if(retry){
+    const btn = document.createElement('button');
+    btn.className = 'toast-retry';
+    btn.type = 'button';
+    btn.textContent = 'Retry';
+    btn.onclick = () => { el.remove(); retry(); };
+    el.appendChild(btn);
+  }
+  stack.appendChild(el);
+  setTimeout(() => el.remove(), timeout);
 }
 
 /* ─ DEFAULT LESSON SEED (used only on first load) ─ */
@@ -908,16 +983,22 @@ function renderStudentGrid(){
   const g = globalQuizScore();
   const scoreNumEl = document.getElementById('dash-score-num');
   if(scoreNumEl) scoreNumEl.textContent = `${g.correct} / ${g.total} correct`;
-  document.getElementById('student-grid').innerHTML = lessons.map((l,i) => {
+  document.getElementById('student-grid').innerHTML = (lessons.length ? lessons.map((l,i) => {
     const adminOpen  = l.status === 'open';
     const prereqDone = isPrereqDone(i);
     const enterable  = adminOpen && prereqDone;
     let footLabel = 'Enter →';
+    let lockReason = '';
     if(!enterable){
+      lockReason = !adminOpen ? 'This lesson isn\'t open yet — check back once your admin opens it.' : `Complete Lesson ${lessons[i-1].num}'s quiz to unlock this lesson.`;
       footLabel = !adminOpen ? 'Locked' : `Complete Lesson ${lessons[i-1].num}'s quiz to unlock`;
     }
+    // Locked cards stay focusable/clickable too — instead of doing nothing,
+    // they explain (via toast) exactly what unlocks them, so a click or a
+    // keyboard Enter never just silently fails.
+    const activateJs = enterable ? `openDetail(${l.id})` : `showToast(${JSON.stringify(lockReason)}, {type:'success'})`;
     return `
-    <div class="card${enterable?'':' locked'}"${enterable?` onclick="openDetail(${l.id})"`:''}>
+    <div class="card${enterable?'':' locked'}" role="button" tabindex="0" aria-label="Lesson ${l.num}: ${escapeHtml(l.title)}${enterable?'':' — '+lockReason}" onclick="${activateJs}" onkeydown="onActivateKey(event, () => { ${activateJs} })">
       <div class="card-tab ${l.status}"></div>
       <div class="card-top">
         <span class="card-num mono">Lesson ${l.num}</span>
@@ -930,7 +1011,7 @@ function renderStudentGrid(){
         <span class="enter-link">${footLabel}</span>
       </div>
     </div>`;
-  }).join('');
+  }).join('') : `<div class="empty-state" style="grid-column:1/-1;"><div class="ei">📚</div><p>No lessons on your syllabus yet — check back once your admin adds the first one.</p></div>`);
 }
 
 function renderAdminGrid(){
@@ -940,9 +1021,9 @@ function renderAdminGrid(){
       <div class="card-top">
         <span class="card-num mono">Lesson ${l.num}</span>
         <div class="admin-controls">
-          <button class="icon-btn" title="Edit lesson" onclick="openEditor(${l.id})">✎</button>
-          <button class="icon-btn" title="Delete lesson" onclick="deleteLesson(${l.id},'${(l.title||'').replace(/'/g,"\\'")}')">✕</button>
-          <div class="toggle${l.status==='open'?' on':''}" onclick="toggleStatus(${l.id})"><div class="knob"></div></div>
+          <button class="icon-btn" title="Edit lesson" aria-label="Edit lesson ${l.num}" onclick="openEditor(${l.id})">✎</button>
+          <button class="icon-btn" title="Delete lesson" aria-label="Delete lesson ${l.num}" onclick="deleteLesson(${l.id},'${(l.title||'').replace(/'/g,"\\'")}')">✕</button>
+          <div class="toggle${l.status==='open'?' on':''}" role="switch" tabindex="0" data-toggle-lesson="${l.id}" aria-checked="${l.status==='open'?'true':'false'}" aria-label="${l.status==='open'?'Open':'Closed'} to students — Lesson ${l.num}" onclick="toggleStatus(${l.id})" onkeydown="onActivateKey(event, () => toggleStatus(${l.id}))"><div class="knob"></div></div>
         </div>
       </div>
       <h3>${l.title}</h3>
@@ -953,10 +1034,10 @@ function renderAdminGrid(){
       </div>
     </div>
   `).join('') + `
-    <div class="card add-card" onclick="createLesson()">
+    <button type="button" class="card add-card btn-reset" onclick="createLesson()">
       <div class="plus">+</div>
       <div style="font-size:14px;">New lesson</div>
-    </div>`;
+    </button>`;
 }
 
 async function renderStudentsPanel(){
@@ -1011,7 +1092,7 @@ async function renderStudentsPanel(){
         return `<td style="width:1%;white-space:nowrap;"><span class="score-chip ${cls}">${sc.correct}/${sc.total}</span></td>`;
       }).join('');
       return `<tr>
-        <td><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
+        <td class="sticky-col"><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
         <td style="width:1%;white-space:nowrap;">${s.phone || '—'}</td>
         ${scoreCells}
         <td style="width:1%;text-align:right;white-space:nowrap;">
@@ -1024,7 +1105,7 @@ async function renderStudentsPanel(){
       <div class="students-meta">${approved.length} approved student${approved.length!==1?'s':''}</div>
       <div class="table-wrap">
         <table>
-          <thead><tr><th>Student</th><th style="width:1%;white-space:nowrap;">Phone</th>${lessonTh}<th style="width:1%;"></th></tr></thead>
+          <thead><tr><th class="sticky-col">Student</th><th style="width:1%;white-space:nowrap;">Phone</th>${lessonTh}<th style="width:1%;"></th></tr></thead>
           <tbody>${approvedRows}</tbody>
         </table>
       </div>` : (pending.length ? '' : `<div class="empty-state"><div class="ei">👤</div><p>No approved students yet.</p></div>`);
@@ -1156,6 +1237,7 @@ async function renderPlatformPanel(){
           <label style="font-size:12px;color:var(--ink-faint);display:block;margin-bottom:6px;">Their course name</label>
           <input type="text" class="field-input" id="new-admin-course-name" placeholder="e.g. Data Analytics Fundamentals">
         </div>
+        <div class="error-msg" id="new-admin-error" style="margin-top:14px;margin-bottom:0;"></div>
         <button class="btn btn-primary" style="width:auto;padding:10px 22px;margin-top:14px;" onclick="createAdmin()">Create admin</button>
       </div>`;
   } catch(e){
@@ -1165,12 +1247,24 @@ async function renderPlatformPanel(){
 }
 
 async function createAdmin(){
-  const adminName      = document.getElementById('new-admin-name').value.trim();
-  const adminEmail     = document.getElementById('new-admin-email').value.trim();
-  const adminPassword  = document.getElementById('new-admin-password').value;
-  const courseNameVal  = document.getElementById('new-admin-course-name').value.trim();
+  const nameEl    = document.getElementById('new-admin-name');
+  const emailEl   = document.getElementById('new-admin-email');
+  const pwEl      = document.getElementById('new-admin-password');
+  const courseEl  = document.getElementById('new-admin-course-name');
+  const errEl     = document.getElementById('new-admin-error');
+  const adminName     = nameEl.value.trim();
+  const adminEmail    = emailEl.value.trim();
+  const adminPassword = pwEl.value;
+  const courseNameVal = courseEl.value.trim();
+  [nameEl, emailEl, pwEl, courseEl].forEach(el => el.classList.remove('field-error'));
+  errEl.classList.remove('show');
   if(!adminName || !adminEmail || !adminPassword || !courseNameVal){
-    alert('Please fill in all fields.');
+    nameEl.classList.toggle('field-error', !adminName);
+    emailEl.classList.toggle('field-error', !adminEmail);
+    pwEl.classList.toggle('field-error', !adminPassword);
+    courseEl.classList.toggle('field-error', !courseNameVal);
+    errEl.textContent = 'Please fill in all fields.';
+    errEl.classList.add('show');
     return;
   }
   try {
@@ -1178,7 +1272,9 @@ async function createAdmin(){
     renderPlatformPanel();
   } catch(e){
     console.error('Create admin failed', e);
-    alert(e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the admin. Please try again.');
+    if(e.code === 'email-already-in-use') emailEl.classList.add('field-error');
+    errEl.textContent = e.code === 'email-already-in-use' ? 'That admin email is already in use.' : 'Could not create the admin. Please try again.';
+    errEl.classList.add('show');
   }
 }
 
@@ -1336,13 +1432,19 @@ function jsEscape(s){ return String(s||'').replace(/\\/g,'\\\\').replace(/'/g,"\
 // Downloads via fetch+blob instead of a plain <a href> so a failed proxy request
 // (e.g. Google Drive wouldn't hand over the raw file) shows a clear message
 // instead of navigating the whole app away to a page of raw JSON.
-async function downloadMaterial(name, url){
+async function downloadMaterial(btn, name, url){
+  // Disable + relabel for the whole round trip — otherwise an impatient
+  // double-click can fire the same download twice with nothing on screen
+  // showing the first one is still in flight.
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Downloading…';
   try {
     const r = await fetch(url);
     if(!r.ok){
       let msg = 'Could not download this file. Please try again.';
       try { const d = await r.json(); if(d.error) msg = d.error; } catch(e){}
-      alert(msg);
+      showToast(msg, { retry: () => downloadMaterial(btn, name, url) });
       return;
     }
     const blob = await r.blob();
@@ -1356,7 +1458,10 @@ async function downloadMaterial(name, url){
     setTimeout(() => URL.revokeObjectURL(objectUrl), 4000);
   } catch(e){
     console.error('Download failed', e);
-    alert('Could not download this file. Please check your connection and try again.');
+    showToast('Could not download this file. Please check your connection and try again.', { retry: () => downloadMaterial(btn, name, url) });
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
   }
 }
 
@@ -1373,7 +1478,7 @@ function renderMaterialRow(s){
       ${hasTarget ? `
         <div style="display:flex;gap:8px;flex-shrink:0;">
           <button class="dl-btn" onclick="window.open('${jsEscape(openUrl)}','_blank')">Open</button>
-          <button class="dl-btn" onclick="downloadMaterial('${jsEscape(s.name)}','${jsEscape(dlUrl)}')">Download</button>
+          <button class="dl-btn" onclick="downloadMaterial(this,'${jsEscape(s.name)}','${jsEscape(dlUrl)}')">Download</button>
         </div>`
         : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
     </div>`;
@@ -1395,7 +1500,7 @@ function openDetail(id){
   document.getElementById('detail-meta').textContent  = `Lesson ${l.num} · ${courseName}`;
   document.getElementById('panel-slides').innerHTML   = l.slides.length
     ? l.slides.map(renderMaterialRow).join('')
-    : `<p style="color:var(--ink-faint);font-size:13px;">No materials added for this lesson yet.</p>`;
+    : `<div class="empty-state"><div class="ei">📎</div><p>No materials added for this lesson yet.</p></div>`;
 
   // Notes — stored as HTML (bold/italic/lists/checklists/attachment chips),
   // not plain text, so we set innerHTML rather than .value.
@@ -1418,8 +1523,14 @@ const saveNoteDebounced = debounce(async (lessonId, text) => {
   if(!currentStudent) return;
   try {
     await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lessonId, { note: text });
-    document.getElementById('notes-status').textContent = 'Saved.';
-  } catch(e){ console.error('Note save failed', e); }
+    const statusEl = document.getElementById('notes-status');
+    if(statusEl) statusEl.textContent = 'Saved.';
+  } catch(e){
+    console.error('Note save failed', e);
+    const statusEl = document.getElementById('notes-status');
+    if(statusEl) statusEl.textContent = "Couldn't save — check your connection.";
+    showToast("Couldn't save your note — check your connection.", { retry: () => saveNoteDebounced(lessonId, text) });
+  }
 }, 900);
 
 function saveNotesNow(){
@@ -1614,8 +1725,11 @@ function renderQuiz(l){
       // we fully own the checked state via re-render, so there's no race between
       // the native default action and the DOM we just replaced.
       const clickAttr = answered ? '' : ` onclick="answerQuiz(${l.id},${i},${oi},${!!q.multi});return false;"`;
+      // Correct/wrong gets an icon mark, not just a border color, so the
+      // signal doesn't rely on color alone (colorblind-safe).
+      const markHtml = cls ? `<span class="opt-mark">${cls==='correct'?'✓':'✕'}</span>` : '';
       return `<label class="option ${cls}${answered?' locked':''}">
-        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}${clickAttr}> ${opt}
+        <input type="${inputType}" name="q${i}" ${picked?'checked':''} ${answered?'disabled':''}${clickAttr}>${markHtml} ${opt}
       </label>`;
     }).join('');
     const submitBtnHtml = (q.multi && !answered && draft.length > 0)
@@ -1628,6 +1742,11 @@ function renderQuiz(l){
            <strong>Not quite — </strong>${escapeHtml(q.explanation)}
          </div>`
       : '';
+    // Once locked, say WHY the options stopped responding rather than
+    // leaving the student to guess.
+    const lockCaptionHtml = answered
+      ? `<div class="lock-caption">🔒 Locked in — answers can't be changed after submitting</div>`
+      : '';
     return `
       <div class="quiz-q">
         <div class="qnum mono">Question ${i+1} of ${l.quiz.length}${q.multi ? ' · select all that apply' : ''}</div>
@@ -1635,6 +1754,7 @@ function renderQuiz(l){
         ${optionsHtml}
         ${submitBtnHtml}
         ${explanationHtml}
+        ${lockCaptionHtml}
       </div>`;
   }).join('');
   const total   = l.quiz.length;
@@ -1663,9 +1783,7 @@ async function answerQuiz(lid, qi, oi, isMulti){
   // student answers the last question of a lesson's quiz, the next lesson's
   // card is already unlocked underneath, no hard refresh needed to see it.
   renderStudentGrid();
-  try {
-    await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
-  } catch(e){ console.error('Answer save failed', e); }
+  saveQuizAnswer(lid);
 }
 
 async function submitMultiAnswer(lid, qi){
@@ -1680,9 +1798,19 @@ async function submitMultiAnswer(lid, qi){
   delete quizDraftMulti[key];
   renderQuiz(lessons.find(x=>x.id===lid));
   renderStudentGrid();
+  saveQuizAnswer(lid);
+}
+
+// The answer is already locked in locally (and reflected on screen) before
+// this fires, so a failed save can't be silent — the student needs to know
+// their progress may not have actually persisted.
+async function saveQuizAnswer(lid){
   try {
     await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { answers: currentStudent.answers[lid] });
-  } catch(e){ console.error('Answer save failed', e); }
+  } catch(e){
+    console.error('Answer save failed', e);
+    showToast("Couldn't save your answer — check your connection.", { retry: () => saveQuizAnswer(lid) });
+  }
 }
 
 /* ─ ADMIN LESSON MANAGEMENT ─ */
@@ -1690,7 +1818,10 @@ const saveLessonDebounced = debounce(async (id) => {
   const l = lessons.find(x=>x.id===id);
   if(!l) return;
   try { await api('PATCH', '/lessons/'+id, { title:l.title, blurb:l.blurb, quiz:l.quiz }); }
-  catch(e){ console.error('Save lesson failed', e); }
+  catch(e){
+    console.error('Save lesson failed', e);
+    showToast("Couldn't save your changes — check your connection.", { retry: () => saveLessonDebounced(id) });
+  }
 }, 800);
 
 async function toggleStatus(id){
@@ -1698,8 +1829,27 @@ async function toggleStatus(id){
   l.status = l.status==='open' ? 'closed' : 'open';
   renderAdminGrid();
   renderStudentGrid();
+  syncToggleAria(id);
   try { await api('PATCH', '/lessons/'+id, { status: l.status }); }
-  catch(e){ console.error('Toggle status failed', e); }
+  catch(e){
+    console.error('Toggle status failed', e);
+    showToast("Couldn't save that change — check your connection.", { retry: () => toggleStatus(id) });
+    // Roll the visible toggle back since the server never got the change —
+    // otherwise the switch shows a state that isn't actually saved.
+    l.status = l.status==='open' ? 'closed' : 'open';
+    renderAdminGrid();
+    renderStudentGrid();
+    syncToggleAria(id);
+  }
+}
+
+// Keeps role="switch" aria-checked in sync with the visual .on class,
+// since the toggle is a styled <div>, not a native input, and screen
+// readers only get state from the ARIA attribute.
+function syncToggleAria(id){
+  document.querySelectorAll(`[data-toggle-lesson="${id}"]`).forEach(el => {
+    el.setAttribute('aria-checked', el.classList.contains('on') ? 'true' : 'false');
+  });
 }
 
 function toggleFromEditor(){
@@ -1756,7 +1906,10 @@ function openEditor(id){
   document.getElementById('editor-desc-input').value    = l.blurb;
   renderEditorSlides(l);
   renderEditorQuiz(l);
-  document.getElementById('editor-toggle').classList.toggle('on', l.status==='open');
+  const editorToggle = document.getElementById('editor-toggle');
+  editorToggle.classList.toggle('on', l.status==='open');
+  editorToggle.setAttribute('data-toggle-lesson', id);
+  editorToggle.setAttribute('aria-checked', l.status==='open' ? 'true' : 'false');
   go('editor');
 }
 
@@ -1791,28 +1944,63 @@ function renderEditorSlides(l){
   document.getElementById('editor-slides').innerHTML = l.slides.length
     ? l.slides.map((s,i) => `
         <div class="slide-row-editable">
-          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:75%;">
+          <span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:60%;">
             <a href="${materialOpenUrl(s)}" target="_blank" style="color:var(--blue);text-decoration:none;">${s.fileId ? '📄 ' : ''}${s.name}</a>
           </span>
-          <button class="icon-btn" onclick="removeSlide(${l.id},${i})">✕</button>
+          <span class="eq-top-actions">
+            <button class="eq-order-btn" title="Move up" aria-label="Move material up" ${i===0?'disabled':''} onclick="moveSlide(${l.id},${i},-1)">↑</button>
+            <button class="eq-order-btn" title="Move down" aria-label="Move material down" ${i===l.slides.length-1?'disabled':''} onclick="moveSlide(${l.id},${i},1)">↓</button>
+            <button class="icon-btn" title="Remove this material" aria-label="Remove material" onclick="removeSlide(${l.id},${i})">✕</button>
+          </span>
         </div>`).join('')
     : `<p style="color:var(--ink-faint);font-size:13px;margin:0 0 12px;">No links or files added yet.</p>`;
+}
+
+// Persists the CURRENT state of l.slides — used after any local mutation
+// (add/remove/reorder). Kept separate from the mutation itself so a retry
+// re-sends whatever the array looks like now instead of re-running the
+// mutation a second time (which would, e.g., re-swap an already-swapped pair).
+async function saveSlides(lid){
+  const l = lessons.find(x=>x.id===lid);
+  if(!l) return;
+  try { await api('PATCH', '/lessons/'+lid, { slides: l.slides }); }
+  catch(e){
+    console.error('Save materials failed', e);
+    showToast("Couldn't save that change — check your connection.", { retry: () => saveSlides(lid) });
+  }
+}
+
+async function moveSlide(lid, i, dir){
+  const l = lessons.find(x=>x.id===lid);
+  const j = i + dir;
+  if(j < 0 || j >= l.slides.length) return;
+  [l.slides[i], l.slides[j]] = [l.slides[j], l.slides[i]];
+  renderEditorSlides(l);
+  saveSlides(lid);
 }
 
 async function addLink(){
   const nameEl = document.getElementById('link-name-input');
   const urlEl  = document.getElementById('link-url-input');
+  const errEl  = document.getElementById('link-error');
   const name = nameEl.value.trim();
   const url  = urlEl.value.trim();
-  if(!name || !url){ alert('Please enter both a label and a URL.'); return; }
+  if(!name || !url){
+    if(errEl){ errEl.textContent = 'Please enter both a label and a URL.'; errEl.classList.add('show'); }
+    nameEl.classList.toggle('field-error', !name);
+    urlEl.classList.toggle('field-error', !url);
+    return;
+  }
+  if(errEl) errEl.classList.remove('show');
+  nameEl.classList.remove('field-error');
+  urlEl.classList.remove('field-error');
   const l = lessons.find(x=>x.id===currentEditorId);
   l.slides.push({ name, url });
   nameEl.value = '';
   urlEl.value  = '';
   renderEditorSlides(l);
   renderAdminGrid();
-  try { await api('PATCH', '/lessons/'+currentEditorId, { slides: l.slides }); }
-  catch(e){ console.error('Add link failed', e); }
+  saveSlides(currentEditorId);
 }
 
 async function uploadMaterialFile(){
@@ -1840,11 +2028,10 @@ async function uploadMaterialFile(){
     input.value = '';
     renderEditorSlides(l);
     renderAdminGrid();
-    try { await api('PATCH', '/lessons/'+currentEditorId, { slides: l.slides }); }
-    catch(e){ console.error('Save after upload failed', e); }
+    saveSlides(currentEditorId);
   } catch(e){
     console.error('File upload failed', e);
-    alert('Could not upload the file. Please try again.');
+    showToast('Could not upload the file. Please try again.', { retry: () => document.getElementById('upload-file-btn').click() });
   } finally {
     btn.disabled = false;
     btn.textContent = '+ Upload file';
@@ -1854,12 +2041,13 @@ async function uploadMaterialFile(){
 async function removeSlide(lid, i){
   const l = lessons.find(x=>x.id===lid);
   const removed = l.slides[i];
+  if(!removed) return;
+  if(!confirm(`Remove "${removed.name}" from this lesson's materials? This cannot be undone.`)) return;
   l.slides.splice(i,1);
   renderEditorSlides(l);
   renderAdminGrid();
-  try { await api('PATCH', '/lessons/'+lid, { slides: l.slides }); }
-  catch(e){ console.error('Remove link failed', e); }
-  if(removed && removed.fileId){
+  saveSlides(lid);
+  if(removed.fileId){
     try { await api('DELETE', '/lessons/'+lid+'/files/'+removed.fileId); }
     catch(e){ console.error('Delete uploaded file failed', e); }
   }
@@ -1871,7 +2059,12 @@ function renderEditorQuiz(l){
         <div class="eq-block">
           <div class="eq-top">
             <span class="eq-label mono">Question ${qi+1}</span>
-            <button class="eq-small-btn" onclick="removeQuestion(${qi})">✕ remove</button>
+            <span class="eq-top-actions">
+              <button class="eq-order-btn" title="Move up" aria-label="Move question up" ${qi===0?'disabled':''} onclick="moveQuestion(${qi},-1)">↑</button>
+              <button class="eq-order-btn" title="Move down" aria-label="Move question down" ${qi===l.quiz.length-1?'disabled':''} onclick="moveQuestion(${qi},1)">↓</button>
+              <button class="eq-small-btn" title="Duplicate this question" onclick="duplicateQuestion(${qi})">⧉ duplicate</button>
+              <button class="eq-small-btn" onclick="removeQuestion(${qi})">✕ remove</button>
+            </span>
           </div>
           <input class="eq-qtext" type="text" value="${q.q.replace(/"/g,'&quot;')}"
             oninput="updateQText(${qi},this.value)" placeholder="Question text">
@@ -1958,7 +2151,26 @@ function removeOption(qi,oi){
 
 function removeQuestion(qi){
   const l = lessons.find(x=>x.id===currentEditorId);
+  const q = l.quiz[qi];
+  if(!q) return;
+  if(!confirm(`Remove question ${qi+1} ("${q.q.slice(0,60)}${q.q.length>60?'…':''}")? This cannot be undone.`)) return;
   l.quiz.splice(qi,1);
+  renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
+}
+
+function moveQuestion(qi, dir){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const qj = qi + dir;
+  if(qj < 0 || qj >= l.quiz.length) return;
+  [l.quiz[qi], l.quiz[qj]] = [l.quiz[qj], l.quiz[qi]];
+  renderEditorQuiz(l);
+  saveLessonDebounced(currentEditorId);
+}
+
+function duplicateQuestion(qi){
+  const l = lessons.find(x=>x.id===currentEditorId);
+  const copy = JSON.parse(JSON.stringify(l.quiz[qi]));
+  l.quiz.splice(qi+1, 0, copy);
   renderEditorQuiz(l); renderAdminGrid(); saveLessonDebounced(currentEditorId);
 }
 
