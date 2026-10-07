@@ -217,7 +217,7 @@ app.get('/api/auth/me', auth, async (req, res) => {
       [req.user.id]
     );
     const progressRes = await pool.query(
-      `SELECT p.lesson_id, p.answers, p.note, f.comment AS feedback, f.updated_at AS feedback_at
+      `SELECT p.lesson_id, p.answers, p.note, f.comment AS feedback, f.rating AS feedback_rating, f.updated_at AS feedback_at
        FROM user_progress p
        LEFT JOIN note_feedback f ON f.user_id = p.user_id AND f.lesson_id = p.lesson_id
        WHERE p.user_id = $1`,
@@ -617,7 +617,7 @@ app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
       [req.user.course_id]
     );
     const fbRes = await pool.query(
-      `SELECT f.user_id, f.lesson_id, f.comment, f.updated_at
+      `SELECT f.user_id, f.lesson_id, f.comment, f.rating, f.updated_at
          FROM note_feedback f JOIN users u ON u.id = f.user_id
         WHERE u.course_id = $1`, [req.user.course_id]);
     res.json({ notes: notesRes.rows, files: filesRes.rows, feedback: fbRes.rows });
@@ -667,6 +667,8 @@ app.delete('/api/users/:id', auth, adminOnly, async (req, res) => {
 // with an empty comment) feedback on a student's note.
 app.put('/api/admin/notes/:userId/:lessonId/feedback', auth, adminOnly, async (req, res) => {
   const comment = String((req.body && req.body.comment) || '').trim().slice(0, 5000);
+  let rating = req.body && req.body.rating != null && req.body.rating !== '' ? parseInt(req.body.rating, 10) : null;
+  if (rating !== null && !(rating >= 1 && rating <= 5)) return res.status(400).json({ error: 'rating must be 1-5' });
   try {
     const ok = await pool.query(
       `SELECT 1 FROM users u, lessons l
@@ -675,17 +677,17 @@ app.put('/api/admin/notes/:userId/:lessonId/feedback', auth, adminOnly, async (r
       [req.params.userId, req.params.lessonId, req.user.course_id]
     );
     if (!ok.rows.length) return res.status(404).json({ error: 'Student or lesson not found' });
-    if (!comment) {
+    if (!comment && rating === null) {
       await pool.query('DELETE FROM note_feedback WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
-      return res.json({ ok: true, comment: '' });
+      return res.json({ ok: true, comment: '', rating: null });
     }
     await pool.query(
-      `INSERT INTO note_feedback (user_id, lesson_id, comment, admin_id, updated_at)
-       VALUES ($1, $2, $3, $4, NOW())
-       ON CONFLICT (user_id, lesson_id) DO UPDATE SET comment = $3, admin_id = $4, updated_at = NOW()`,
-      [req.params.userId, req.params.lessonId, comment, req.user.id]
+      `INSERT INTO note_feedback (user_id, lesson_id, comment, rating, admin_id, updated_at)
+       VALUES ($1, $2, $3, $4, $5, NOW())
+       ON CONFLICT (user_id, lesson_id) DO UPDATE SET comment = $3, rating = $4, admin_id = $5, updated_at = NOW()`,
+      [req.params.userId, req.params.lessonId, comment, rating, req.user.id]
     );
-    res.json({ ok: true, comment });
+    res.json({ ok: true, comment, rating });
   } catch (e) {
     console.error('Feedback save error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -950,6 +952,8 @@ async function initDb() {
   // Per-lesson switch: when FALSE the quiz is optional and doesn't gate the next lesson.
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS quiz_mandatory BOOLEAN DEFAULT TRUE`);
   await pool.query(`UPDATE lessons SET quiz_mandatory = TRUE WHERE quiz_mandatory IS NULL`);
+  // Optional 1–5 star review an admin can give alongside written feedback.
+  await pool.query(`ALTER TABLE note_feedback ADD COLUMN IF NOT EXISTS rating SMALLINT`);
 
   // Lesson ordering used to be purely derived from creation order (id ASC).
   // sort_order lets an admin manually reorder/renumber lessons instead.

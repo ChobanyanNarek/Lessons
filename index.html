@@ -295,6 +295,18 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .fb-box .fb-h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--blue-deep);margin-bottom:4px;font-weight:600;}
 .nv-fb{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
 .nv-fb textarea{width:100%;min-height:64px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;background:var(--surface);color:var(--ink);}
+.fb-tools{display:flex;flex-wrap:wrap;align-items:center;gap:4px 14px;margin:6px 0;}
+.fb-emojis{display:flex;flex-wrap:wrap;gap:2px;}
+.fb-emoji{font-size:18px;line-height:1;padding:5px;border-radius:6px;background:none;border:1px solid transparent;cursor:pointer;}
+.fb-emoji:hover,.fb-emoji:focus-visible{background:var(--blue-soft);border-color:var(--blue-soft2);outline:none;}
+.fb-stars{display:flex;align-items:center;gap:2px;}
+.fb-stars .lbl{font-size:12px;color:var(--ink-faint);margin-right:4px;}
+.fb-star{font-size:20px;line-height:1;padding:2px;background:none;border:none;cursor:pointer;color:var(--line-strong);}
+.fb-star.on{color:#E0A100;}
+.fb-star:focus-visible{outline:2px solid var(--blue);border-radius:4px;}
+.fb-clear{font-size:12px;color:var(--ink-faint);background:none;border:none;cursor:pointer;text-decoration:underline;margin-left:4px;}
+.fb-rating{color:#E0A100;font-size:17px;letter-spacing:1px;margin-bottom:4px;}
+.fb-rating span{color:var(--ink-dim);font-size:12px;letter-spacing:0;margin-left:6px;}
 .nv-fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
 .pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
@@ -890,7 +902,7 @@ async function enterStudentSession(me){
   for(const p of (me.progress || [])){
     currentStudent.answers[p.lesson_id] = p.answers || {};
     currentStudent.notes[p.lesson_id]   = p.note    || '';
-    if(p.feedback) (currentStudent.feedback = currentStudent.feedback || {})[p.lesson_id] = { text: p.feedback, at: p.feedback_at };
+    if(p.feedback || p.feedback_rating) (currentStudent.feedback = currentStudent.feedback || {})[p.lesson_id] = { text: p.feedback || '', rating: p.feedback_rating || null, at: p.feedback_at };
   }
   syncCourseSlugToUrl(me.course_slug);
   applyCourseName(me.course_name || courseName);
@@ -1216,7 +1228,7 @@ function downloadAllMyNotes(){
     return `<h2>Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</h2>
       ${body ? `<div>${body}</div>` : '<p style="color:#888;">No written note.</p>'}
       ${files.length ? `<p><b>Attachments:</b> ${files.map(escapeHtml).join(', ')}</p>` : ''}
-      ${f ? `<div style="border-left:3px solid #2451D6;padding:6px 12px;margin:10px 0;background:#EEF3FC;"><b>Instructor feedback:</b><br>${escapeHtml(f.text).replace(/\n/g,'<br>')}</div>` : ''}`;
+      ${f ? `<div style="border-left:3px solid #2451D6;padding:6px 12px;margin:10px 0;background:#EEF3FC;"><b>Instructor feedback:</b>${f.rating ? ` <span style="color:#E0A100;">${starsText(f.rating)}</span> (${f.rating}/5)` : ''}<br>${escapeHtml(f.text).replace(/\n/g,'<br>')}</div>` : ''}`;
   }).filter(Boolean);
   if(!parts.length){ showToast("You don't have any saved notes yet.", { type:'success' }); return; }
   const date = new Date().toISOString().slice(0,10);
@@ -1323,16 +1335,38 @@ async function exportResultsCsv(){
   }
 }
 
+var FB_EMOJIS = ['👍','👏','🎉','🌟','💡','✅','🔥','💪','🙂','🤔','📌','❗'];
+function insertFbEmoji(uid, lid, em){
+  const ta = document.getElementById(`fb-${uid}-${lid}`);
+  // Insert at the caret if the admin was typing in this box; otherwise append.
+  const typing = ta.dataset.touched === '1';
+  const a = typing ? ta.selectionStart : ta.value.length, b = typing ? ta.selectionEnd : ta.value.length;
+  ta.value = ta.value.slice(0, a) + em + ta.value.slice(b);
+  ta.focus(); ta.selectionStart = ta.selectionEnd = a + em.length;
+  document.getElementById(`fbs-${uid}-${lid}`).textContent = 'Unsaved changes.';
+}
+function setFbRating(uid, lid, n){
+  const box = document.getElementById(`fbr-${uid}-${lid}`);
+  box.dataset.rating = n || '';
+  box.querySelectorAll('.fb-star').forEach((st, i) => {
+    st.classList.toggle('on', !!n && i < n);
+    st.setAttribute('aria-checked', n === i+1 ? 'true' : 'false');
+  });
+  document.getElementById(`fbs-${uid}-${lid}`).textContent = 'Unsaved changes.';
+}
+function starsText(n){ return '★'.repeat(n) + '☆'.repeat(5-n); }
+
 async function saveNoteFeedback(uid, lid, btn){
   const ta = document.getElementById(`fb-${uid}-${lid}`);
   const st = document.getElementById(`fbs-${uid}-${lid}`);
   btn.disabled = true; st.textContent = 'Saving…';
   try {
-    const r = await api('PUT', `/admin/notes/${uid}/${lid}/feedback`, { comment: ta.value });
+    const rating = parseInt(document.getElementById(`fbr-${uid}-${lid}`).dataset.rating, 10) || null;
+    const r = await api('PUT', `/admin/notes/${uid}/${lid}/feedback`, { comment: ta.value, rating });
     ta.value = r.comment;
     const e = (window._notesEntries||[]).find(x => x.uid===uid && x.lid===lid);
-    if(e) e.feedback = r.comment;
-    st.textContent = r.comment ? 'Saved. The student sees it on their lesson page.' : 'Feedback removed.';
+    if(e){ e.feedback = r.comment; e.rating = r.rating; }
+    st.textContent = (r.comment || r.rating) ? 'Saved. The student sees it on their lesson page.' : 'Feedback removed.';
   } catch(err){
     console.error(err); st.textContent = "Couldn't save — try again.";
   } finally { btn.disabled = false; }
@@ -1349,7 +1383,7 @@ async function renderNotesPanel(){
     const map = {};
     const ensure = (uid, lid, name, email) => {
       const k = uid+'|'+lid;
-      if(!map[k]) map[k] = { uid, lid, name, email, note:'', files:[], feedback:'' };
+      if(!map[k]) map[k] = { uid, lid, name, email, note:'', files:[], feedback:'', rating:null };
       return map[k];
     };
     const userById = {}; allUsers.forEach(u => userById[u.id] = u);
@@ -1360,7 +1394,8 @@ async function renderNotesPanel(){
     });
     (data.feedback || []).forEach(f => {
       const u = userById[f.user_id]; if(!u) return;
-      ensure(f.user_id, f.lesson_id, u.name, u.email).feedback = f.comment;
+      const en = ensure(f.user_id, f.lesson_id, u.name, u.email);
+      en.feedback = f.comment; en.rating = f.rating;
     });
     window._notesEntries = Object.values(map);
     const studs = [...new Map(window._notesEntries.map(e => [e.uid, e])).values()]
@@ -1480,7 +1515,14 @@ function drawNotesList(){
       <div class="nv-body">${body || '<span style="color:var(--ink-faint);">No written note — attachments only.</span>'}</div>
       <div class="nv-fb">
         <label for="fb-${e.uid}-${e.lid}" style="font-size:12px;color:var(--ink-faint);">Your feedback to ${escapeHtml(e.name.split(' ')[0])}</label>
-        <textarea id="fb-${e.uid}-${e.lid}" placeholder="Write feedback on this note…">${escapeHtml(e.feedback||'')}</textarea>
+        <div class="fb-tools">
+          <div class="fb-emojis" role="group" aria-label="Insert emoji">${FB_EMOJIS.map(em => `<button type="button" class="fb-emoji" title="Insert ${em}" aria-label="Insert ${em}" onclick="insertFbEmoji('${e.uid}', ${e.lid}, '${em}')">${em}</button>`).join('')}</div>
+          <div class="fb-stars" role="radiogroup" aria-label="Review rating" id="fbr-${e.uid}-${e.lid}" data-rating="${e.rating||''}">
+            <span class="lbl">Review</span>${[1,2,3,4,5].map(n => `<button type="button" class="fb-star${(e.rating||0)>=n?' on':''}" role="radio" aria-checked="${e.rating===n}" aria-label="${n} star${n>1?'s':''}" onclick="setFbRating('${e.uid}', ${e.lid}, ${n})">★</button>`).join('')}
+            <button type="button" class="fb-clear" onclick="setFbRating('${e.uid}', ${e.lid}, null)">clear</button>
+          </div>
+        </div>
+        <textarea id="fb-${e.uid}-${e.lid}" onfocus="this.dataset.touched='1'" oninput="document.getElementById('fbs-${e.uid}-${e.lid}').textContent='Unsaved changes.'" placeholder="Write feedback on this note…">${escapeHtml(e.feedback||'')}</textarea>
         <div class="nv-fb-row"><button type="button" class="dl-btn" onclick="saveNoteFeedback('${e.uid}', ${e.lid}, this)">Save feedback</button><span class="notes-status" id="fbs-${e.uid}-${e.lid}"></span></div>
       </div>
       ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<span class="nv-file"><span class="note-attachment" style="cursor:default;">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></span><button type="button" class="dl-btn" onclick="previewNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))}, ${escapeHtml(JSON.stringify(f.mimetype||''))})">Preview</button><button type="button" class="dl-btn" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">Download</button></span>`).join('')}</div>` : ''}
@@ -1880,7 +1922,7 @@ function openDetail(id){
   setNotesUi('saved', 'Nothing to save yet.');
   const fb = currentStudent?.feedback?.[id];
   document.getElementById('notes-feedback').innerHTML = fb
-    ? `<div class="fb-box"><div class="fb-h">Feedback from your instructor</div>${escapeHtml(fb.text).replace(/\n/g,'<br>')}</div>` : '';
+    ? `<div class="fb-box"><div class="fb-h">Feedback from your instructor</div>${fb.rating ? `<div class="fb-rating" aria-label="Rated ${fb.rating} out of 5">${starsText(fb.rating)}<span>${fb.rating}/5</span></div>` : ''}${escapeHtml(fb.text).replace(/\n/g,'<br>')}</div>` : '';
 
   // Quiz init
   if(currentStudent && !currentStudent.answers[id]) currentStudent.answers[id] = {};
