@@ -2,6 +2,7 @@ const express = require('express');
 const bcrypt  = require('bcryptjs');
 const jwt     = require('jsonwebtoken');
 const path    = require('path');
+const crypto  = require('crypto');
 const multer  = require('multer');
 
 // ── Fail fast if DATABASE_URL is missing ──────────────────────────────────────
@@ -216,7 +217,10 @@ app.get('/api/auth/me', auth, async (req, res) => {
       [req.user.id]
     );
     const progressRes = await pool.query(
-      'SELECT lesson_id, answers, note FROM user_progress WHERE user_id = $1',
+      `SELECT p.lesson_id, p.answers, p.note, f.comment AS feedback, f.updated_at AS feedback_at
+       FROM user_progress p
+       LEFT JOIN note_feedback f ON f.user_id = p.user_id AND f.lesson_id = p.lesson_id
+       WHERE p.user_id = $1`,
       [req.user.id]
     );
     const user = userRes.rows[0];
@@ -612,7 +616,11 @@ app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
         ORDER BY f.created_at ASC`,
       [req.user.course_id]
     );
-    res.json({ notes: notesRes.rows, files: filesRes.rows });
+    const fbRes = await pool.query(
+      `SELECT f.user_id, f.lesson_id, f.comment, f.updated_at
+         FROM note_feedback f JOIN users u ON u.id = f.user_id
+        WHERE u.course_id = $1`, [req.user.course_id]);
+    res.json({ notes: notesRes.rows, files: filesRes.rows, feedback: fbRes.rows });
   } catch (e) {
     console.error('Admin notes error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -651,6 +659,72 @@ app.delete('/api/users/:id', auth, adminOnly, async (req, res) => {
     res.json({ ok: true });
   } catch (e) {
     console.error('Delete user error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// PUT /api/admin/notes/:userId/:lessonId/feedback — admin leaves (or clears,
+// with an empty comment) feedback on a student's note.
+app.put('/api/admin/notes/:userId/:lessonId/feedback', auth, adminOnly, async (req, res) => {
+  const comment = String((req.body && req.body.comment) || '').trim().slice(0, 5000);
+  try {
+    const ok = await pool.query(
+      `SELECT 1 FROM users u, lessons l
+        WHERE u.id = $1 AND u.role = 'student' AND u.course_id = $3
+          AND l.id = $2 AND l.course_id = $3`,
+      [req.params.userId, req.params.lessonId, req.user.course_id]
+    );
+    if (!ok.rows.length) return res.status(404).json({ error: 'Student or lesson not found' });
+    if (!comment) {
+      await pool.query('DELETE FROM note_feedback WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
+      return res.json({ ok: true, comment: '' });
+    }
+    await pool.query(
+      `INSERT INTO note_feedback (user_id, lesson_id, comment, admin_id, updated_at)
+       VALUES ($1, $2, $3, $4, NOW())
+       ON CONFLICT (user_id, lesson_id) DO UPDATE SET comment = $3, admin_id = $4, updated_at = NOW()`,
+      [req.params.userId, req.params.lessonId, comment, req.user.id]
+    );
+    res.json({ ok: true, comment });
+  } catch (e) {
+    console.error('Feedback save error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/users/:id/reset-password — admin generates a one-time temporary
+// password for a student in their own course (no email service is configured,
+// so the admin hands it over directly).
+app.post('/api/users/:id/reset-password', auth, adminOnly, async (req, res) => {
+  try {
+    const temp = crypto.randomBytes(9).toString('base64').replace(/[^A-Za-z0-9]/g, '').slice(0, 10) + '7a';
+    const hash = await bcrypt.hash(temp, 10);
+    const r = await pool.query(
+      `UPDATE users SET password_hash = $1
+        WHERE id = $2 AND is_admin = false AND course_id = $3 RETURNING id, name, email`,
+      [hash, req.params.id, req.user.course_id]
+    );
+    if (!r.rows.length) return res.status(404).json({ error: 'User not found' });
+    res.json({ ok: true, name: r.rows[0].name, email: r.rows[0].email, temp_password: temp });
+  } catch (e) {
+    console.error('Reset password error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// POST /api/auth/change-password — any logged-in user changes their own password.
+app.post('/api/auth/change-password', auth, async (req, res) => {
+  const { current_password, new_password } = req.body || {};
+  if (!current_password || !new_password) return res.status(400).json({ error: 'current_password and new_password are required' });
+  if (String(new_password).length < 6) return res.status(400).json({ error: 'password-too-short' });
+  try {
+    const u = await pool.query('SELECT password_hash FROM users WHERE id = $1', [req.user.id]);
+    if (!u.rows.length) return res.status(404).json({ error: 'User not found' });
+    if (!(await bcrypt.compare(current_password, u.rows[0].password_hash))) return res.status(401).json({ error: 'wrong-password' });
+    await pool.query('UPDATE users SET password_hash = $1 WHERE id = $2', [await bcrypt.hash(new_password, 10), req.user.id]);
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('Change password error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
 });
@@ -845,6 +919,15 @@ async function initDb() {
     CREATE TABLE IF NOT EXISTS settings (
       key   TEXT PRIMARY KEY,
       value TEXT
+    );
+
+    CREATE TABLE IF NOT EXISTS note_feedback (
+      user_id    UUID    REFERENCES users(id)   ON DELETE CASCADE,
+      lesson_id  INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
+      comment    TEXT NOT NULL,
+      admin_id   UUID,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      PRIMARY KEY (user_id, lesson_id)
     );
 
     CREATE TABLE IF NOT EXISTS note_files (

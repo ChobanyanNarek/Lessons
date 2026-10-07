@@ -284,6 +284,18 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .pv-body pre{margin:0;padding:16px;width:100%;height:100%;overflow:auto;white-space:pre-wrap;font-size:13px;align-self:flex-start;}
 .pv-none{padding:24px;text-align:center;color:var(--ink-dim);font-size:14px;}
 .nv-file{display:inline-flex;align-items:center;gap:6px;}
+.sm-overlay{position:fixed;inset:0;background:rgba(15,32,57,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000;}
+.sm-box{background:var(--surface);border-radius:12px;width:min(420px,100%);padding:22px;box-shadow:0 12px 40px rgba(15,32,57,.3);}
+.sm-box h3{margin:0 0 12px;font-size:16px;}
+.sm-box .field-input{margin-bottom:10px;}
+.sm-err{color:var(--red);font-size:13px;min-height:18px;margin-bottom:8px;}
+.sm-temp{font-family:'IBM Plex Mono',monospace;font-size:18px;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:8px;padding:12px;text-align:center;margin:12px 0;user-select:all;}
+.sm-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:6px;}
+.fb-box{border:1px solid var(--blue-soft2);background:var(--blue-soft);border-radius:8px;padding:12px 14px;margin-bottom:14px;font-size:14px;line-height:1.55;}
+.fb-box .fb-h{font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--blue-deep);margin-bottom:4px;font-weight:600;}
+.nv-fb{margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+.nv-fb textarea{width:100%;min-height:64px;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;font-family:inherit;font-size:13px;resize:vertical;background:var(--surface);color:var(--ink);}
+.nv-fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
 .pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
 .pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -436,6 +448,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     </div>
     <div class="panel active" id="panel-slides"></div>
     <div class="panel" id="panel-notes">
+      <div id="notes-feedback"></div>
       <div class="notes-toolbar">
         <button type="button" class="ntb-btn" title="Bold" aria-label="Bold" onclick="noteCmd('bold')"><b>B</b></button>
         <button type="button" class="ntb-btn" title="Italic" aria-label="Italic" onclick="noteCmd('italic')"><i>I</i></button>
@@ -869,10 +882,11 @@ async function enterAdminSession(user){
 
 async function enterStudentSession(me){
   currentUser = me;
-  currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {} };
+  currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {}, feedback: {} };
   for(const p of (me.progress || [])){
     currentStudent.answers[p.lesson_id] = p.answers || {};
     currentStudent.notes[p.lesson_id]   = p.note    || '';
+    if(p.feedback) (currentStudent.feedback = currentStudent.feedback || {})[p.lesson_id] = { text: p.feedback, at: p.feedback_at };
   }
   syncCourseSlugToUrl(me.course_slug);
   applyCourseName(me.course_name || courseName);
@@ -1146,13 +1160,17 @@ async function renderStudentsPanel(){
         <td style="width:1%;white-space:nowrap;">${s.phone || '—'}</td>
         ${scoreCells}
         <td style="width:1%;text-align:right;white-space:nowrap;">
+          <button class="dl-btn" onclick="resetStudentPassword('${s.id}','${s.name.replace(/'/g,"\\'")}')">Reset password</button>
           <button class="dl-btn" style="opacity:0.75;" onclick="setApproval('${s.id}', false)">Revoke</button>
           <button class="dl-btn danger" onclick="deleteStudent('${s.id}','${s.name.replace(/'/g,"\\'")}')">Delete</button>
         </td>
       </tr>`;
     }).join('');
     const approvedHtml = approved.length ? `
-      <div class="students-meta">${approved.length} approved student${approved.length!==1?'s':''}</div>
+      <div class="students-meta" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+        <span>${approved.length} approved student${approved.length!==1?'s':''}</span>
+        <button type="button" class="dl-btn" onclick="exportResultsCsv()">Export results (CSV)</button>
+      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th class="sticky-col">Student</th><th style="width:1%;white-space:nowrap;">Phone</th>${lessonTh}<th style="width:1%;"></th></tr></thead>
@@ -1167,6 +1185,109 @@ async function renderStudentsPanel(){
   }
 }
 
+function closeSmallModal(){ const o = document.getElementById('sm-overlay'); if(o) o.remove(); }
+function openSmallModal(html){
+  closeSmallModal();
+  const o = document.createElement('div');
+  o.className = 'sm-overlay'; o.id = 'sm-overlay';
+  o.addEventListener('click', e => { if(e.target === o) closeSmallModal(); });
+  o.innerHTML = `<div class="sm-box" role="dialog" aria-modal="true">${html}</div>`;
+  document.body.appendChild(o);
+  const f = o.querySelector('input,textarea,button'); if(f) f.focus();
+  return o;
+}
+
+/* ─ Password: students change their own; admins issue a temporary one ─ */
+function openChangePassword(){
+  openSmallModal(`<h3>Change password</h3>
+    <label for="cp-cur" style="font-size:12px;color:var(--ink-faint);">Current password</label>
+    <input type="password" class="field-input" id="cp-cur" autocomplete="current-password">
+    <label for="cp-new" style="font-size:12px;color:var(--ink-faint);">New password (at least 6 characters)</label>
+    <input type="password" class="field-input" id="cp-new" autocomplete="new-password">
+    <div class="sm-err" id="cp-err" role="alert"></div>
+    <div class="sm-actions"><button type="button" class="dl-btn" onclick="closeSmallModal()">Cancel</button>
+    <button type="button" class="btn btn-primary btn-sm" onclick="submitChangePassword()">Change password</button></div>`);
+}
+async function submitChangePassword(){
+  const cur = document.getElementById('cp-cur').value, nw = document.getElementById('cp-new').value;
+  const err = document.getElementById('cp-err');
+  if(nw.length < 6){ err.textContent = 'New password must be at least 6 characters.'; return; }
+  try {
+    await api('POST', '/auth/change-password', { current_password: cur, new_password: nw });
+    closeSmallModal();
+    showToast('Password changed.', { type:'success' });
+  } catch(e){
+    err.textContent = e.code === 'wrong-password' ? 'Current password is incorrect.' : e.code === 'password-too-short' ? 'New password must be at least 6 characters.' : "Couldn't change the password. Please try again.";
+  }
+}
+async function resetStudentPassword(userId, name){
+  if(!confirm(`Create a temporary password for ${name}? Their current password will stop working.`)) return;
+  try {
+    const r = await api('POST', '/users/'+userId+'/reset-password');
+    openSmallModal(`<h3>Temporary password</h3>
+      <p style="font-size:13px;color:var(--ink-dim);margin:0;">Give this to ${escapeHtml(r.name)} (${escapeHtml(r.email)}). It is shown only once; they can change it after signing in.</p>
+      <div class="sm-temp" id="tmp-pw">${escapeHtml(r.temp_password)}</div>
+      <div class="sm-actions"><button type="button" class="dl-btn" onclick="navigator.clipboard && navigator.clipboard.writeText(document.getElementById('tmp-pw').textContent).then(()=>showToast('Copied.',{type:'success'}))">Copy</button>
+      <button type="button" class="btn btn-primary btn-sm" onclick="closeSmallModal()">Done</button></div>`);
+  } catch(e){
+    console.error(e); showToast("Couldn't reset that password. Please try again.");
+  }
+}
+
+/* ─ Results export (CSV) ─ */
+function csvCell(v){
+  let t = String(v == null ? '' : v);
+  if(/^[=+\-@\t\r]/.test(t)) t = "'" + t;      // stop spreadsheet formula injection
+  return /[",\n\r]/.test(t) ? '"' + t.replace(/"/g,'""') + '"' : t;
+}
+async function exportResultsCsv(){
+  try {
+    const [users, nd] = await Promise.all([api('GET','/users'), api('GET','/admin/notes')]);
+    const students = users.filter(u => !u.is_admin);
+    const noteCount = {}, fileCount = {};
+    (nd.notes||[]).forEach(n => { noteCount[n.user_id] = (noteCount[n.user_id]||0) + 1; });
+    (nd.files||[]).forEach(f => { fileCount[f.user_id] = (fileCount[f.user_id]||0) + 1; });
+    const head = ['Name','Email','Phone','Status', ...lessons.map(l => `Lesson ${l.num} - ${l.title}`),
+                  'Total correct','Total questions','Overall %','Lessons with notes','Attachments'];
+    const rows = students.map(s => {
+      const answers = {}; for(const p of (s.progress||[])) answers[p.lesson_id] = p.answers || {};
+      let c = 0, t = 0;
+      const cells = lessons.map(l => {
+        t += l.quiz.length;
+        const sc = studentScore(answers, l.id);
+        if(!sc) return '';
+        c += sc.correct; return `${sc.correct} of ${sc.total}`;
+      });
+      return [s.name, s.email, s.phone||'', s.approved ? 'Approved' : 'Pending', ...cells,
+              c, t, t ? Math.round(c/t*100)+'%' : '', noteCount[s.id]||0, fileCount[s.id]||0];
+    });
+    const csv = '\uFEFF' + [head, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
+    const url = URL.createObjectURL(new Blob([csv], { type:'text/csv;charset=utf-8' }));
+    const a = document.createElement('a');
+    a.href = url; a.download = 'student-results-' + new Date().toISOString().slice(0,10) + '.csv';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch(e){
+    console.error('CSV export failed', e);
+    showToast("Couldn't export the results. Please try again.");
+  }
+}
+
+async function saveNoteFeedback(uid, lid, btn){
+  const ta = document.getElementById(`fb-${uid}-${lid}`);
+  const st = document.getElementById(`fbs-${uid}-${lid}`);
+  btn.disabled = true; st.textContent = 'Saving…';
+  try {
+    const r = await api('PUT', `/admin/notes/${uid}/${lid}/feedback`, { comment: ta.value });
+    ta.value = r.comment;
+    const e = (window._notesEntries||[]).find(x => x.uid===uid && x.lid===lid);
+    if(e) e.feedback = r.comment;
+    st.textContent = r.comment ? 'Saved. The student sees it on their lesson page.' : 'Feedback removed.';
+  } catch(err){
+    console.error(err); st.textContent = "Couldn't save — try again.";
+  } finally { btn.disabled = false; }
+}
+
 async function renderNotesPanel(){
   const panel = document.getElementById('notes-panel');
   panel.innerHTML = `<div class="empty-state"><p>Loading notes…</p></div>`;
@@ -1178,7 +1299,7 @@ async function renderNotesPanel(){
     const map = {};
     const ensure = (uid, lid, name, email) => {
       const k = uid+'|'+lid;
-      if(!map[k]) map[k] = { uid, lid, name, email, note:'', files:[] };
+      if(!map[k]) map[k] = { uid, lid, name, email, note:'', files:[], feedback:'' };
       return map[k];
     };
     const userById = {}; allUsers.forEach(u => userById[u.id] = u);
@@ -1186,6 +1307,10 @@ async function renderNotesPanel(){
     files.forEach(f => {
       const u = userById[f.user_id]; if(!u) return;
       ensure(f.user_id, f.lesson_id, u.name, u.email).files.push(f);
+    });
+    (data.feedback || []).forEach(f => {
+      const u = userById[f.user_id]; if(!u) return;
+      ensure(f.user_id, f.lesson_id, u.name, u.email).feedback = f.comment;
     });
     window._notesEntries = Object.values(map);
     const studs = [...new Map(window._notesEntries.map(e => [e.uid, e])).values()]
@@ -1303,6 +1428,11 @@ function drawNotesList(){
         <div class="card-num mono">${l ? 'Lesson '+l.num+' — '+escapeHtml(l.title) : 'Lesson '+e.lid}</div>
       </div>
       <div class="nv-body">${body || '<span style="color:var(--ink-faint);">No written note — attachments only.</span>'}</div>
+      <div class="nv-fb">
+        <label for="fb-${e.uid}-${e.lid}" style="font-size:12px;color:var(--ink-faint);">Your feedback to ${escapeHtml(e.name.split(' ')[0])}</label>
+        <textarea id="fb-${e.uid}-${e.lid}" placeholder="Write feedback on this note…">${escapeHtml(e.feedback||'')}</textarea>
+        <div class="nv-fb-row"><button type="button" class="dl-btn" onclick="saveNoteFeedback('${e.uid}', ${e.lid}, this)">Save feedback</button><span class="notes-status" id="fbs-${e.uid}-${e.lid}"></span></div>
+      </div>
       ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<span class="nv-file"><span class="note-attachment" style="cursor:default;">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></span><button type="button" class="dl-btn" onclick="previewNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))}, ${escapeHtml(JSON.stringify(f.mimetype||''))})">Preview</button><button type="button" class="dl-btn" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">Download</button></span>`).join('')}</div>` : ''}
     </div>`;
   }).join('');
@@ -1698,6 +1828,9 @@ function openDetail(id){
   document.getElementById('notes-area').innerHTML = (currentStudent?.notes?.[id]) || '';
   notesDirty = false;
   setNotesUi('saved', 'Nothing to save yet.');
+  const fb = currentStudent?.feedback?.[id];
+  document.getElementById('notes-feedback').innerHTML = fb
+    ? `<div class="fb-box"><div class="fb-h">Feedback from your instructor</div>${escapeHtml(fb.text).replace(/\n/g,'<br>')}</div>` : '';
 
   // Quiz init
   if(currentStudent && !currentStudent.answers[id]) currentStudent.answers[id] = {};
@@ -2444,7 +2577,8 @@ function updateChrome(s){
     right.innerHTML = `<span class="admin-tag">${tag}</span>
       <button class="chrome-link" onclick="adminSignOut()">Sign out</button>`;
   } else if(isStudent && currentStudent){
-    right.innerHTML = `<span class="chrome-user">${currentStudent.name}</span>
+    right.innerHTML = `<span class="chrome-user">${escapeHtml(currentStudent.name)}</span>
+      <button class="chrome-link" onclick="openChangePassword()">Change password</button>
       <button class="chrome-link" onclick="signOutStudent()">Sign out</button>`;
   } else {
     right.innerHTML = '';
