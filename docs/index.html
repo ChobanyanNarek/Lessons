@@ -1200,22 +1200,25 @@ async function renderStudentsPanel(){
   }
 }
 
-// Real .docx (built with the docx library, loaded on demand) so the file opens
-// as a formatted document in Word, Pages, Google Docs and LibreOffice — an
-// HTML-in-.doc file shows up as raw code in Pages/TextEdit on a Mac.
-var _docxLib = null;
-function loadDocxLib(){
-  if(window.docx) return Promise.resolve(window.docx);
-  if(_docxLib) return _docxLib;
-  _docxLib = new Promise((resolve, reject) => {
+// "Download all my notes": one ZIP with a formatted Word document (every
+// lesson's note, quiz result, instructor review and feedback, with image
+// attachments shown inline) plus an Attachments/ folder holding every file the
+// student attached, organised per lesson. Both libraries load on demand.
+var _libs = {};
+function loadLib(key, url, globalName){
+  if(window[globalName]) return Promise.resolve(window[globalName]);
+  if(_libs[key]) return _libs[key];
+  _libs[key] = new Promise((resolve, reject) => {
     const sc = document.createElement('script');
-    sc.src = 'https://cdn.jsdelivr.net/npm/docx@9.5.1/dist/index.iife.js';
-    sc.onload = () => window.docx ? resolve(window.docx) : reject(new Error('docx missing'));
-    sc.onerror = () => { _docxLib = null; reject(new Error('Could not load docx library')); };
+    sc.src = url;
+    sc.onload = () => window[globalName] ? resolve(window[globalName]) : reject(new Error(globalName + ' missing'));
+    sc.onerror = () => { delete _libs[key]; reject(new Error('Could not load ' + key)); };
     document.head.appendChild(sc);
   });
-  return _docxLib;
+  return _libs[key];
 }
+const loadDocxLib  = () => loadLib('docx',  'https://cdn.jsdelivr.net/npm/docx@9.5.1/dist/index.iife.js', 'docx');
+const loadJsZipLib = () => loadLib('jszip', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', 'JSZip');
 
 // Converts a saved note (HTML from the contenteditable editor) into docx
 // paragraphs, keeping bold/italic/underline, line breaks, lists and checklists.
@@ -1276,56 +1279,172 @@ function attachmentNames(html){
   return [...t.content.querySelectorAll('.note-attachment')].map(a => a.dataset.fileName || a.textContent.replace(/[×\u{1F4CE}]/gu,'').trim()).filter(Boolean);
 }
 
+function safeFileName(n){ return String(n || 'file').replace(/[\\/:*?"<>|\u0000-\u001f]/g, '_').replace(/\s+/g,' ').trim().slice(0, 120) || 'file'; }
+function lessonFolderName(l){ return safeFileName(`Lesson ${l.num} - ${l.title}`); }
+function imageTypeFor(mime, name){
+  const m = (mime || '').toLowerCase(), e = (name.split('.').pop() || '').toLowerCase();
+  if(m === 'image/png' || e === 'png') return 'png';
+  if(m === 'image/jpeg' || m === 'image/jpg' || e === 'jpg' || e === 'jpeg') return 'jpg';
+  if(m === 'image/gif' || e === 'gif') return 'gif';
+  if(m === 'image/bmp' || e === 'bmp') return 'bmp';
+  return null;
+}
+async function fetchNoteFileBlob(id){
+  const headers = {};
+  if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+  const r = await fetch(API_BASE + '/notes/files/' + id, { headers });
+  if(!r.ok) throw new Error('file ' + id);
+  return r.blob();
+}
+
 async function downloadAllMyNotes(){
   if(!currentStudent) return;
   if(notesDirty && !confirm('You have unsaved changes in this note. The download includes only saved notes. Continue?')) return;
+  showToast('Preparing your notes…', { type:'success', timeout: 4000 });
+
+  let D, files = [];
+  try {
+    [D, files] = await Promise.all([loadDocxLib(), api('GET', '/notes/my-files').catch(() => [])]);
+  } catch(e){ console.error(e); showToast("Couldn't prepare the download — check your connection and try again."); return; }
+
   const notes = currentStudent.notes || {}, fb = currentStudent.feedback || {};
+  const filesByLesson = {};
+  files.forEach(f => (filesByLesson[f.lesson_id] = filesByLesson[f.lesson_id] || []).push(f));
+
+  // Download every attachment once; used both for the ZIP and inline images.
+  const blobs = {};
+  await Promise.all(files.map(async f => { try { blobs[f.id] = await fetchNoteFileBlob(f.id); } catch(e){ console.warn('Skipped attachment', f.name, e); } }));
+
+  const quizText = l => {
+    if(!l.quiz || !l.quiz.length) return 'No quiz';
+    const ans = currentStudent.answers?.[l.id] || {};
+    if(!Object.keys(ans).length) return 'Not started';
+    const c = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
+    return `${c} of ${l.quiz.length} correct`;
+  };
   const items = lessons.map(l => {
     const raw = notes[l.id] || '';
-    return { l, raw, hasText: noteHasText(raw), files: attachmentNames(raw), f: fb[l.id] };
-  }).filter(x => x.hasText || x.files.length || x.f);
-  if(!items.length){ showToast("You don't have any saved notes yet.", { type:'success' }); return; }
-
-  showToast('Preparing your notes…', { type:'success', timeout: 2500 });
-  let D;
-  try { D = await loadDocxLib(); }
-  catch(e){ console.error(e); showToast("Couldn't prepare the download — check your connection and try again."); return; }
-
-  const date = new Date().toISOString().slice(0,10);
-  const children = [
-    new D.Paragraph({ heading: D.HeadingLevel.TITLE, children: [new D.TextRun({ text: 'My notes — ' + (courseName || 'Course') })] }),
-    new D.Paragraph({ spacing: { after: 240 }, children: [new D.TextRun({ text: `${currentStudent.name}${currentStudent.email ? ' · ' + currentStudent.email : ''} · exported ${date}`, color: '5B6470', size: 20 })] }),
-  ];
-  items.forEach(({ l, raw, hasText, files, f }) => {
-    children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_2, spacing: { before: 320, after: 120 },
-      children: [new D.TextRun({ text: `Lesson ${l.num} — ${l.title}` })] }));
-    if(hasText) children.push(...noteToDocxParagraphs(D, raw));
-    else children.push(new D.Paragraph({ children: [new D.TextRun({ text: 'No written note.', italics: true, color: '8B93A0' })] }));
-    if(files.length) children.push(new D.Paragraph({ spacing: { before: 120 }, children: [
-      new D.TextRun({ text: 'Attachments: ', bold: true }), new D.TextRun({ text: files.join(', ') })] }));
-    if(f){
-      const fbRuns = [new D.TextRun({ text: 'Instructor feedback', bold: true, color: '16327E' })];
-      if(f.rating) fbRuns.push(new D.TextRun({ text: '   ' + starsText(f.rating) + ` (${f.rating}/5)`, color: 'C98E00' }));
-      const box = { shading: { type: D.ShadingType.CLEAR, fill: 'EEF3FC', color: 'auto' },
-                    border: { left: { style: D.BorderStyle.SINGLE, size: 18, color: '2451D6', space: 8 } },
-                    indent: { left: 120 } };
-      children.push(new D.Paragraph({ ...box, spacing: { before: 160 }, children: fbRuns }));
-      (f.text || '').split('\n').forEach(line =>
-        children.push(new D.Paragraph({ ...box, children: [new D.TextRun({ text: line })] })));
-    }
+    return { l, raw, hasText: noteHasText(raw), files: filesByLesson[l.id] || [], f: fb[l.id] };
   });
+  const withContent = items.filter(x => x.hasText || x.files.length || x.f);
+  if(!withContent.length){ showToast("You don't have any saved notes yet.", { type:'success' }); return; }
+
+  const BLUE = '16327E', ACCENT = '2451D6', GREY = '5B6470', FAINT = '8B93A0', STAR = 'C98E00';
+  const date = new Date().toISOString().slice(0,10);
+  const T = (text, o) => new D.TextRun({ text: String(text), ...(o || {}) });
+  const P = (runs, o) => new D.Paragraph({ children: Array.isArray(runs) ? runs : [runs], ...(o || {}) });
+  const cell = (text, o) => new D.TableCell({
+    children: [P(T(text, { bold: !!(o && o.head), color: o && o.head ? 'FFFFFF' : (o && o.color) || undefined, size: 20 }))],
+    shading: o && o.head ? { type: D.ShadingType.CLEAR, fill: ACCENT, color: 'auto' } : (o && o.zebra ? { type: D.ShadingType.CLEAR, fill: 'F4F7FC', color: 'auto' } : undefined),
+    margins: { top: 80, bottom: 80, left: 120, right: 120 },
+  });
+
+  const children = [
+    P(T('MY COURSE NOTES', { color: ACCENT, size: 18, bold: true, characterSpacing: 40 }), { spacing: { after: 60 } }),
+    P(T(courseName || 'Course', { size: 44, bold: true, color: BLUE }), { spacing: { after: 60 } }),
+    P(T(currentStudent.name, { size: 26 }), { spacing: { after: 40 } }),
+    P(T(`${currentStudent.email ? currentStudent.email + '  ·  ' : ''}Exported ${date}`, { color: GREY, size: 20 }), { spacing: { after: 320 } }),
+  ];
+
+  // Overall summary
+  const g = globalQuizScore();
+  const totalFiles = files.length;
+  const reviewed = items.filter(x => x.f && x.f.rating);
+  children.push(P(T('Summary', { bold: true, size: 28, color: BLUE }), { spacing: { after: 120 } }));
+  children.push(P([
+    T(`${withContent.length} lesson${withContent.length!==1?'s':''} with notes  ·  `),
+    T(`${totalFiles} attachment${totalFiles!==1?'s':''}  ·  `),
+    T(`Quiz total: ${g.correct} of ${g.total} correct`),
+    reviewed.length ? T(`  ·  Average review: ${(reviewed.reduce((a,x)=>a+x.f.rating,0)/reviewed.length).toFixed(1)}/5`) : T(''),
+  ].map(r => r), { spacing: { after: 160 } }));
+
+  const head = new D.TableRow({ tableHeader: true, children: ['Lesson','Notes','Attachments','Quiz','Review'].map(h => cell(h, { head: true })) });
+  const rows = items.map((x, i) => new D.TableRow({ children: [
+    cell(`${x.l.num}  ${x.l.title}`, { zebra: i % 2 }),
+    cell(x.hasText ? 'Yes' : '—', { zebra: i % 2, color: x.hasText ? undefined : FAINT }),
+    cell(x.files.length ? String(x.files.length) : '—', { zebra: i % 2, color: x.files.length ? undefined : FAINT }),
+    cell(quizText(x.l), { zebra: i % 2 }),
+    cell(x.f && x.f.rating ? `${starsText(x.f.rating)} ${x.f.rating}/5` : (x.f ? 'Feedback' : '—'), { zebra: i % 2, color: x.f && x.f.rating ? STAR : (x.f ? undefined : FAINT) }),
+  ]}));
+  children.push(new D.Table({ width: { size: 100, type: D.WidthType.PERCENTAGE }, rows: [head, ...rows],
+    columnWidths: [3600, 1000, 1300, 1700, 1700] }));
+
+  // One section per lesson that has something in it, each on its own page.
+  for(const x of withContent){
+    const { l, raw, hasText, f } = x;
+    children.push(P(T(`LESSON ${l.num}`, { color: ACCENT, size: 18, bold: true, characterSpacing: 40 }), { pageBreakBefore: true, spacing: { after: 40 } }));
+    children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, spacing: { after: 80 }, children: [T(l.title, { color: BLUE })] }));
+    children.push(P(T(`Quiz: ${quizText(l)}`, { color: GREY, size: 20 }), { spacing: { after: 240 },
+      border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: 'DEE6F3', space: 6 } } }));
+
+    children.push(P(T('My notes', { bold: true, size: 24, color: BLUE }), { spacing: { after: 100 } }));
+    if(hasText) children.push(...noteToDocxParagraphs(D, raw));
+    else children.push(P(T('No written note for this lesson.', { italics: true, color: FAINT })));
+
+    if(x.files.length){
+      children.push(P(T('Attachments', { bold: true, size: 24, color: BLUE }), { spacing: { before: 280, after: 100 } }));
+      for(const file of x.files){
+        children.push(P([T('• ' + file.name, { bold: true }), T(`   ${fmtSize(file.size)}  ·  in Attachments/${lessonFolderName(l)}/`, { color: GREY, size: 18 })], { spacing: { after: 60 } }));
+        const it = imageTypeFor(file.mimetype, file.name);
+        const blob = blobs[file.id];
+        if(it && blob){
+          try {
+            const bmp = await createImageBitmap(blob);
+            const scale = Math.min(1, 520 / bmp.width, 520 / bmp.height);
+            const data = await blob.arrayBuffer();
+            children.push(P(new D.ImageRun({ type: it, data, transformation: { width: Math.round(bmp.width*scale), height: Math.round(bmp.height*scale) } }), { spacing: { after: 160 } }));
+          } catch(e){ console.warn('Image not embedded', file.name, e); }
+        }
+      }
+    }
+
+    if(f){
+      const box = { shading: { type: D.ShadingType.CLEAR, fill: 'EEF3FC', color: 'auto' },
+                    border: { left: { style: D.BorderStyle.SINGLE, size: 24, color: ACCENT, space: 10 } },
+                    indent: { left: 160, right: 160 } };
+      children.push(P(T('Instructor feedback', { bold: true, color: BLUE }), { ...box, spacing: { before: 320 } }));
+      if(f.rating) children.push(P([T(starsText(f.rating), { color: STAR, size: 26 }), T(`  ${f.rating} out of 5`, { color: GREY, size: 20 })], box));
+      (f.text || '').split('\n').forEach((line, i, arr) => children.push(P(T(line), { ...box, spacing: { after: i === arr.length-1 ? 120 : 0 } })));
+    }
+  }
 
   const doc = new D.Document({
-    creator: currentStudent.name, title: 'My notes',
-    styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
-    sections: [{ children }],
+    creator: currentStudent.name, title: `My notes — ${courseName || 'Course'}`,
+    styles: { default: { document: { run: { font: 'Calibri', size: 22, color: '1C2430' }, paragraph: { spacing: { line: 300, lineRule: D.LineRuleType.AUTO } } } } },
+    sections: [{
+      properties: { page: { margin: { top: 1200, bottom: 1200, left: 1200, right: 1200 } } },
+      footers: { default: new D.Footer({ children: [P([T(`${currentStudent.name} · ${courseName || ''}    Page `, { color: FAINT, size: 16 }), new D.TextRun({ children: [D.PageNumber.CURRENT], color: FAINT, size: 16 })], { alignment: D.AlignmentType.RIGHT })] }) },
+      children,
+    }],
   });
-  const blob = await D.Packer.toBlob(doc);
-  const url = URL.createObjectURL(blob);
+  const docBlob = await D.Packer.toBlob(doc);
+  const base = safeFileName(`My notes - ${courseName || 'Course'} - ${date}`);
+
+  let outBlob = docBlob, outName = base + '.docx';
+  const attached = files.filter(f => blobs[f.id]);
+  if(attached.length){
+    try {
+      const JSZip = await loadJsZipLib();
+      const zip = new JSZip();
+      zip.file(base + '.docx', docBlob);
+      const used = {};
+      attached.forEach(f => {
+        const l = lessons.find(x => x.id === f.lesson_id);
+        const folder = 'Attachments/' + (l ? lessonFolderName(l) : 'Other');
+        let name = safeFileName(f.name), k = folder + '/' + name, n = 1;
+        while(used[k]){ n++; const dot = name.lastIndexOf('.'); k = folder + '/' + (dot > 0 ? name.slice(0,dot) + ` (${n})` + name.slice(dot) : name + ` (${n})`); }
+        used[k] = 1;
+        zip.file(k, blobs[f.id]);
+      });
+      outBlob = await zip.generateAsync({ type: 'blob' });
+      outName = base + '.zip';
+    } catch(e){ console.warn('ZIP failed, downloading the document only', e); }
+  }
+  const url = URL.createObjectURL(outBlob);
   const a = document.createElement('a');
-  a.href = url; a.download = `my-notes-${date}.docx`;
+  a.href = url; a.download = outName;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1500);
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function closeSmallModal(){ const o = document.getElementById('sm-overlay'); if(o) o.remove(); }

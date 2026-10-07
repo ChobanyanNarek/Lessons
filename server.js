@@ -562,6 +562,22 @@ app.post('/api/notes/:lessonId/files', auth, upload.single('file'), async (req, 
   }
 });
 
+// GET /api/notes/my-files — the logged-in user's own note attachments
+// (metadata only), used for the "download all my notes" export.
+app.get('/api/notes/my-files', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, lesson_id, name, mimetype, octet_length(data) AS size, created_at
+         FROM note_files WHERE user_id = $1 ORDER BY lesson_id, created_at`,
+      [req.user.id]
+    );
+    res.json(r.rows);
+  } catch (e) {
+    console.error('My note files error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/notes/files/:fileId — owner (or an admin) only.
 app.get('/api/notes/files/:fileId', auth, async (req, res) => {
   try {
