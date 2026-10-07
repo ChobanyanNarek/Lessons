@@ -255,7 +255,7 @@ app.get('/api/lessons', async (req, res) => {
 
 // POST /api/lessons  — admin only, created under the admin's own course
 app.post('/api/lessons', auth, adminOnly, async (req, res) => {
-  const { title, blurb, status, quiz, slides } = req.body;
+  const { title, blurb, status, quiz, slides, quiz_mandatory } = req.body;
   if (!title) return res.status(400).json({ error: 'title is required' });
   if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
   try {
@@ -267,10 +267,10 @@ app.post('/api/lessons', auth, adminOnly, async (req, res) => {
     );
     const nextOrder = Number(maxOrder.rows[0].max) + 1;
     const result = await pool.query(
-      `INSERT INTO lessons (title, blurb, status, quiz, slides, course_id, sort_order)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)
+      `INSERT INTO lessons (title, blurb, status, quiz, slides, course_id, sort_order, quiz_mandatory)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        RETURNING *`,
-      [title, blurb || '', status || 'draft', JSON.stringify(quiz || []), JSON.stringify(slides || []), req.user.course_id, nextOrder]
+      [title, blurb || '', status || 'draft', JSON.stringify(quiz || []), JSON.stringify(slides || []), req.user.course_id, nextOrder, quiz_mandatory === false ? false : true]
     );
     res.status(201).json(result.rows[0]);
   } catch (e) {
@@ -281,7 +281,7 @@ app.post('/api/lessons', auth, adminOnly, async (req, res) => {
 
 // PATCH /api/lessons/:id  — admin only, must own the lesson's course
 app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
-  const { title, blurb, status, quiz, slides, sort_order } = req.body;
+  const { title, blurb, status, quiz, slides, sort_order, quiz_mandatory } = req.body;
   const { id } = req.params;
   try {
     const existing = await pool.query('SELECT course_id FROM lessons WHERE id = $1', [id]);
@@ -296,6 +296,7 @@ app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
     if (status  !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
     if (quiz    !== undefined) { fields.push(`quiz   = $${i++}`); values.push(JSON.stringify(quiz)); }
     if (slides  !== undefined) { fields.push(`slides = $${i++}`); values.push(JSON.stringify(slides)); }
+    if (quiz_mandatory !== undefined) { fields.push(`quiz_mandatory = $${i++}`); values.push(!!quiz_mandatory); }
     if (sort_order !== undefined) {
       const n = parseInt(sort_order, 10);
       if (!Number.isFinite(n)) return res.status(400).json({ error: 'sort_order must be a number' });
@@ -589,6 +590,35 @@ app.delete('/api/notes/files/:fileId', auth, async (req, res) => {
   }
 });
 
+// GET /api/admin/notes — admin only: every student note and note attachment in
+// the admin's own course, grouped by student and lesson.
+app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
+  try {
+    const notesRes = await pool.query(
+      `SELECT u.id AS user_id, u.name, u.email, p.lesson_id, p.note
+         FROM user_progress p
+         JOIN users u   ON u.id = p.user_id
+         JOIN lessons l ON l.id = p.lesson_id
+        WHERE u.course_id = $1 AND u.role = 'student' AND l.course_id = $1
+          AND p.note IS NOT NULL AND btrim(p.note) <> ''`,
+      [req.user.course_id]
+    );
+    const filesRes = await pool.query(
+      `SELECT f.id, f.user_id, f.lesson_id, f.name, f.mimetype, octet_length(f.data) AS size, f.created_at
+         FROM note_files f
+         JOIN users u   ON u.id = f.user_id
+         JOIN lessons l ON l.id = f.lesson_id
+        WHERE u.course_id = $1 AND u.role = 'student' AND l.course_id = $1
+        ORDER BY f.created_at ASC`,
+      [req.user.course_id]
+    );
+    res.json({ notes: notesRes.rows, files: filesRes.rows });
+  } catch (e) {
+    console.error('Admin notes error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // ─── ADMIN ROUTES (scoped to the admin's own course) ─────────────────────────
 
 // PATCH /api/users/:id/approval — approve or revoke a student account (admin only, own course)
@@ -834,6 +864,9 @@ async function initDb() {
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS videocall_url TEXT`);
+  // Per-lesson switch: when FALSE the quiz is optional and doesn't gate the next lesson.
+  await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS quiz_mandatory BOOLEAN DEFAULT TRUE`);
+  await pool.query(`UPDATE lessons SET quiz_mandatory = TRUE WHERE quiz_mandatory IS NULL`);
 
   // Lesson ordering used to be purely derived from creation order (id ASC).
   // sort_order lets an admin manually reorder/renumber lessons instead.

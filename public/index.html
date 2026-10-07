@@ -263,6 +263,13 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .empty-state{text-align:center;padding:64px 20px;color:var(--ink-faint);}
 .empty-state .ei{font-size:38px;margin-bottom:12px;}
 .empty-state p{font-size:14px;}
+.notes-filter{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
+.notes-filter select{padding:9px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:13px;}
+.nv-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
+.nv-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
+.nv-body{font-size:14px;line-height:1.6;color:var(--ink);overflow-wrap:anywhere;}
+.nv-body img{max-width:100%;}
+.nv-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
 .pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
 .pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -453,6 +460,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <div class="admin-tabs">
       <button class="admin-tab-btn active" data-apanel="content" id="content-tab-btn">Course Content</button>
       <button class="admin-tab-btn" data-apanel="students" id="students-tab-btn">Students</button>
+      <button class="admin-tab-btn" data-apanel="notes" id="notes-tab-btn">Student Notes</button>
       <button class="admin-tab-btn" data-apanel="settings" id="settings-tab-btn">Settings</button>
       <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
     </div>
@@ -461,6 +469,9 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     </div>
     <div class="admin-panel" id="apanel-students">
       <div id="students-panel"></div>
+    </div>
+    <div class="admin-panel" id="apanel-notes">
+      <div id="notes-panel"></div>
     </div>
     <div class="admin-panel" id="apanel-settings">
       <div class="editor-block" style="max-width:520px;">
@@ -565,6 +576,16 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
               <div class="s-desc">Closed lessons are listed but locked.</div>
             </div>
             <div class="toggle" id="editor-toggle" role="switch" tabindex="0" aria-checked="false" aria-label="Visible to students" onclick="toggleFromEditor()" onkeydown="onActivateKey(event, toggleFromEditor)"><div class="knob"></div></div>
+          </div>
+        </div>
+        <div class="editor-block">
+          <h3>Quiz</h3>
+          <div class="status-row">
+            <div>
+              <div class="s-label">Quiz required</div>
+              <div class="s-desc">On: students must answer every question before the next lesson unlocks. Off: the quiz is optional.</div>
+            </div>
+            <div class="toggle" id="editor-quiz-toggle" role="switch" tabindex="0" aria-checked="true" aria-label="Quiz required" onclick="toggleQuizMandatory(currentEditorId)" onkeydown="onActivateKey(event, () => toggleQuizMandatory(currentEditorId))"><div class="knob"></div></div>
           </div>
         </div>
         <div class="editor-block" style="border-color:rgba(209,67,67,0.3);">
@@ -958,7 +979,10 @@ function isQuizComplete(l, answers){
 // of whether the admin has separately opened lesson N for the whole class.
 function isPrereqDone(index){
   if(index <= 0) return true;
-  return isQuizComplete(lessons[index-1], currentStudent?.answers);
+  const prev = lessons[index-1];
+  // An optional quiz (admin switched "Quiz required" off) never blocks the next lesson.
+  if(prev && prev.quiz_mandatory === false) return true;
+  return isQuizComplete(prev, currentStudent?.answers);
 }
 
 // The dashboard-level "final result" — every quiz question across every
@@ -1038,7 +1062,7 @@ function renderAdminGrid(){
       <h3>${l.title}</h3>
       <p>${l.blurb}</p>
       <div class="card-foot">
-        <span>${l.slides.length} file${l.slides.length!==1?'s':''} · ${l.quiz.length} ${l.quiz.length===1?'question':'questions'}</span>
+        <span>${l.slides.length} file${l.slides.length!==1?'s':''} · ${l.quiz.length} ${l.quiz.length===1?'question':'questions'} · ${l.quiz_mandatory===false?'quiz optional':'quiz required'}</span>
         ${badge(l.status)}
       </div>
     </div>
@@ -1124,6 +1148,90 @@ async function renderStudentsPanel(){
     panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load students.</p></div>`;
     console.error(e);
   }
+}
+
+async function renderNotesPanel(){
+  const panel = document.getElementById('notes-panel');
+  panel.innerHTML = `<div class="empty-state"><p>Loading notes…</p></div>`;
+  try {
+    const [data, allUsers] = await Promise.all([api('GET','/admin/notes'), api('GET','/users')]);
+    const notes = data.notes || [], files = data.files || [];
+    const lessonById = {}; lessons.forEach(l => lessonById[l.id] = l);
+    // One entry per student+lesson that has a note and/or attachments.
+    const map = {};
+    const ensure = (uid, lid, name, email) => {
+      const k = uid+'|'+lid;
+      if(!map[k]) map[k] = { uid, lid, name, email, note:'', files:[] };
+      return map[k];
+    };
+    const userById = {}; allUsers.forEach(u => userById[u.id] = u);
+    notes.forEach(n => { ensure(n.user_id, n.lesson_id, n.name, n.email).note = n.note; });
+    files.forEach(f => {
+      const u = userById[f.user_id]; if(!u) return;
+      ensure(f.user_id, f.lesson_id, u.name, u.email).files.push(f);
+    });
+    window._notesEntries = Object.values(map);
+    const studs = [...new Map(window._notesEntries.map(e => [e.uid, e])).values()]
+      .sort((a,b)=>a.name.localeCompare(b.name));
+    panel.innerHTML = `
+      <div class="notes-filter">
+        <select id="nv-student" aria-label="Filter by student" onchange="drawNotesList()">
+          <option value="">All students</option>
+          ${studs.map(s => `<option value="${s.uid}">${escapeHtml(s.name)}</option>`).join('')}
+        </select>
+        <select id="nv-lesson" aria-label="Filter by lesson" onchange="drawNotesList()">
+          <option value="">All lessons</option>
+          ${lessons.map(l => `<option value="${l.id}">Lesson ${l.num} — ${escapeHtml(l.title)}</option>`).join('')}
+        </select>
+      </div>
+      <div id="nv-list"></div>`;
+    drawNotesList();
+  } catch(e){
+    console.error(e);
+    panel.innerHTML = `<div class="empty-state"><p>Failed to load student notes.</p></div>`;
+  }
+}
+
+// Student notes are HTML written by students — strip anything executable
+// before showing it in the admin's session.
+function safeNoteHtml(html){
+  const t = document.createElement('template');
+  t.innerHTML = html || '';
+  t.content.querySelectorAll('script,style,iframe,object,embed,link,meta,form').forEach(n => n.remove());
+  t.content.querySelectorAll('*').forEach(el => {
+    [...el.attributes].forEach(a => {
+      const n = a.name.toLowerCase(), v = (a.value||'').trim().toLowerCase();
+      if(n.startsWith('on') || n === 'contenteditable' || ((n==='href'||n==='src') && v.startsWith('javascript:'))) el.removeAttribute(a.name);
+    });
+    if(el.classList && el.classList.contains('note-attachment')) el.removeAttribute('onclick');
+  });
+  // Attachment chips are only markers here; real downloads are listed below the note.
+  t.content.querySelectorAll('.note-attachment').forEach(n => n.remove());
+  return t.innerHTML;
+}
+
+function fmtSize(b){ b = Number(b)||0; return b<1024 ? b+' B' : b<1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
+
+function drawNotesList(){
+  const sid = document.getElementById('nv-student').value;
+  const lid = document.getElementById('nv-lesson').value;
+  const list = (window._notesEntries||[])
+    .filter(e => (!sid || e.uid===sid) && (!lid || String(e.lid)===lid))
+    .sort((a,b)=> a.name.localeCompare(b.name) || ((lessons.findIndex(l=>l.id===a.lid))-(lessons.findIndex(l=>l.id===b.lid))));
+  const el = document.getElementById('nv-list');
+  if(!list.length){ el.innerHTML = `<div class="empty-state"><p>No notes or attachments match.</p></div>`; return; }
+  el.innerHTML = `<div class="students-meta">${list.length} note${list.length!==1?'s':''}</div>` + list.map(e => {
+    const l = lessons.find(x=>x.id===e.lid);
+    const body = safeNoteHtml(e.note).trim();
+    return `<div class="nv-card">
+      <div class="nv-head">
+        <div><div class="user-name">${escapeHtml(e.name)}</div><div class="user-email">${escapeHtml(e.email)}</div></div>
+        <div class="card-num mono">${l ? 'Lesson '+l.num+' — '+escapeHtml(l.title) : 'Lesson '+e.lid}</div>
+      </div>
+      <div class="nv-body">${body || '<span style="color:var(--ink-faint);">No written note — attachments only.</span>'}</div>
+      ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<button type="button" class="note-attachment btn-reset" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></button>`).join('')}</div>` : ''}
+    </div>`;
+  }).join('');
 }
 
 async function setApproval(userId, approved){
@@ -1863,6 +1971,33 @@ function syncToggleAria(id){
   });
 }
 
+function syncQuizToggle(l){
+  const t = document.getElementById('editor-quiz-toggle');
+  if(!t) return;
+  const on = l.quiz_mandatory !== false;
+  t.classList.toggle('on', on);
+  t.setAttribute('aria-checked', on ? 'true' : 'false');
+}
+
+async function toggleQuizMandatory(id){
+  const l = lessons.find(x=>x.id===id);
+  if(!l) return;
+  const next = l.quiz_mandatory === false;   // false -> true, anything else -> false
+  l.quiz_mandatory = next;
+  syncQuizToggle(l);
+  renderAdminGrid();
+  renderStudentGrid();
+  try { await api('PATCH', '/lessons/'+id, { quiz_mandatory: next }); }
+  catch(e){
+    console.error('Toggle quiz mandatory failed', e);
+    l.quiz_mandatory = !next;
+    syncQuizToggle(l);
+    renderAdminGrid();
+    renderStudentGrid();
+    showToast("Couldn't save that change — check your connection.", { retry: () => toggleQuizMandatory(id) });
+  }
+}
+
 function toggleFromEditor(){
   toggleStatus(currentEditorId);
   const l = lessons.find(x=>x.id===currentEditorId);
@@ -1921,6 +2056,7 @@ function openEditor(id){
   editorToggle.classList.toggle('on', l.status==='open');
   editorToggle.setAttribute('data-toggle-lesson', id);
   editorToggle.setAttribute('aria-checked', l.status==='open' ? 'true' : 'false');
+  syncQuizToggle(l);
   go('editor');
 }
 
@@ -2225,6 +2361,7 @@ function activateAdminTab(panelName){
   document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.toggle('active', b.dataset.apanel===panelName));
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.toggle('active', p.id === 'apanel-'+panelName));
   if(panelName === 'students') renderStudentsPanel();
+  if(panelName === 'notes') renderNotesPanel();
   if(panelName === 'settings'){
     document.getElementById('settings-course-name').value = courseName;
     document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
