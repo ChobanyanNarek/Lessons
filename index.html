@@ -1200,51 +1200,132 @@ async function renderStudentsPanel(){
   }
 }
 
-// Student export: every saved note across all lessons, in lesson order, as one
-// Word-compatible document (HTML in a .doc keeps bold/lists/checklists, and
-// Word, Pages, LibreOffice and Google Docs all open it).
-function noteHtmlForExport(html){
+// Real .docx (built with the docx library, loaded on demand) so the file opens
+// as a formatted document in Word, Pages, Google Docs and LibreOffice — an
+// HTML-in-.doc file shows up as raw code in Pages/TextEdit on a Mac.
+var _docxLib = null;
+function loadDocxLib(){
+  if(window.docx) return Promise.resolve(window.docx);
+  if(_docxLib) return _docxLib;
+  _docxLib = new Promise((resolve, reject) => {
+    const sc = document.createElement('script');
+    sc.src = 'https://cdn.jsdelivr.net/npm/docx@9.5.1/dist/index.iife.js';
+    sc.onload = () => window.docx ? resolve(window.docx) : reject(new Error('docx missing'));
+    sc.onerror = () => { _docxLib = null; reject(new Error('Could not load docx library')); };
+    document.head.appendChild(sc);
+  });
+  return _docxLib;
+}
+
+// Converts a saved note (HTML from the contenteditable editor) into docx
+// paragraphs, keeping bold/italic/underline, line breaks, lists and checklists.
+function noteToDocxParagraphs(D, html){
   const t = document.createElement('template');
-  t.innerHTML = safeNoteHtml(html || '');
-  t.content.querySelectorAll('input[type=checkbox]').forEach(cb => cb.replaceWith(document.createTextNode(cb.hasAttribute('checked') ? '\u2611 ' : '\u2610 ')));
-  t.content.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
-  return t.innerHTML;
+  t.innerHTML = safeNoteHtml(html || '');   // also drops attachment chips
+  const paras = [];
+  let cur = null;
+  const start = (opts) => { cur = { runs: [], opts: opts || {} }; paras.push(cur); };
+  const add = (text, f) => {
+    if(!text) return;
+    if(!cur) start();
+    cur.runs.push(new D.TextRun({ text, bold: !!f.b, italics: !!f.i, underline: f.u ? {} : undefined }));
+  };
+  const BLOCK = /^(DIV|P|H[1-6]|BLOCKQUOTE|PRE|SECTION)$/;
+  function walk(node, f){
+    if(node.nodeType === 3){ add(node.textContent.replace(/ /g, ' '), f); return; }
+    if(node.nodeType !== 1) return;
+    const tag = node.tagName;
+    if(tag === 'BR'){ start(); return; }
+    if(tag === 'INPUT'){ if(node.type === 'checkbox') add(node.hasAttribute('checked') ? '☑ ' : '☐ ', f); return; }
+    if(tag === 'IMG') return;
+    const nf = { b: f.b || tag === 'B' || tag === 'STRONG' || /^H[1-6]$/.test(tag),
+                 i: f.i || tag === 'I' || tag === 'EM',
+                 u: f.u || tag === 'U' };
+    if(tag === 'UL' || tag === 'OL'){
+      let n = 0;
+      [...node.children].forEach(li => {
+        n++;
+        start({ indent: true });
+        add(tag === 'OL' ? n + '. ' : '• ', {});
+        [...li.childNodes].forEach(c => walk(c, nf));
+        cur = null;
+      });
+      cur = null;
+      return;
+    }
+    if(BLOCK.test(tag)){
+      start();
+      [...node.childNodes].forEach(c => walk(c, nf));
+      cur = null;
+      return;
+    }
+    [...node.childNodes].forEach(c => walk(c, nf));
+  }
+  [...t.content.childNodes].forEach(c => walk(c, {}));
+  return paras
+    .filter(pp => pp.runs.length)
+    .map(pp => new D.Paragraph({ children: pp.runs, spacing: { after: 80 }, indent: pp.opts.indent ? { left: 360 } : undefined }));
+}
+function noteHasText(html){
+  const t = document.createElement('template'); t.innerHTML = safeNoteHtml(html || '');
+  return (t.content.textContent || '').replace(/ /g,' ').trim().length > 0 || !!t.content.querySelector('input[type=checkbox]');
 }
 function attachmentNames(html){
   const t = document.createElement('template');
   t.innerHTML = html || '';
-  return [...t.content.querySelectorAll('.note-attachment')].map(a => a.dataset.fileName || a.textContent.replace(/[\u00d7]/g,'').trim()).filter(Boolean);
+  return [...t.content.querySelectorAll('.note-attachment')].map(a => a.dataset.fileName || a.textContent.replace(/[×\u{1F4CE}]/gu,'').trim()).filter(Boolean);
 }
-function downloadAllMyNotes(){
+
+async function downloadAllMyNotes(){
   if(!currentStudent) return;
   if(notesDirty && !confirm('You have unsaved changes in this note. The download includes only saved notes. Continue?')) return;
   const notes = currentStudent.notes || {}, fb = currentStudent.feedback || {};
-  const parts = lessons.map(l => {
+  const items = lessons.map(l => {
     const raw = notes[l.id] || '';
-    const body = noteHtmlForExport(raw).trim();
-    const files = attachmentNames(raw);
-    const f = fb[l.id];
-    if(!body && !files.length && !f) return '';
-    return `<h2>Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</h2>
-      ${body ? `<div>${body}</div>` : '<p style="color:#888;">No written note.</p>'}
-      ${files.length ? `<p><b>Attachments:</b> ${files.map(escapeHtml).join(', ')}</p>` : ''}
-      ${f ? `<div style="border-left:3px solid #2451D6;padding:6px 12px;margin:10px 0;background:#EEF3FC;"><b>Instructor feedback:</b>${f.rating ? ` <span style="color:#E0A100;">${starsText(f.rating)}</span> (${f.rating}/5)` : ''}<br>${escapeHtml(f.text).replace(/\n/g,'<br>')}</div>` : ''}`;
-  }).filter(Boolean);
-  if(!parts.length){ showToast("You don't have any saved notes yet.", { type:'success' }); return; }
+    return { l, raw, hasText: noteHasText(raw), files: attachmentNames(raw), f: fb[l.id] };
+  }).filter(x => x.hasText || x.files.length || x.f);
+  if(!items.length){ showToast("You don't have any saved notes yet.", { type:'success' }); return; }
+
+  showToast('Preparing your notes…', { type:'success', timeout: 2500 });
+  let D;
+  try { D = await loadDocxLib(); }
+  catch(e){ console.error(e); showToast("Couldn't prepare the download — check your connection and try again."); return; }
+
   const date = new Date().toISOString().slice(0,10);
-  const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
-<head><meta charset="utf-8"><title>My notes</title>
-<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5;color:#1C2430;}
-h1{font-size:20pt;margin:0 0 4pt;} h2{font-size:14pt;margin:22pt 0 6pt;padding-top:8pt;border-top:1px solid #DEE6F3;color:#16327E;}
-.meta{color:#5B6470;font-size:10pt;}</style></head>
-<body><h1>My notes — ${escapeHtml(courseName || 'Course')}</h1>
-<p class="meta">${escapeHtml(currentStudent.name)} · ${escapeHtml(currentStudent.email || '')} · exported ${date}</p>
-${parts.join('\n')}</body></html>`;
-  const url = URL.createObjectURL(new Blob(['\ufeff', doc], { type:'application/msword' }));
+  const children = [
+    new D.Paragraph({ heading: D.HeadingLevel.TITLE, children: [new D.TextRun({ text: 'My notes — ' + (courseName || 'Course') })] }),
+    new D.Paragraph({ spacing: { after: 240 }, children: [new D.TextRun({ text: `${currentStudent.name}${currentStudent.email ? ' · ' + currentStudent.email : ''} · exported ${date}`, color: '5B6470', size: 20 })] }),
+  ];
+  items.forEach(({ l, raw, hasText, files, f }) => {
+    children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_2, spacing: { before: 320, after: 120 },
+      children: [new D.TextRun({ text: `Lesson ${l.num} — ${l.title}` })] }));
+    if(hasText) children.push(...noteToDocxParagraphs(D, raw));
+    else children.push(new D.Paragraph({ children: [new D.TextRun({ text: 'No written note.', italics: true, color: '8B93A0' })] }));
+    if(files.length) children.push(new D.Paragraph({ spacing: { before: 120 }, children: [
+      new D.TextRun({ text: 'Attachments: ', bold: true }), new D.TextRun({ text: files.join(', ') })] }));
+    if(f){
+      const fbRuns = [new D.TextRun({ text: 'Instructor feedback', bold: true, color: '16327E' })];
+      if(f.rating) fbRuns.push(new D.TextRun({ text: '   ' + starsText(f.rating) + ` (${f.rating}/5)`, color: 'C98E00' }));
+      const box = { shading: { type: D.ShadingType.CLEAR, fill: 'EEF3FC', color: 'auto' },
+                    border: { left: { style: D.BorderStyle.SINGLE, size: 18, color: '2451D6', space: 8 } },
+                    indent: { left: 120 } };
+      children.push(new D.Paragraph({ ...box, spacing: { before: 160 }, children: fbRuns }));
+      (f.text || '').split('\n').forEach(line =>
+        children.push(new D.Paragraph({ ...box, children: [new D.TextRun({ text: line })] })));
+    }
+  });
+
+  const doc = new D.Document({
+    creator: currentStudent.name, title: 'My notes',
+    styles: { default: { document: { run: { font: 'Calibri', size: 22 } } } },
+    sections: [{ children }],
+  });
+  const blob = await D.Packer.toBlob(doc);
+  const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
-  a.href = url; a.download = `my-notes-${date}.doc`;
+  a.href = url; a.download = `my-notes-${date}.docx`;
   document.body.appendChild(a); a.click(); a.remove();
-  setTimeout(() => URL.revokeObjectURL(url), 1000);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
 function closeSmallModal(){ const o = document.getElementById('sm-overlay'); if(o) o.remove(); }
