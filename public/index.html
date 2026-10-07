@@ -272,6 +272,18 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .nv-body{font-size:14px;line-height:1.6;color:var(--ink);overflow-wrap:anywhere;}
 .nv-body img{max-width:100%;}
 .nv-files{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px;padding-top:12px;border-top:1px solid var(--line);}
+.pv-overlay{position:fixed;inset:0;background:rgba(15,32,57,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000;}
+.pv-box{background:var(--surface);border-radius:12px;width:min(960px,100%);height:min(86vh,100%);display:flex;flex-direction:column;overflow:hidden;box-shadow:0 12px 40px rgba(15,32,57,.3);}
+.pv-bar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-bottom:1px solid var(--line);}
+.pv-title{font-size:14px;font-weight:600;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pv-actions{display:flex;gap:8px;flex-shrink:0;}
+.pv-body{flex:1;min-height:0;overflow:auto;display:flex;align-items:center;justify-content:center;background:var(--bg, #F4F7FC);}
+.pv-body iframe{width:100%;height:100%;border:0;background:#fff;}
+.pv-body img{max-width:100%;max-height:100%;object-fit:contain;}
+.pv-body video{max-width:100%;max-height:100%;}
+.pv-body pre{margin:0;padding:16px;width:100%;height:100%;overflow:auto;white-space:pre-wrap;font-size:13px;align-self:flex-start;}
+.pv-none{padding:24px;text-align:center;color:var(--ink-dim);font-size:14px;}
+.nv-file{display:inline-flex;align-items:center;gap:6px;}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
 .pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
 .pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -1215,6 +1227,63 @@ function safeNoteHtml(html){
   return t.innerHTML;
 }
 
+var pvUrl = null;
+function closePreview(){
+  const o = document.getElementById('pv-overlay');
+  if(o) o.remove();
+  if(pvUrl){ URL.revokeObjectURL(pvUrl); pvUrl = null; }
+  document.removeEventListener('keydown', pvKey);
+}
+function pvKey(e){ if(e.key === 'Escape') closePreview(); }
+
+// Fetches the file with the admin's auth header (a plain <a href> can't send
+// it), then shows it in a modal: images, PDFs, text, audio/video inline;
+// anything else (Word, Excel, zip…) falls back to a download prompt.
+async function previewNoteFile(fileId, name, mimetype){
+  closePreview();
+  const o = document.createElement('div');
+  o.className = 'pv-overlay'; o.id = 'pv-overlay';
+  o.addEventListener('click', e => { if(e.target === o) closePreview(); });
+  o.innerHTML = `<div class="pv-box" role="dialog" aria-modal="true" aria-label="Preview of ${escapeHtml(name)}">
+    <div class="pv-bar"><div class="pv-title">${escapeHtml(name)}</div>
+      <div class="pv-actions"><button type="button" class="dl-btn" id="pv-dl">Download</button><button type="button" class="dl-btn" onclick="closePreview()">Close</button></div></div>
+    <div class="pv-body" id="pv-body"><div class="pv-none">Loading preview…</div></div></div>`;
+  document.body.appendChild(o);
+  document.addEventListener('keydown', pvKey);
+  document.getElementById('pv-dl').onclick = () => downloadNoteFile(fileId, name);
+  const body = document.getElementById('pv-body');
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/notes/files/' + fileId + '?disposition=inline', { headers });
+    if(!r.ok) throw new Error('Preview failed');
+    const type = ((mimetype || r.headers.get('content-type') || '').split(';')[0]).toLowerCase();
+    const ext  = (name.split('.').pop() || '').toLowerCase();
+    const raw  = await r.blob();
+    if(!document.getElementById('pv-overlay')) return;   // closed while loading
+    const isText = type.startsWith('text/') || ['txt','md','csv','json','log','xml','js','css','html'].includes(ext);
+    if(type.startsWith('image/') && type !== 'image/svg+xml' || type === 'image/svg+xml'){
+      pvUrl = URL.createObjectURL(new Blob([raw], { type }));
+      body.innerHTML = `<img alt="${escapeHtml(name)}" src="${pvUrl}">`;
+    } else if(type === 'application/pdf' || ext === 'pdf'){
+      pvUrl = URL.createObjectURL(new Blob([raw], { type:'application/pdf' }));
+      body.innerHTML = `<iframe title="${escapeHtml(name)}" src="${pvUrl}"></iframe>`;
+    } else if(type.startsWith('video/') || type.startsWith('audio/')){
+      pvUrl = URL.createObjectURL(new Blob([raw], { type }));
+      body.innerHTML = type.startsWith('video/') ? `<video controls src="${pvUrl}"></video>` : `<audio controls src="${pvUrl}"></audio>`;
+    } else if(isText){
+      const pre = document.createElement('pre');
+      pre.textContent = (await raw.text()).slice(0, 200000);   // textContent: never rendered as HTML
+      body.innerHTML = ''; body.appendChild(pre);
+    } else {
+      body.innerHTML = `<div class="pv-none">This file type can't be previewed in the browser.<br>Use Download to open it.</div>`;
+    }
+  } catch(e){
+    console.error('Preview failed', e);
+    body.innerHTML = `<div class="pv-none">Couldn't load the preview. Try Download instead.</div>`;
+  }
+}
+
 function fmtSize(b){ b = Number(b)||0; return b<1024 ? b+' B' : b<1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
 
 function drawNotesList(){
@@ -1234,7 +1303,7 @@ function drawNotesList(){
         <div class="card-num mono">${l ? 'Lesson '+l.num+' — '+escapeHtml(l.title) : 'Lesson '+e.lid}</div>
       </div>
       <div class="nv-body">${body || '<span style="color:var(--ink-faint);">No written note — attachments only.</span>'}</div>
-      ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<button type="button" class="note-attachment btn-reset" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></button>`).join('')}</div>` : ''}
+      ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<span class="nv-file"><span class="note-attachment" style="cursor:default;">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></span><button type="button" class="dl-btn" onclick="previewNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))}, ${escapeHtml(JSON.stringify(f.mimetype||''))})">Preview</button><button type="button" class="dl-btn" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">Download</button></span>`).join('')}</div>` : ''}
     </div>`;
   }).join('');
 }
