@@ -207,7 +207,9 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .note-attachment:hover{border-color:var(--blue);}
 .note-attachment .na-remove{color:var(--ink-faint);font-weight:600;margin-left:2px;}
 .note-attachment .na-remove:hover{color:var(--red);}
-.notes-status{font-size:12px;color:var(--ink-faint);margin-top:8px;}
+.notes-status{font-size:12px;color:var(--ink-faint);}
+.notes-savebar{display:flex;align-items:center;gap:12px;margin-top:10px;flex-wrap:wrap;}
+.notes-status.unsaved{color:var(--amber, #B3790E);}
 .score-bar{display:flex;align-items:center;gap:14px;background:var(--blue-soft);border:1px solid var(--blue-soft2);border-radius:8px;padding:13px 18px;margin-bottom:20px;position:sticky;top:76px;}
 .score-bar .label{font-size:13px;color:var(--blue-deep);font-weight:500;flex:1;}
 .score-bar .score-num{font-family:'IBM Plex Mono',monospace;font-size:15px;font-weight:600;color:var(--blue);}
@@ -435,7 +437,10 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
         <input type="file" id="note-file-input" style="display:none;" onchange="uploadNoteFile(this)">
       </div>
       <div class="notes" id="notes-area" contenteditable="true" data-placeholder="Write anything you want to remember from this lesson…"></div>
-      <div class="notes-status" id="notes-status">Notes are saved automatically as you type.</div>
+      <div class="notes-savebar">
+        <button type="button" class="btn btn-primary btn-sm" id="notes-save-btn" onclick="saveNotesClick()" disabled>Save notes</button>
+        <span class="notes-status" id="notes-status">Nothing to save yet.</span>
+      </div>
     </div>
     <div class="panel" id="panel-quiz">
       <div class="score-bar" style="position:static;">
@@ -1622,6 +1627,8 @@ function openDetail(id){
   // Notes — stored as HTML (bold/italic/lists/checklists/attachment chips),
   // not plain text, so we set innerHTML rather than .value.
   document.getElementById('notes-area').innerHTML = (currentStudent?.notes?.[id]) || '';
+  notesDirty = false;
+  setNotesUi('saved', 'Nothing to save yet.');
 
   // Quiz init
   if(currentStudent && !currentStudent.answers[id]) currentStudent.answers[id] = {};
@@ -1636,29 +1643,44 @@ function openDetail(id){
   go('detail');
 }
 
-const saveNoteDebounced = debounce(async (lessonId, text) => {
-  if(!currentStudent) return;
+// Notes are NOT autosaved. Edits only mark the note as "unsaved"; the student
+// saves explicitly with the Save notes button.
+var notesDirty = false;
+
+function setNotesUi(state, msg){
+  const btn = document.getElementById('notes-save-btn');
+  const st  = document.getElementById('notes-status');
+  if(btn){ btn.disabled = (state !== 'dirty'); btn.textContent = state==='saving' ? 'Saving…' : 'Save notes'; }
+  if(st){ st.textContent = msg; st.classList.toggle('unsaved', state==='dirty'); }
+}
+
+// Called by every editing action (typing, formatting, checklist, attach, remove).
+function saveNotesNow(){
+  if(!currentStudent || currentDetailId === null) return;
+  notesDirty = true;
+  setNotesUi('dirty', 'Unsaved changes — click Save notes.');
+}
+
+async function saveNotesClick(){
+  if(!currentStudent || currentDetailId === null || !notesDirty) return;
+  const lessonId = currentDetailId;
+  const html = document.getElementById('notes-area').innerHTML;
+  setNotesUi('saving', 'Saving…');
   try {
-    await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lessonId, { note: text });
-    const statusEl = document.getElementById('notes-status');
-    if(statusEl) statusEl.textContent = 'Saved.';
+    await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lessonId, { note: html });
+    if(!currentStudent.notes) currentStudent.notes = {};
+    currentStudent.notes[lessonId] = html;
+    notesDirty = false;
+    setNotesUi('saved', 'Saved.');
+    showToast('Notes saved.', { type:'success' });
   } catch(e){
     console.error('Note save failed', e);
-    const statusEl = document.getElementById('notes-status');
-    if(statusEl) statusEl.textContent = "Couldn't save — check your connection.";
-    showToast("Couldn't save your note — check your connection.", { retry: () => saveNoteDebounced(lessonId, text) });
-  }
-}, 900);
-
-function saveNotesNow(){
-  const el = document.getElementById('notes-area');
-  if(currentStudent && currentDetailId !== null){
-    if(!currentStudent.notes) currentStudent.notes = {};
-    currentStudent.notes[currentDetailId] = el.innerHTML;
-    document.getElementById('notes-status').textContent = 'Saving…';
-    saveNoteDebounced(currentDetailId, el.innerHTML);
+    setNotesUi('dirty', "Couldn't save — check your connection and try again.");
+    showToast("Couldn't save your note — check your connection.", { retry: saveNotesClick });
   }
 }
+
+window.addEventListener('beforeunload', e => { if(notesDirty){ e.preventDefault(); e.returnValue = ''; } });
 
 document.getElementById('notes-area').addEventListener('input', saveNotesNow);
 
@@ -2331,6 +2353,10 @@ function addQuestion(){
 const ALL_SCREENS = ['portal','student','detail','admin','editor'];
 
 function go(name){
+  if(notesDirty && name !== 'detail'){
+    if(!confirm('You have unsaved notes. Leave without saving?')) return;
+    notesDirty = false;
+  }
   ALL_SCREENS.forEach(s =>
     document.getElementById('screen-'+s).classList.toggle('active', s===name)
   );
