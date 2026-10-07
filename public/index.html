@@ -421,7 +421,10 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
         <h1 class="display" id="student-greeting">Welcome back</h1>
         <div class="sub" id="student-sub"></div>
       </div>
-      <button class="btn btn-primary btn-sm" id="student-videocall-btn" style="display:none;width:auto;padding:11px 20px;" onclick="if(courseVideoCallUrl) window.open(courseVideoCallUrl,'_blank')">🎥 Join video call</button>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+        <button type="button" class="dl-btn" style="padding:10px 16px;" onclick="downloadAllMyNotes()">Download all my notes</button>
+        <button class="btn btn-primary btn-sm" id="student-videocall-btn" style="display:none;width:auto;padding:11px 20px;" onclick="if(courseVideoCallUrl) window.open(courseVideoCallUrl,'_blank')">🎥 Join video call</button>
+      </div>
     </div>
     <div class="score-bar" id="dash-score-bar" style="position:static;">
       <span class="label">Your quiz results — all lessons combined</span>
@@ -463,6 +466,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       </div>
       <div class="notes" id="notes-area" contenteditable="true" data-placeholder="Write anything you want to remember from this lesson…"></div>
       <div class="notes-savebar">
+        <button type="button" class="dl-btn" onclick="downloadAllMyNotes()" style="order:3;margin-left:auto;">Download all my notes</button>
         <button type="button" class="btn btn-primary btn-sm" id="notes-save-btn" onclick="saveNotesClick()" disabled>Save notes</button>
         <span class="notes-status" id="notes-status">Nothing to save yet.</span>
       </div>
@@ -1182,6 +1186,53 @@ async function renderStudentsPanel(){
     panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load students.</p></div>`;
     console.error(e);
   }
+}
+
+// Student export: every saved note across all lessons, in lesson order, as one
+// Word-compatible document (HTML in a .doc keeps bold/lists/checklists, and
+// Word, Pages, LibreOffice and Google Docs all open it).
+function noteHtmlForExport(html){
+  const t = document.createElement('template');
+  t.innerHTML = safeNoteHtml(html || '');
+  t.content.querySelectorAll('input[type=checkbox]').forEach(cb => cb.replaceWith(document.createTextNode(cb.hasAttribute('checked') ? '\u2611 ' : '\u2610 ')));
+  t.content.querySelectorAll('[contenteditable]').forEach(el => el.removeAttribute('contenteditable'));
+  return t.innerHTML;
+}
+function attachmentNames(html){
+  const t = document.createElement('template');
+  t.innerHTML = html || '';
+  return [...t.content.querySelectorAll('.note-attachment')].map(a => a.dataset.fileName || a.textContent.replace(/[\u00d7]/g,'').trim()).filter(Boolean);
+}
+function downloadAllMyNotes(){
+  if(!currentStudent) return;
+  if(notesDirty && !confirm('You have unsaved changes in this note. The download includes only saved notes. Continue?')) return;
+  const notes = currentStudent.notes || {}, fb = currentStudent.feedback || {};
+  const parts = lessons.map(l => {
+    const raw = notes[l.id] || '';
+    const body = noteHtmlForExport(raw).trim();
+    const files = attachmentNames(raw);
+    const f = fb[l.id];
+    if(!body && !files.length && !f) return '';
+    return `<h2>Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</h2>
+      ${body ? `<div>${body}</div>` : '<p style="color:#888;">No written note.</p>'}
+      ${files.length ? `<p><b>Attachments:</b> ${files.map(escapeHtml).join(', ')}</p>` : ''}
+      ${f ? `<div style="border-left:3px solid #2451D6;padding:6px 12px;margin:10px 0;background:#EEF3FC;"><b>Instructor feedback:</b><br>${escapeHtml(f.text).replace(/\n/g,'<br>')}</div>` : ''}`;
+  }).filter(Boolean);
+  if(!parts.length){ showToast("You don't have any saved notes yet.", { type:'success' }); return; }
+  const date = new Date().toISOString().slice(0,10);
+  const doc = `<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">
+<head><meta charset="utf-8"><title>My notes</title>
+<style>body{font-family:Calibri,Arial,sans-serif;font-size:11pt;line-height:1.5;color:#1C2430;}
+h1{font-size:20pt;margin:0 0 4pt;} h2{font-size:14pt;margin:22pt 0 6pt;padding-top:8pt;border-top:1px solid #DEE6F3;color:#16327E;}
+.meta{color:#5B6470;font-size:10pt;}</style></head>
+<body><h1>My notes — ${escapeHtml(courseName || 'Course')}</h1>
+<p class="meta">${escapeHtml(currentStudent.name)} · ${escapeHtml(currentStudent.email || '')} · exported ${date}</p>
+${parts.join('\n')}</body></html>`;
+  const url = URL.createObjectURL(new Blob(['\ufeff', doc], { type:'application/msword' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = `my-notes-${date}.doc`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
 function closeSmallModal(){ const o = document.getElementById('sm-overlay'); if(o) o.remove(); }
