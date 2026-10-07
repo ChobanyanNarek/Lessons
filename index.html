@@ -1167,10 +1167,7 @@ async function renderStudentsPanel(){
       </tr>`;
     }).join('');
     const approvedHtml = approved.length ? `
-      <div class="students-meta" style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-        <span>${approved.length} approved student${approved.length!==1?'s':''}</span>
-        <button type="button" class="dl-btn" onclick="exportResultsCsv()">Export results (CSV)</button>
-      </div>
+      <div class="students-meta">${approved.length} approved student${approved.length!==1?'s':''}</div>
       <div class="table-wrap">
         <table>
           <thead><tr><th class="sticky-col">Student</th><th style="width:1%;white-space:nowrap;">Phone</th>${lessonTh}<th style="width:1%;"></th></tr></thead>
@@ -1178,7 +1175,9 @@ async function renderStudentsPanel(){
         </table>
       </div>` : (pending.length ? '' : `<div class="empty-state"><div class="ei">👤</div><p>No approved students yet.</p></div>`);
 
-    panel.innerHTML = pendingHtml + approvedHtml;
+    const toolbar = `<div style="display:flex;justify-content:flex-end;margin-bottom:16px;">
+      <button type="button" class="btn btn-primary btn-sm" onclick="exportResultsCsv()">Export results (CSV)</button></div>`;
+    panel.innerHTML = toolbar + pendingHtml + approvedHtml;
   } catch(e){
     panel.innerHTML = `<div class="empty-state"><div class="ei">⚠️</div><p>Failed to load students.</p></div>`;
     console.error(e);
