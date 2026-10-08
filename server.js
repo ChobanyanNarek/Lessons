@@ -1051,6 +1051,32 @@ app.get('*', (req, res) => {
 
 // ─── DB INIT ─────────────────────────────────────────────────────────────────
 
+// Adds the starter flashcards from flashcards-seed.js once. Only touches lessons
+// that match by id AND title in the target course and have no cards yet; a
+// settings flag makes sure deleted cards are never re-added on later restarts.
+async function seedFlashcards() {
+  try {
+    const seed = require('./flashcards-seed');
+    const done = await pool.query('SELECT 1 FROM settings WHERE key = $1', [seed.settingsKey]);
+    if (done.rows.length) return;
+    const course = await pool.query('SELECT id FROM courses WHERE slug = $1', [seed.courseSlug]);
+    if (!course.rows.length) return;          // course not on this database — try again next start
+    let n = 0;
+    for (const l of seed.lessons) {
+      const r = await pool.query(
+        `UPDATE lessons SET flashcards = $1
+          WHERE id = $2 AND course_id = $3 AND lower(btrim(title)) = lower(btrim($4))
+            AND (flashcards IS NULL OR jsonb_array_length(flashcards) = 0)`,
+        [JSON.stringify(l.cards), l.id, course.rows[0].id, l.title]);
+      n += r.rowCount;
+    }
+    await pool.query('INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO NOTHING', [seed.settingsKey, new Date().toISOString()]);
+    console.log(`✓ Starter flashcards added to ${n} lesson(s)`);
+  } catch (e) {
+    console.error('Flashcard seed error:', e.message);
+  }
+}
+
 async function initDb() {
   await pool.query(`
     CREATE TABLE IF NOT EXISTS courses (
@@ -1228,6 +1254,7 @@ async function initDb() {
     console.log('✓ Admin user created — email: admin@itpm.com  password: admin123');
   }
 
+  await seedFlashcards();
   console.log('✓ Database ready');
 }
 
