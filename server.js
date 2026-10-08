@@ -548,11 +548,12 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
       if (answers === undefined && note === undefined) return res.json({ ok: true });
     }
     await pool.query(
-      `INSERT INTO user_progress (user_id, lesson_id, answers, note)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO user_progress (user_id, lesson_id, answers, note, note_updated_at)
+       VALUES ($1, $2, $3, $4, CASE WHEN $4::text IS NOT NULL THEN NOW() END)
        ON CONFLICT (user_id, lesson_id) DO UPDATE SET
          answers = CASE WHEN $3::text IS NOT NULL THEN $3 ELSE user_progress.answers END,
-         note    = CASE WHEN $4::text IS NOT NULL THEN $4 ELSE user_progress.note    END`,
+         note    = CASE WHEN $4::text IS NOT NULL THEN $4 ELSE user_progress.note    END,
+         note_updated_at = CASE WHEN $4::text IS NOT NULL THEN NOW() ELSE user_progress.note_updated_at END`,
       [
         req.params.id,
         req.params.lessonId,
@@ -620,6 +621,29 @@ app.delete('/api/notes/:lessonId', auth, async (req, res) => {
   }
 });
 
+// PUT /api/admin/notes/:userId/:lessonId/state — admin marks a note 'done' or
+// 'hidden' for their own review list ({ state: null } clears it). Students never see this.
+app.put('/api/admin/notes/:userId/:lessonId/state', auth, adminOnly, async (req, res) => {
+  const state = req.body && req.body.state;
+  if (state !== null && state !== 'done' && state !== 'hidden') return res.status(400).json({ error: "state must be 'done', 'hidden' or null" });
+  try {
+    const ok = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND role = 'student' AND course_id = $2`, [req.params.userId, req.user.course_id]);
+    if (!ok.rows.length) return res.status(404).json({ error: 'Student not found' });
+    if (state === null) {
+      await pool.query('DELETE FROM note_admin_state WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
+      return res.json({ ok: true, state: null });
+    }
+    const r = await pool.query(
+      `INSERT INTO note_admin_state (user_id, lesson_id, state, updated_at) VALUES ($1, $2, $3, NOW())
+       ON CONFLICT (user_id, lesson_id) DO UPDATE SET state = $3, updated_at = NOW()
+       RETURNING state, updated_at`, [req.params.userId, req.params.lessonId, state]);
+    res.json({ ok: true, ...r.rows[0] });
+  } catch (e) {
+    console.error('Note state error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // DELETE /api/admin/notes/:userId/:lessonId — admin deletes a student's note,
 // its attachments and the feedback on it (own course only).
 app.delete('/api/admin/notes/:userId/:lessonId', auth, adminOnly, async (req, res) => {
@@ -629,6 +653,7 @@ app.delete('/api/admin/notes/:userId/:lessonId', auth, adminOnly, async (req, re
     await pool.query(`UPDATE user_progress SET note = '' WHERE user_id = $1 AND lesson_id = $2`, [req.params.userId, req.params.lessonId]);
     const f = await pool.query('DELETE FROM note_files WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
     await pool.query('DELETE FROM note_feedback WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
+    await pool.query('DELETE FROM note_admin_state WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
     res.json({ ok: true, files_deleted: f.rowCount });
   } catch (e) {
     console.error('Admin note delete error:', e.message);
@@ -676,7 +701,7 @@ app.delete('/api/notes/files/:fileId', auth, async (req, res) => {
 app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
   try {
     const notesRes = await pool.query(
-      `SELECT u.id AS user_id, u.name, u.email, p.lesson_id, p.note
+      `SELECT u.id AS user_id, u.name, u.email, p.lesson_id, p.note, p.note_updated_at
          FROM user_progress p
          JOIN users u   ON u.id = p.user_id
          JOIN lessons l ON l.id = p.lesson_id
@@ -697,7 +722,11 @@ app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
       `SELECT f.user_id, f.lesson_id, f.comment, f.rating, f.updated_at
          FROM note_feedback f JOIN users u ON u.id = f.user_id
         WHERE u.course_id = $1`, [req.user.course_id]);
-    res.json({ notes: notesRes.rows, files: filesRes.rows, feedback: fbRes.rows });
+    const stRes = await pool.query(
+      `SELECT s.user_id, s.lesson_id, s.state, s.updated_at
+         FROM note_admin_state s JOIN users u ON u.id = s.user_id
+        WHERE u.course_id = $1`, [req.user.course_id]);
+    res.json({ notes: notesRes.rows, files: filesRes.rows, feedback: fbRes.rows, states: stRes.rows });
   } catch (e) {
     console.error('Admin notes error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -1163,6 +1192,17 @@ async function initDb() {
   // Flashcards (per lesson, admin-authored) and each student's card progress.
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS flashcards JSONB DEFAULT '[]'`);
   await pool.query(`ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS cards JSONB DEFAULT '{}'`);
+  // When the student last changed a note (text or attachments) + the admin's
+  // own review state per note ('done' or 'hidden').
+  await pool.query(`ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS note_updated_at TIMESTAMP`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS note_admin_state (
+      user_id    UUID    REFERENCES users(id)   ON DELETE CASCADE,
+      lesson_id  INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
+      state      TEXT NOT NULL,
+      updated_at TIMESTAMP DEFAULT NOW(),
+      PRIMARY KEY (user_id, lesson_id)
+    )`);
   // Activity tracking + notification read marker.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP`);

@@ -2035,11 +2035,11 @@ async function renderNotesPanel(){
     const map = {};
     const ensure = (uid, lid, name, email) => {
       const k = uid+'|'+lid;
-      if(!map[k]) map[k] = { uid, lid, name, email, note:'', files:[], feedback:'', rating:null };
+      if(!map[k]) map[k] = { uid, lid, name, email, note:'', noteAt:null, files:[], feedback:'', rating:null, state:null, stateAt:null };
       return map[k];
     };
     const userById = {}; allUsers.forEach(u => userById[u.id] = u);
-    notes.forEach(n => { ensure(n.user_id, n.lesson_id, n.name, n.email).note = n.note; });
+    notes.forEach(n => { const en = ensure(n.user_id, n.lesson_id, n.name, n.email); en.note = n.note; en.noteAt = n.note_updated_at; });
     files.forEach(f => {
       const u = userById[f.user_id]; if(!u) return;
       ensure(f.user_id, f.lesson_id, u.name, u.email).files.push(f);
@@ -2049,6 +2049,7 @@ async function renderNotesPanel(){
       const en = ensure(f.user_id, f.lesson_id, u.name, u.email);
       en.feedback = f.comment; en.rating = f.rating;
     });
+    (data.states || []).forEach(st => { const k = st.user_id+'|'+st.lesson_id; if(map[k]){ map[k].state = st.state; map[k].stateAt = st.updated_at; } });
     window._notesEntries = Object.values(map);
     const studs = [...new Map(window._notesEntries.map(e => [e.uid, e])).values()]
       .sort((a,b)=>a.name.localeCompare(b.name));
@@ -2062,9 +2063,15 @@ async function renderNotesPanel(){
           <option value="">All lessons</option>
           ${lessons.map(l => `<option value="${l.id}">Lesson ${l.num} — ${escapeHtml(l.title)}</option>`).join('')}
         </select>
+        <select id="nv-state" aria-label="Filter by review status" onchange="drawNotesList()">
+          <option value="todo">To review</option>
+          <option value="done">Done</option>
+          <option value="hidden">Hidden</option>
+          <option value="">All notes</option>
+        </select>
       </div>
       <div id="nv-list"></div>`;
-    if(window._notesPreselect){ const sel = document.getElementById('nv-student'); if([...sel.options].some(o => o.value === window._notesPreselect)) sel.value = window._notesPreselect; window._notesPreselect = null; }
+    if(window._notesPreselect){ const sel = document.getElementById('nv-student'); if([...sel.options].some(o => o.value === window._notesPreselect)) sel.value = window._notesPreselect; document.getElementById('nv-state').value = ''; window._notesPreselect = null; }
     drawNotesList();
   } catch(e){
     console.error(e);
@@ -2163,22 +2170,66 @@ async function previewAuthFile(path, name, mimetype){
 
 function fmtSize(b){ b = Number(b)||0; return b<1024 ? b+' B' : b<1048576 ? (b/1024).toFixed(1)+' KB' : (b/1048576).toFixed(1)+' MB'; }
 
+// Admin review status of a note: 'hidden' stays hidden; 'done' turns back into
+// 'updated' (shown in To review again) if the student changes the note or adds
+// a file after it was marked done.
+function noteLastActivity(e){
+  let t = e.noteAt ? new Date(e.noteAt).getTime() : 0;
+  e.files.forEach(f => { const ft = new Date(f.created_at).getTime(); if(ft > t) t = ft; });
+  return t;
+}
+function noteStatus(e){
+  if(e.state === 'hidden') return 'hidden';
+  if(e.state === 'done') return noteLastActivity(e) > new Date(e.stateAt).getTime() ? 'updated' : 'done';
+  return 'todo';
+}
+function updateNotesTabCount(){
+  const n = (window._notesEntries||[]).filter(e => ['todo','updated'].includes(noteStatus(e))).length;
+  const b = document.getElementById('notes-tab-btn');
+  if(b) b.textContent = n ? `Student Notes (${n})` : 'Student Notes';
+}
+async function setNoteState(uid, lid, state){
+  const e = (window._notesEntries||[]).find(x => x.uid===uid && x.lid===lid);
+  try {
+    const r = await api('PUT', `/admin/notes/${uid}/${lid}/state`, { state });
+    if(e){ e.state = r.state || null; e.stateAt = r.updated_at || null; }
+    drawNotesList();
+    showToast(state === 'done' ? 'Marked as done.' : state === 'hidden' ? 'Note hidden — find it under "Hidden".' : 'Moved back to To review.', { type:'success' });
+  } catch(err){ console.error(err); showToast("Couldn't update the note. Please try again."); }
+}
+
 function drawNotesList(){
   const sid = document.getElementById('nv-student').value;
   const lid = document.getElementById('nv-lesson').value;
+  const want = document.getElementById('nv-state').value;
+  updateNotesTabCount();
   const list = (window._notesEntries||[])
     .filter(e => (!sid || e.uid===sid) && (!lid || String(e.lid)===lid))
+    .filter(e => { const st = noteStatus(e); return !want || (want === 'todo' ? (st === 'todo' || st === 'updated') : st === want); })
     .sort((a,b)=> a.name.localeCompare(b.name) || ((lessons.findIndex(l=>l.id===a.lid))-(lessons.findIndex(l=>l.id===b.lid))));
   const el = document.getElementById('nv-list');
-  if(!list.length){ el.innerHTML = `<div class="empty-state"><p>No notes or attachments match.</p></div>`; return; }
+  if(!list.length){
+    el.innerHTML = `<div class="empty-state"><p>${want === 'todo' ? 'Nothing left to review. Notes you mark as done or hide are under the other filters.' : 'No notes match.'}</p></div>`;
+    return;
+  }
   el.innerHTML = `<div class="students-meta">${list.length} note${list.length!==1?'s':''}</div>` + list.map(e => {
+    const st = noteStatus(e);
+    const badgeHtml = st === 'done' ? '<span class="status-badge open">Done</span>'
+      : st === 'updated' ? '<span class="status-badge pending">Updated since done</span>'
+      : st === 'hidden' ? '<span class="status-badge closed">Hidden</span>' : '';
+    const stateBtns = (st === 'done' ? `<button type="button" class="dl-btn" onclick="setNoteState('${e.uid}', ${e.lid}, null)">Reopen</button>`
+        : `<button type="button" class="dl-btn" style="border-color:var(--green);color:var(--green);" onclick="setNoteState('${e.uid}', ${e.lid}, 'done')">Mark as done</button>`)
+      + (st === 'hidden' ? `<button type="button" class="dl-btn" onclick="setNoteState('${e.uid}', ${e.lid}, null)">Unhide</button>`
+        : `<button type="button" class="dl-btn" onclick="setNoteState('${e.uid}', ${e.lid}, 'hidden')">Hide</button>`);
     const l = lessons.find(x=>x.id===e.lid);
     const body = safeNoteHtml(e.note).trim();
-    return `<div class="nv-card">
+    return `<div class="nv-card"${st === 'done' || st === 'hidden' ? ' style="opacity:.75;"' : ''}>
       <div class="nv-head">
         <div><div class="user-name">${escapeHtml(e.name)}</div><div class="user-email">${escapeHtml(e.email)}</div></div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
           <div class="card-num mono">${l ? 'Lesson '+l.num+' — '+escapeHtml(l.title) : 'Lesson '+e.lid}</div>
+          ${badgeHtml}
+          ${stateBtns}
           <button type="button" class="dl-btn danger" onclick="adminDeleteNote('${e.uid}', ${e.lid})">Delete note</button>
         </div>
       </div>
