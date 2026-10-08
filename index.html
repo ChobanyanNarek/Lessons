@@ -549,6 +549,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <div class="notes" id="notes-area" contenteditable="true" data-placeholder="Write anything you want to remember from this lesson…"></div>
       <div class="notes-savebar">
         <button type="button" class="dl-btn" onclick="downloadAllMyNotes()" style="order:3;margin-left:auto;">Download all my notes</button>
+        <button type="button" class="dl-btn danger" onclick="deleteMyNote()" style="order:4;">Delete note</button>
         <button type="button" class="btn btn-primary btn-sm" id="notes-save-btn" onclick="saveNotesClick()" disabled>Save notes</button>
         <span class="notes-status" id="notes-status">Nothing to save yet.</span>
       </div>
@@ -2176,7 +2177,10 @@ function drawNotesList(){
     return `<div class="nv-card">
       <div class="nv-head">
         <div><div class="user-name">${escapeHtml(e.name)}</div><div class="user-email">${escapeHtml(e.email)}</div></div>
-        <div class="card-num mono">${l ? 'Lesson '+l.num+' — '+escapeHtml(l.title) : 'Lesson '+e.lid}</div>
+        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+          <div class="card-num mono">${l ? 'Lesson '+l.num+' — '+escapeHtml(l.title) : 'Lesson '+e.lid}</div>
+          <button type="button" class="dl-btn danger" onclick="adminDeleteNote('${e.uid}', ${e.lid})">Delete note</button>
+        </div>
       </div>
       <div class="nv-body">${body || '<span style="color:var(--ink-faint);">No written note — attachments only.</span>'}</div>
       <div class="nv-fb">
@@ -2191,7 +2195,7 @@ function drawNotesList(){
         <textarea id="fb-${e.uid}-${e.lid}" onfocus="this.dataset.touched='1'" oninput="document.getElementById('fbs-${e.uid}-${e.lid}').textContent='Unsaved changes.'" placeholder="Write feedback on this note…">${escapeHtml(e.feedback||'')}</textarea>
         <div class="nv-fb-row"><button type="button" class="dl-btn" onclick="saveNoteFeedback('${e.uid}', ${e.lid}, this)">Save feedback</button><span class="notes-status" id="fbs-${e.uid}-${e.lid}"></span></div>
       </div>
-      ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<span class="nv-file"><span class="note-attachment" style="cursor:default;">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></span><button type="button" class="dl-btn" onclick="previewNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))}, ${escapeHtml(JSON.stringify(f.mimetype||''))})">Preview</button><button type="button" class="dl-btn" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">Download</button></span>`).join('')}</div>` : ''}
+      ${e.files.length ? `<div class="nv-files">${e.files.map(f => `<span class="nv-file"><span class="note-attachment" style="cursor:default;">${escapeHtml(f.name)} <span style="color:var(--ink-faint);">${fmtSize(f.size)}</span></span><button type="button" class="dl-btn" onclick="previewNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))}, ${escapeHtml(JSON.stringify(f.mimetype||''))})">Preview</button><button type="button" class="dl-btn" onclick="downloadNoteFile(${f.id}, ${escapeHtml(JSON.stringify(f.name))})">Download</button><button type="button" class="dl-btn danger" onclick="adminDeleteNoteFile(${f.id}, '${e.uid}', ${e.lid})">Delete</button></span>`).join('')}</div>` : ''}
     </div>`;
   }).join('');
 }
@@ -2784,6 +2788,55 @@ async function downloadNoteFile(fileId, name){
     console.error('Note file download failed', e);
     alert('Could not download that file.');
   }
+}
+
+// Student deletes their whole note for the open lesson (text + attachments).
+async function deleteMyNote(){
+  if(!currentStudent || currentDetailId === null) return;
+  const lid = currentDetailId;
+  const el = document.getElementById('notes-area');
+  const saved = currentStudent.notes[lid] || '';
+  const tmp = document.createElement('template'); tmp.innerHTML = saved;
+  const nFiles = new Set([...tmp.content.querySelectorAll('.note-attachment'), ...el.querySelectorAll('.note-attachment')].map(c => c.dataset.fileId)).size;
+  if(!noteHasText(el.innerHTML) && !el.querySelector('.note-attachment') && !noteHasText(saved)){ showToast('There is no note to delete.', { type:'success' }); return; }
+  if(!confirm(`Delete your note for this lesson${nFiles ? ` and its ${nFiles} attached file${nFiles!==1?'s':''}` : ''}? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/notes/'+lid);
+    el.innerHTML = '';
+    currentStudent.notes[lid] = '';
+    notesDirty = false;
+    setNotesUi('saved', 'Note deleted.');
+    showToast('Note deleted.', { type:'success' });
+  } catch(e){ console.error(e); showToast("Couldn't delete the note — check your connection and try again."); }
+}
+
+// Admin deletes a student's note (text, attachments and feedback) from Student Notes.
+async function adminDeleteNote(uid, lid){
+  const e = (window._notesEntries||[]).find(x => x.uid===uid && x.lid===lid);
+  const name = e ? e.name : 'this student';
+  const n = e ? e.files.length : 0;
+  if(!confirm(`Delete ${name}'s note for this lesson${n ? `, its ${n} attached file${n!==1?'s':''}` : ''} and your feedback on it? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', `/admin/notes/${uid}/${lid}`);
+    window._notesEntries = (window._notesEntries||[]).filter(x => !(x.uid===uid && x.lid===lid));
+    drawNotesList();
+    showToast('Note deleted.', { type:'success' });
+  } catch(err){ console.error(err); showToast("Couldn't delete the note. Please try again."); }
+}
+async function adminDeleteNoteFile(fileId, uid, lid){
+  const e = (window._notesEntries||[]).find(x => x.uid===uid && x.lid===lid);
+  const f = e && e.files.find(x => x.id === fileId);
+  if(!confirm(`Delete the attachment "${f ? f.name : 'this file'}"? This cannot be undone.`)) return;
+  try {
+    await api('DELETE', '/notes/files/'+fileId);
+    if(e){
+      e.files = e.files.filter(x => x.id !== fileId);
+      if(!e.files.length && !noteHasText(e.note) && !e.feedback && !e.rating)
+        window._notesEntries = window._notesEntries.filter(x => x !== e);
+    }
+    drawNotesList();
+    showToast('Attachment deleted.', { type:'success' });
+  } catch(err){ console.error(err); showToast("Couldn't delete the attachment. Please try again."); }
 }
 
 async function removeNoteAttachment(fileId, chipEl){

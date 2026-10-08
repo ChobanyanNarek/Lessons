@@ -607,6 +607,35 @@ app.get('/api/notes/my-files', auth, async (req, res) => {
   }
 });
 
+// DELETE /api/notes/:lessonId — a student deletes their own note for a lesson,
+// including its attachments (instructor feedback is kept).
+app.delete('/api/notes/:lessonId', auth, async (req, res) => {
+  try {
+    await pool.query(`UPDATE user_progress SET note = '' WHERE user_id = $1 AND lesson_id = $2`, [req.user.id, req.params.lessonId]);
+    const f = await pool.query('DELETE FROM note_files WHERE user_id = $1 AND lesson_id = $2', [req.user.id, req.params.lessonId]);
+    res.json({ ok: true, files_deleted: f.rowCount });
+  } catch (e) {
+    console.error('Note delete error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// DELETE /api/admin/notes/:userId/:lessonId — admin deletes a student's note,
+// its attachments and the feedback on it (own course only).
+app.delete('/api/admin/notes/:userId/:lessonId', auth, adminOnly, async (req, res) => {
+  try {
+    const ok = await pool.query(`SELECT 1 FROM users WHERE id = $1 AND role = 'student' AND course_id = $2`, [req.params.userId, req.user.course_id]);
+    if (!ok.rows.length) return res.status(404).json({ error: 'Student not found' });
+    await pool.query(`UPDATE user_progress SET note = '' WHERE user_id = $1 AND lesson_id = $2`, [req.params.userId, req.params.lessonId]);
+    const f = await pool.query('DELETE FROM note_files WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
+    await pool.query('DELETE FROM note_feedback WHERE user_id = $1 AND lesson_id = $2', [req.params.userId, req.params.lessonId]);
+    res.json({ ok: true, files_deleted: f.rowCount });
+  } catch (e) {
+    console.error('Admin note delete error:', e.message);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
 // GET /api/notes/files/:fileId — owner (or an admin) only.
 app.get('/api/notes/files/:fileId', auth, async (req, res) => {
   try {
@@ -625,12 +654,15 @@ app.get('/api/notes/files/:fileId', auth, async (req, res) => {
   }
 });
 
-// DELETE /api/notes/files/:fileId — owner only.
+// DELETE /api/notes/files/:fileId — the owner, or an admin of the student's course.
 app.delete('/api/notes/files/:fileId', auth, async (req, res) => {
   try {
-    const existing = await pool.query('SELECT user_id FROM note_files WHERE id = $1', [req.params.fileId]);
+    const existing = await pool.query(
+      `SELECT f.user_id, u.course_id FROM note_files f JOIN users u ON u.id = f.user_id WHERE f.id = $1`, [req.params.fileId]);
     if (!existing.rows.length) return res.status(404).json({ error: 'File not found' });
-    if (existing.rows[0].user_id !== req.user.id) return res.status(403).json({ error: 'Forbidden' });
+    const isOwner = existing.rows[0].user_id === req.user.id;
+    const isCourseAdmin = req.user.is_admin && existing.rows[0].course_id === req.user.course_id;
+    if (!isOwner && !isCourseAdmin) return res.status(403).json({ error: 'Forbidden' });
     await pool.query('DELETE FROM note_files WHERE id = $1', [req.params.fileId]);
     res.json({ ok: true });
   } catch (e) {
