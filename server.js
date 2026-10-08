@@ -814,6 +814,84 @@ app.delete('/api/templates/:id', auth, adminOnly, async (req, res) => {
   } catch (e) { console.error('Template delete error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
+// ─── ASK THE INSTRUCTOR (private Q&A per lesson) ─────────────────────────────
+
+// GET /api/questions?lesson_id= — the student's own questions (optionally one lesson).
+app.get('/api/questions', auth, async (req, res) => {
+  try {
+    const params = [req.user.id];
+    let where = 'user_id = $1';
+    if (req.query.lesson_id) { params.push(parseInt(req.query.lesson_id, 10)); where += ' AND lesson_id = $2'; }
+    const r = await pool.query(
+      `SELECT id, lesson_id, question, answer, answered_at, created_at FROM lesson_questions
+        WHERE ${where} ORDER BY created_at ASC`, params);
+    res.json(r.rows);
+  } catch (e) { console.error('Questions list error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/questions — a student asks about a lesson in their course.
+app.post('/api/questions', auth, async (req, res) => {
+  const question = String((req.body && req.body.question) || '').trim().slice(0, 4000);
+  const lessonId = parseInt(req.body && req.body.lesson_id, 10);
+  if (!question) return res.status(400).json({ error: 'question is required' });
+  try {
+    const l = await pool.query('SELECT title FROM lessons WHERE id = $1 AND course_id = $2', [lessonId, req.user.course_id]);
+    if (!l.rows.length) return res.status(404).json({ error: 'Lesson not found' });
+    const r = await pool.query(
+      `INSERT INTO lesson_questions (course_id, lesson_id, user_id, question) VALUES ($1,$2,$3,$4)
+       RETURNING id, lesson_id, question, answer, answered_at, created_at`,
+      [req.user.course_id, lessonId, req.user.id, question]);
+    const u = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
+    notify({ course_id: req.user.course_id, audience: 'admin', kind: 'question', lesson_id: lessonId,
+             text: `${u.rows[0] ? u.rows[0].name : 'A student'} asked a question about "${l.rows[0].title}".` });
+    res.status(201).json(r.rows[0]);
+  } catch (e) { console.error('Question create error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /api/questions/:id — the student who asked (only while unanswered), or a course admin.
+app.delete('/api/questions/:id', auth, async (req, res) => {
+  try {
+    const q = await pool.query('SELECT user_id, course_id, answer FROM lesson_questions WHERE id = $1', [req.params.id]);
+    if (!q.rows.length) return res.status(404).json({ error: 'Question not found' });
+    const row = q.rows[0];
+    const isAdmin = req.user.is_admin && row.course_id === req.user.course_id;
+    const isOwner = row.user_id === req.user.id && !row.answer;
+    if (!isAdmin && !isOwner) return res.status(403).json({ error: 'Forbidden' });
+    await pool.query('DELETE FROM lesson_questions WHERE id = $1', [req.params.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error('Question delete error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/admin/questions — all questions in the admin's course.
+app.get('/api/admin/questions', auth, adminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT q.id, q.lesson_id, q.user_id, u.name, u.email, q.question, q.answer, q.answered_at, q.created_at
+         FROM lesson_questions q JOIN users u ON u.id = q.user_id
+        WHERE q.course_id = $1 ORDER BY (q.answer IS NULL) DESC, q.created_at DESC`, [req.user.course_id]);
+    res.json(r.rows);
+  } catch (e) { console.error('Admin questions error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// PUT /api/admin/questions/:id/answer — admin answers (or edits the answer); the student is notified.
+app.put('/api/admin/questions/:id/answer', auth, adminOnly, async (req, res) => {
+  const answer = String((req.body && req.body.answer) || '').trim().slice(0, 8000);
+  if (!answer) return res.status(400).json({ error: 'answer is required' });
+  try {
+    const r = await pool.query(
+      `UPDATE lesson_questions SET answer = $1, answered_at = NOW()
+        WHERE id = $2 AND course_id = $3
+        RETURNING id, lesson_id, user_id, question, answer, answered_at, created_at`,
+      [answer, req.params.id, req.user.course_id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Question not found' });
+    const q = r.rows[0];
+    const l = await pool.query('SELECT title FROM lessons WHERE id = $1', [q.lesson_id]);
+    notify({ course_id: req.user.course_id, user_id: q.user_id, kind: 'answer', lesson_id: q.lesson_id,
+             text: `Your instructor answered your question about "${l.rows[0] ? l.rows[0].title : 'a lesson'}".` });
+    res.json(q);
+  } catch (e) { console.error('Answer error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
 
 // GET /api/notifications — latest 30 for the current user + unread count.
@@ -1239,6 +1317,18 @@ async function initDb() {
       text       TEXT NOT NULL,
       lesson_id  INTEGER,
       created_at TIMESTAMP DEFAULT NOW()
+    )`);
+  // Private student → instructor questions, one thread item per question.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS lesson_questions (
+      id          SERIAL PRIMARY KEY,
+      course_id   INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+      lesson_id   INTEGER REFERENCES lessons(id) ON DELETE CASCADE,
+      user_id     UUID REFERENCES users(id) ON DELETE CASCADE,
+      question    TEXT NOT NULL,
+      answer      TEXT,
+      answered_at TIMESTAMP,
+      created_at  TIMESTAMP DEFAULT NOW()
     )`);
   // Resources can also be plain links (no file).
   await pool.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS url TEXT`);

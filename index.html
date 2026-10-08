@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>IT Project Management Course</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%20viewBox%3D%220%200%2048%2048%22%3E%3Cpath%20d%3D%22M24%203.5%20L44.5%2011.4%20L24%2019.3%20L3.5%2011.4%20Z%22%20fill%3D%22%232451D6%22/%3E%3Cpath%20d%3D%22M44.5%2011.4%20V19.6%22%20stroke%3D%22%23F2B33D%22%20stroke-width%3D%221.8%22%20stroke-linecap%3D%22round%22/%3E%3Ccircle%20cx%3D%2244.5%22%20cy%3D%2221%22%20r%3D%221.8%22%20fill%3D%22%23F2B33D%22/%3E%3Cpath%20d%3D%22M10.6%2016%20C9%2018.6%208.2%2021.6%208.2%2024.8%20C8.2%2035.6%2015.4%2043.6%2024%2043.6%20C32.6%2043.6%2039.8%2035.6%2039.8%2024.8%20C39.8%2021.6%2039%2018.6%2037.4%2016%20L24%2021.4%20Z%22%20fill%3D%22%232451D6%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2227.6%22%20r%3D%225.4%22%20fill%3D%22%23ffffff%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2227.6%22%20r%3D%225.4%22%20fill%3D%22%23ffffff%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2227.6%22%20r%3D%222.7%22%20fill%3D%22%23F2B33D%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2227.6%22%20r%3D%222.7%22%20fill%3D%22%23F2B33D%22/%3E%3Ccircle%20cx%3D%2218%22%20cy%3D%2227.6%22%20r%3D%221.3%22%20fill%3D%22%230F2039%22/%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2227.6%22%20r%3D%221.3%22%20fill%3D%22%230F2039%22/%3E%3Cpath%20d%3D%22M22.2%2033.6%20H25.8%20L24%2036.6%20Z%22%20fill%3D%22%23F2B33D%22/%3E%3Cpath%20d%3D%22M16.6%2038.8%20Q18.6%2040.6%2020.6%2038.8%20M27.4%2038.8%20Q29.4%2040.6%2031.4%2038.8%22%20stroke%3D%22%23ffffff%22%20stroke-width%3D%221.4%22%20stroke-linecap%3D%22round%22%20fill%3D%22none%22%20opacity%3D%22.8%22/%3E%3C/svg%3E">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
@@ -45,14 +46,10 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 }
 .chrome.mode-admin{background:var(--blue-deep);border-bottom-color:rgba(255,255,255,0.08);}
 .brand{display:flex;align-items:center;gap:12px;}
-.brand-mark{
-  width:30px;height:30px;border:1.5px solid var(--blue);
-  display:flex;align-items:center;justify-content:center;
-  transform:rotate(45deg);flex-shrink:0;
-}
-.chrome.mode-admin .brand-mark{border-color:#fff;}
-.brand-icon{transform:rotate(-45deg);color:var(--blue);}
-.chrome.mode-admin .brand-icon{color:#fff;}
+.brand-mark{width:38px;height:38px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+/* Graduate-owl logo: blue on light, white on the dark admin header; eyes and tassel in gold. */
+.brand-icon{display:block;color:var(--blue);--logo-cut:#fff;--logo-acc:#F2B33D;}
+.chrome.mode-admin .brand-icon{color:#fff;--logo-cut:var(--blue-deep);}
 .brand-text{}
 .brand-name{font-size:15px;font-weight:600;line-height:1.2;letter-spacing:0.01em;}
 .chrome.mode-admin .brand-name{color:#fff;}
@@ -393,6 +390,17 @@ a.dl-btn{text-decoration:none;display:inline-flex;align-items:center;}
 .linklike{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left;}
 .linklike:hover .user-name{color:var(--blue);text-decoration:underline;}
 @media(max-width:640px){.sp-stats{grid-template-columns:repeat(2,1fr);}.sp-info{grid-template-columns:1fr 1fr;}}
+.qa-list{display:flex;flex-direction:column;gap:12px;margin-bottom:22px;}
+.qa-item{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:14px 16px;}
+.qa-q{font-size:14px;line-height:1.55;color:var(--ink);white-space:pre-wrap;overflow-wrap:anywhere;}
+.qa-meta{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-size:11.5px;color:var(--ink-faint);margin-top:8px;}
+.qa-a{margin-top:12px;padding:10px 12px;border-left:3px solid var(--blue);background:var(--blue-soft);border-radius:0 8px 8px 0;font-size:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;}
+.qa-a .h{font-size:11px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:var(--blue-deep);margin-bottom:4px;white-space:normal;}
+.qa-wait{display:inline-block;margin-top:10px;font-size:12px;color:#B3790E;background:rgba(179,121,14,.08);padding:3px 10px;border-radius:100px;}
+.qa-form textarea{width:100%;min-height:96px;padding:12px 14px;border:1px solid var(--line-strong);border-radius:8px;font-family:inherit;font-size:14px;resize:vertical;background:var(--surface);color:var(--ink);}
+.qa-form textarea:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
+.qa-form .row{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;flex-wrap:wrap;}
+.qa-intro{font-size:13px;color:var(--ink-dim);margin:0 0 16px;}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
 .pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
 .pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -455,9 +463,19 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
 <div class="chrome" id="chrome">
   <div class="brand">
     <div class="brand-mark">
-      <svg class="brand-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M12 5C10.5 3.8 8.2 3 6 3C4.9 3 4 3.3 3 3.8V17.3C4 16.8 4.9 16.5 6 16.5C8.2 16.5 10.5 17.3 12 18.5C13.5 17.3 15.8 16.5 18 16.5C19.1 16.5 20 16.8 21 17.3V3.8C20 3.3 19.1 3 18 3C15.8 3 13.5 3.8 12 5Z" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M12 5V18.5" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/>
+      <svg class="brand-icon" width="38" height="38" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Logo">
+        <path d="M24 3.5 L44.5 11.4 L24 19.3 L3.5 11.4 Z" fill="currentColor"/>
+        <path d="M44.5 11.4 V19.6" stroke="var(--logo-acc)" stroke-width="1.8" stroke-linecap="round"/>
+        <circle cx="44.5" cy="21" r="1.8" fill="var(--logo-acc)"/>
+        <path d="M10.6 16 C9 18.6 8.2 21.6 8.2 24.8 C8.2 35.6 15.4 43.6 24 43.6 C32.6 43.6 39.8 35.6 39.8 24.8 C39.8 21.6 39 18.6 37.4 16 L24 21.4 Z" fill="currentColor"/>
+        <circle cx="18" cy="27.6" r="5.4" fill="var(--logo-cut)"/>
+        <circle cx="30" cy="27.6" r="5.4" fill="var(--logo-cut)"/>
+        <circle cx="18" cy="27.6" r="2.7" fill="var(--logo-acc)"/>
+        <circle cx="30" cy="27.6" r="2.7" fill="var(--logo-acc)"/>
+        <circle cx="18" cy="27.6" r="1.3" fill="#0F2039"/>
+        <circle cx="30" cy="27.6" r="1.3" fill="#0F2039"/>
+        <path d="M22.2 33.6 H25.8 L24 36.6 Z" fill="var(--logo-acc)"/>
+        <path d="M16.6 38.8 Q18.6 40.6 20.6 38.8 M27.4 38.8 Q29.4 40.6 31.4 38.8" stroke="var(--logo-cut)" stroke-width="1.4" stroke-linecap="round" fill="none" opacity=".8"/>
       </svg>
     </div>
     <div class="brand-text">
@@ -547,6 +565,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <button class="tab-btn" data-panel="notes">My notes</button>
       <button class="tab-btn" data-panel="cards" id="cards-tab-btn">Flashcards</button>
       <button class="tab-btn" data-panel="quiz">Quiz</button>
+      <button class="tab-btn" data-panel="ask" id="ask-tab-btn">Ask instructor</button>
     </div>
     <div class="panel active" id="panel-slides"></div>
     <div class="panel" id="panel-notes">
@@ -572,6 +591,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       </div>
     </div>
     <div class="panel" id="panel-cards"></div>
+    <div class="panel" id="panel-ask"></div>
     <div class="panel" id="panel-quiz">
       <div class="score-bar" style="position:static;">
         <span class="label">Score updates as you answer each question</span>
@@ -596,6 +616,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <button class="admin-tab-btn active" data-apanel="content" id="content-tab-btn">Course Content</button>
       <button class="admin-tab-btn" data-apanel="students" id="students-tab-btn">Students</button>
       <button class="admin-tab-btn" data-apanel="notes" id="notes-tab-btn">Student Notes</button>
+      <button class="admin-tab-btn" data-apanel="questions" id="questions-tab-btn">Questions</button>
       <button class="admin-tab-btn" data-apanel="templates" id="templates-tab-btn">Resources</button>
       <button class="admin-tab-btn" data-apanel="settings" id="settings-tab-btn">Settings</button>
       <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
@@ -605,6 +626,9 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     </div>
     <div class="admin-panel" id="apanel-students">
       <div id="students-panel"></div>
+    </div>
+    <div class="admin-panel" id="apanel-questions">
+      <div id="questions-panel"></div>
     </div>
     <div class="admin-panel" id="apanel-templates">
       <div class="editor-block" style="max-width:760px;">
@@ -1004,6 +1028,7 @@ async function enterAdminSession(user){
   document.getElementById('students-tab-btn').style.display = isSuperAdmin ? 'none' : '';
   document.getElementById('notes-tab-btn').style.display     = isSuperAdmin ? 'none' : '';
   document.getElementById('templates-tab-btn').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('questions-tab-btn').style.display = isSuperAdmin ? 'none' : '';
 
   if(isSuperAdmin){
     // The Super Admin only manages admins — no course context, no product name, no lessons/students.
@@ -1021,6 +1046,7 @@ async function enterAdminSession(user){
   go('admin');
   activateAdminTab('content');
   startNotifications();
+  refreshQuestionsCount();
 }
 
 async function enterStudentSession(me){
@@ -1862,10 +1888,13 @@ async function openNotification(id){
       if(idx >= 0 && lessons[idx].status === 'open' && isPrereqDone(idx)){
         openDetail(n.lesson_id);
         if(n.kind === 'feedback') document.querySelector('.tab-btn[data-panel="notes"]')?.click();
+        if(n.kind === 'answer') document.querySelector('.tab-btn[data-panel="ask"]')?.click();
       } else { go('student'); showToast('That lesson is still locked for you.', { type:'success' }); }
     }
   } else if(n.kind === 'signup'){
     go('admin'); activateAdminTab('students');
+  } else if(n.kind === 'question'){
+    go('admin'); activateAdminTab('questions');
   }
 }
 
@@ -1947,6 +1976,135 @@ async function openStudentProfile(uid){
     console.error(e);
     o.querySelector('.sp-box').innerHTML = `<div class="sp-body"><p>Couldn't load this profile.</p><button type="button" class="dl-btn" onclick="closeSmallModal()">Close</button></div>`;
   }
+}
+
+
+/* ═════ ASK THE INSTRUCTOR ═════ */
+var askState = { lid: null, items: [] };
+function fmtWhen(ts){ return ts ? timeAgo(ts) : ''; }
+async function loadAskPanel(lid){
+  askState = { lid, items: [] };
+  const btn = document.getElementById('ask-tab-btn');
+  btn.textContent = 'Ask instructor';
+  renderAskPanel(true);
+  try { askState.items = await api('GET', '/questions?lesson_id=' + lid); } catch(e){ askState.items = []; }
+  if(askState.lid !== lid) return;
+  const answered = askState.items.filter(q => q.answer).length;
+  btn.textContent = askState.items.length ? `Ask instructor (${askState.items.length})` : 'Ask instructor';
+  renderAskPanel(false);
+}
+function renderAskPanel(loading){
+  const panel = document.getElementById('panel-ask');
+  const items = askState.items;
+  panel.innerHTML = `<div style="max-width:720px;">
+    <p class="qa-intro">Questions here go privately to your instructor — other students can't see them. You'll get a notification when it's answered.</p>
+    ${loading ? '<div class="empty-state"><p>Loading…</p></div>' : items.length ? `<div class="qa-list">${items.map(q => `
+      <div class="qa-item">
+        <div class="qa-q">${escapeHtml(q.question)}</div>
+        <div class="qa-meta"><span>You asked ${fmtWhen(q.created_at)}</span>
+          ${!q.answer ? `<button type="button" class="dl-btn danger" style="padding:4px 10px;font-size:11.5px;" onclick="deleteMyQuestion(${q.id})">Delete</button>` : ''}</div>
+        ${q.answer ? `<div class="qa-a"><div class="h">Instructor's answer · ${fmtWhen(q.answered_at)}</div>${escapeHtml(q.answer)}</div>` : `<span class="qa-wait">Waiting for an answer</span>`}
+      </div>`).join('')}</div>` : ''}
+    <div class="qa-form">
+      <label for="ask-input" style="display:block;font-size:13px;font-weight:600;margin-bottom:8px;">${items.length ? 'Ask another question' : 'Ask your instructor about this lesson'}</label>
+      <textarea id="ask-input" maxlength="4000" placeholder="What would you like to ask?"></textarea>
+      <div class="row"><span class="notes-status" id="ask-status"></span>
+        <button type="button" class="btn btn-primary btn-sm" id="ask-send" onclick="sendQuestion()">Send question</button></div>
+    </div></div>`;
+}
+async function sendQuestion(){
+  const ta = document.getElementById('ask-input'), st = document.getElementById('ask-status'), btn = document.getElementById('ask-send');
+  const text = ta.value.trim();
+  if(!text){ st.textContent = 'Write your question first.'; ta.focus(); return; }
+  btn.disabled = true; st.textContent = 'Sending…';
+  try {
+    const q = await api('POST', '/questions', { lesson_id: askState.lid, question: text });
+    askState.items.push(q);
+    document.getElementById('ask-tab-btn').textContent = `Ask instructor (${askState.items.length})`;
+    renderAskPanel(false);
+    showToast('Question sent to your instructor.', { type:'success' });
+  } catch(e){
+    console.error(e); st.textContent = "Couldn't send — check your connection and try again."; btn.disabled = false;
+  }
+}
+async function deleteMyQuestion(id){
+  if(!confirm('Delete this question?')) return;
+  try {
+    await api('DELETE', '/questions/' + id);
+    askState.items = askState.items.filter(q => q.id !== id);
+    document.getElementById('ask-tab-btn').textContent = askState.items.length ? `Ask instructor (${askState.items.length})` : 'Ask instructor';
+    renderAskPanel(false);
+  } catch(e){ console.error(e); showToast("Couldn't delete the question. It may already have been answered."); }
+}
+
+// Admin side
+var adminQuestions = [];
+function setQuestionsTabCount(){
+  const n = adminQuestions.filter(q => !q.answer).length;
+  const b = document.getElementById('questions-tab-btn');
+  if(b) b.textContent = n ? `Questions (${n})` : 'Questions';
+}
+async function refreshQuestionsCount(){
+  try { adminQuestions = await api('GET', '/admin/questions'); setQuestionsTabCount(); } catch(e){}
+}
+async function renderQuestionsAdmin(){
+  const panel = document.getElementById('questions-panel');
+  panel.innerHTML = `<div class="empty-state"><p>Loading questions…</p></div>`;
+  try { adminQuestions = await api('GET', '/admin/questions'); }
+  catch(e){ panel.innerHTML = `<div class="empty-state"><p>Failed to load questions.</p></div>`; return; }
+  setQuestionsTabCount();
+  panel.innerHTML = `<div class="notes-filter">
+      <select id="qa-filter" aria-label="Filter questions" onchange="drawQuestionsAdmin()">
+        <option value="open">Unanswered</option><option value="answered">Answered</option><option value="">All questions</option>
+      </select>
+      <select id="qa-lesson" aria-label="Filter by lesson" onchange="drawQuestionsAdmin()">
+        <option value="">All lessons</option>
+        ${lessons.map(l => `<option value="${l.id}">Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</option>`).join('')}
+      </select>
+    </div><div id="qa-admin-list"></div>`;
+  drawQuestionsAdmin();
+}
+function drawQuestionsAdmin(){
+  const f = document.getElementById('qa-filter').value, lid = document.getElementById('qa-lesson').value;
+  const list = adminQuestions.filter(q => (!f || (f === 'open' ? !q.answer : !!q.answer)) && (!lid || String(q.lesson_id) === lid));
+  const el = document.getElementById('qa-admin-list');
+  if(!list.length){ el.innerHTML = `<div class="empty-state"><p>${f === 'open' ? 'No unanswered questions. Nice.' : 'No questions match.'}</p></div>`; return; }
+  el.innerHTML = `<div class="students-meta">${list.length} question${list.length!==1?'s':''}</div><div class="qa-list">` + list.map(q => {
+    const l = lessons.find(x => x.id === q.lesson_id);
+    return `<div class="qa-item">
+      <div class="nv-head" style="margin-bottom:8px;">
+        <div><div class="user-name">${escapeHtml(q.name)}</div><div class="user-email">${escapeHtml(q.email)} · ${fmtWhen(q.created_at)}</div></div>
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          <div class="card-num mono">${l ? 'Lesson ' + escapeHtml(String(l.num)) + ' — ' + escapeHtml(l.title) : ''}</div>
+          ${q.answer ? '<span class="status-badge open">Answered</span>' : '<span class="status-badge pending">Waiting</span>'}
+        </div>
+      </div>
+      <div class="qa-q">${escapeHtml(q.question)}</div>
+      <div class="qa-form" style="margin-top:12px;">
+        <label for="qa-ans-${q.id}" style="display:block;font-size:12px;color:var(--ink-faint);margin-bottom:6px;">${q.answer ? 'Your answer (edit and resend if needed)' : 'Your answer'}</label>
+        <textarea id="qa-ans-${q.id}" style="min-height:72px;">${escapeHtml(q.answer || '')}</textarea>
+        <div class="row">
+          <button type="button" class="dl-btn danger" onclick="adminDeleteQuestion(${q.id})">Delete question</button>
+          <button type="button" class="btn btn-primary btn-sm" onclick="answerQuestion(${q.id}, this)">${q.answer ? 'Update answer' : 'Send answer'}</button>
+        </div>
+      </div></div>`;
+  }).join('') + `</div>`;
+}
+async function answerQuestion(id, btn){
+  const ta = document.getElementById('qa-ans-' + id);
+  if(!ta.value.trim()){ ta.focus(); showToast('Write an answer first.'); return; }
+  btn.disabled = true;
+  try {
+    const r = await api('PUT', `/admin/questions/${id}/answer`, { answer: ta.value });
+    const q = adminQuestions.find(x => x.id === id); if(q){ q.answer = r.answer; q.answered_at = r.answered_at; }
+    setQuestionsTabCount(); drawQuestionsAdmin();
+    showToast('Answer sent. The student has been notified.', { type:'success' });
+  } catch(e){ console.error(e); showToast("Couldn't send the answer. Please try again."); btn.disabled = false; }
+}
+async function adminDeleteQuestion(id){
+  if(!confirm('Delete this question? The student will no longer see it.')) return;
+  try { await api('DELETE', '/questions/' + id); adminQuestions = adminQuestions.filter(q => q.id !== id); setQuestionsTabCount(); drawQuestionsAdmin(); }
+  catch(e){ console.error(e); showToast("Couldn't delete the question."); }
 }
 
 function closeSmallModal(){ const o = document.getElementById('sm-overlay'); if(o) o.remove(); }
@@ -2706,6 +2864,9 @@ function openDetail(id){
   ctab.textContent = nCards ? `Flashcards (${nCards})` : 'Flashcards';
   fcState = { lid: id, order: nCards ? [...Array(nCards).keys()] : [], pos: 0, mode: 'all', flipped: false };
   renderFlashcards();
+
+  // Private questions to the instructor for this lesson.
+  if(currentStudent) loadAskPanel(id);
 
   // Templates linked to this lesson appear under its materials.
   const lt = (studentTemplates || []).filter(t => t.lesson_id === id);
@@ -3520,6 +3681,7 @@ function activateAdminTab(panelName){
   if(panelName === 'students') renderStudentsPanel();
   if(panelName === 'notes') renderNotesPanel();
   if(panelName === 'templates') renderTemplatesAdmin();
+  if(panelName === 'questions') renderQuestionsAdmin();
   if(panelName === 'settings'){
     document.getElementById('settings-course-name').value = courseName;
     document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';
