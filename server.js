@@ -907,7 +907,7 @@ app.put('/api/admin/questions/:id/answer', auth, adminOnly, async (req, res) => 
 });
 
 // ─── LEADERBOARD ("Course points", top 3) ────────────────────────────────────
-const LB_POINTS = { correct: 10, lessonDone: 20, noteLesson: 5, reviewStar: 4, cardKnown: 1, question: 3, questionCapPerLesson: 2, activeDay: 2 };
+const LB_POINTS = { correct: 1, lessonDone: 2, noteLesson: 1, reviewStar: 1, cardsPerPoint: 5, question: 1, questionCapPerLesson: 2, activeDay: 1 };
 const LB_DEFAULTS = { enabled: true, mode: 'live' };          // mode: live | days2 | lesson
 
 function lbQuizCorrect(q, ans) {
@@ -963,7 +963,7 @@ async function computeLeaderboard(courseId) {
   const list = Object.values(rows).map(r => {
     const b = r.b, P = LB_POINTS;
     const parts = { quiz: b.correct * P.correct, lessons: b.lessonsDone * P.lessonDone, notes: b.noteLessons * P.noteLesson,
-                    reviews: b.stars * P.reviewStar, flashcards: b.cardsKnown * P.cardKnown, questions: b.questions * P.question, activity: b.activeDays * P.activeDay };
+                    reviews: b.stars * P.reviewStar, flashcards: Math.floor(b.cardsKnown / P.cardsPerPoint), questions: b.questions * P.question, activity: b.activeDays * P.activeDay };
     const points = Object.values(parts).reduce((a, x) => a + x, 0);
     return { id: r.id, name: r.name, points, parts, counts: b, joined: r.joined };
   });
