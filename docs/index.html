@@ -308,6 +308,74 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .fb-rating{color:#E0A100;font-size:17px;letter-spacing:1px;margin-bottom:4px;}
 .fb-rating span{color:var(--ink-dim);font-size:12px;letter-spacing:0;margin-left:6px;}
 .nv-fb-row{display:flex;align-items:center;gap:10px;margin-top:8px;}
+.notif-wrap{position:relative;}
+.notif-btn{position:relative;display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:8px;background:none;border:1px solid transparent;cursor:pointer;color:var(--ink-dim);}
+.notif-btn:hover,.notif-btn[aria-expanded="true"]{background:var(--blue-soft);color:var(--blue);}
+.chrome.mode-admin .notif-btn{color:#9DB4E8;}
+.chrome.mode-admin .notif-btn:hover,.chrome.mode-admin .notif-btn[aria-expanded="true"]{background:rgba(255,255,255,.1);color:#fff;}
+.notif-btn:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
+.notif-count{position:absolute;top:2px;right:1px;min-width:16px;height:16px;padding:0 4px;border-radius:8px;background:var(--red);color:#fff;font-size:10px;font-weight:600;line-height:16px;text-align:center;}
+.notif-panel{position:absolute;right:0;top:42px;width:340px;max-width:calc(100vw - 32px);background:var(--surface);border:1px solid var(--line);border-radius:10px;box-shadow:0 12px 32px rgba(15,32,57,.16);z-index:60;overflow:hidden;}
+.notif-head{display:flex;justify-content:space-between;align-items:center;padding:12px 14px;border-bottom:1px solid var(--line);font-size:13px;font-weight:600;color:var(--ink);}
+.notif-list{max-height:380px;overflow:auto;}
+.notif-item{display:block;width:100%;text-align:left;padding:11px 14px;border:none;border-bottom:1px solid var(--line);background:var(--surface);font-family:inherit;font-size:13px;color:var(--ink);cursor:pointer;line-height:1.45;}
+.notif-item:last-child{border-bottom:none;}
+.notif-item:hover{background:var(--blue-soft);}
+.notif-item.unread{background:#F3F7FF;box-shadow:inset 3px 0 0 var(--blue);}
+.notif-item .t{display:block;font-size:11px;color:var(--ink-faint);margin-top:3px;}
+.notif-empty{padding:22px 14px;text-align:center;color:var(--ink-faint);font-size:13px;}
+.tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
+.tpl-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;}
+.tpl-card h4{margin:0;font-size:15px;font-weight:600;color:var(--ink);}
+.tpl-card p{margin:0;font-size:13px;color:var(--ink-dim);line-height:1.5;}
+.tpl-meta{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-faint);}
+.tpl-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:auto;padding-top:6px;}
+.section-h{display:flex;justify-content:space-between;align-items:baseline;gap:12px;margin:40px 0 14px;}
+.section-h h2{font-family:'Fraunces',serif;font-weight:500;font-size:22px;margin:0;}
+.section-h span{font-size:13px;color:var(--ink-faint);}
+.tpl-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+.tpl-form .full{grid-column:1/-1;}
+.tpl-form label{display:block;font-size:12px;color:var(--ink-faint);margin-bottom:6px;}
+.tpl-form select{width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:14px;}
+@media(max-width:640px){.tpl-form{grid-template-columns:1fr;}}
+.fc-row{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-bottom:8px;align-items:start;}
+.fc-row textarea{min-height:42px;}
+.fc-wrap{max-width:620px;margin:0 auto;}
+.fc-top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;color:var(--ink-dim);}
+.fc-bar{height:6px;border-radius:3px;background:var(--line);overflow:hidden;margin-bottom:18px;}
+.fc-bar div{height:100%;background:var(--green);transition:width .25s;}
+.fc-card{perspective:1200px;height:260px;cursor:pointer;margin-bottom:16px;}
+.fc-inner{position:relative;width:100%;height:100%;transition:transform .45s;transform-style:preserve-3d;}
+.fc-card.flipped .fc-inner{transform:rotateY(180deg);}
+.fc-face{position:absolute;inset:0;backface-visibility:hidden;-webkit-backface-visibility:hidden;border:1px solid var(--line);border-radius:14px;background:var(--surface);box-shadow:0 4px 18px rgba(16,45,110,.08);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px;text-align:center;overflow:auto;}
+.fc-face .k{font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-faint);margin-bottom:12px;}
+.fc-front .w{font-family:'Fraunces',serif;font-size:28px;font-weight:500;color:var(--ink);}
+.fc-back{transform:rotateY(180deg);background:#F7FAFF;}
+.fc-back .w{font-size:16px;line-height:1.6;color:var(--ink);}
+.fc-card:focus-visible{outline:2px solid var(--blue);outline-offset:4px;border-radius:14px;}
+.fc-tag{font-size:11px;padding:2px 8px;border-radius:100px;}
+.fc-tag.known{background:rgba(28,154,108,.1);color:var(--green);}
+.fc-tag.review{background:rgba(179,121,14,.1);color:#B3790E;}
+.fc-actions{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+.fc-actions .grp{display:flex;gap:8px;flex-wrap:wrap;}
+@media (prefers-reduced-motion: reduce){.fc-inner{transition:none;}}
+.sp-box{background:var(--surface);border-radius:12px;width:min(880px,100%);max-height:90vh;overflow:auto;box-shadow:0 12px 40px rgba(15,32,57,.3);}
+.sp-head{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;padding:22px 24px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--surface);z-index:1;}
+.sp-head h2{font-family:'Fraunces',serif;font-weight:500;font-size:24px;margin:0 0 4px;}
+.sp-body{padding:20px 24px 26px;}
+.sp-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:22px;}
+.sp-stat{border:1px solid var(--line);border-radius:10px;padding:12px 14px;}
+.sp-stat .n{font-family:'IBM Plex Mono',monospace;font-size:18px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;}
+.sp-stat .l{font-size:11px;color:var(--ink-faint);margin-top:2px;}
+.sp-info{display:grid;grid-template-columns:repeat(3,1fr);gap:8px 18px;font-size:13px;margin-bottom:22px;}
+.sp-info b{display:block;font-size:11px;font-weight:500;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;}
+.sp-table{width:100%;border-collapse:collapse;font-size:13px;}
+.sp-table th{text-align:left;font-size:11px;font-weight:500;color:var(--ink-faint);text-transform:uppercase;letter-spacing:.05em;padding:8px 10px;border-bottom:1px solid var(--line);}
+.sp-table td{padding:9px 10px;border-bottom:1px solid var(--line);vertical-align:top;}
+.sp-table td.num{font-family:'IBM Plex Mono',monospace;font-variant-numeric:tabular-nums;white-space:nowrap;}
+.linklike{background:none;border:none;padding:0;font:inherit;color:inherit;cursor:pointer;text-align:left;}
+.linklike:hover .user-name{color:var(--blue);text-decoration:underline;}
+@media(max-width:640px){.sp-stats{grid-template-columns:repeat(2,1fr);}.sp-info{grid-template-columns:1fr 1fr;}}
 .students-meta{font-size:13px;color:var(--ink-dim);margin-bottom:16px;}
 .pending-row{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:14px 16px;background:var(--surface);border:1px solid var(--line);border-radius:8px;margin-bottom:10px;}
 .pending-row .p-info{display:flex;align-items:center;gap:14px;min-width:0;}
@@ -444,6 +512,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <div class="score-ring" id="dash-score-ring"></div>
     </div>
     <div class="grid" id="student-grid"></div>
+    <div id="student-templates"></div>
   </div>
 </div>
 
@@ -459,6 +528,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     <div class="tabs">
       <button class="tab-btn active" data-panel="slides">Materials</button>
       <button class="tab-btn" data-panel="notes">My notes</button>
+      <button class="tab-btn" data-panel="cards" id="cards-tab-btn">Flashcards</button>
       <button class="tab-btn" data-panel="quiz">Quiz</button>
     </div>
     <div class="panel active" id="panel-slides"></div>
@@ -483,6 +553,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
         <span class="notes-status" id="notes-status">Nothing to save yet.</span>
       </div>
     </div>
+    <div class="panel" id="panel-cards"></div>
     <div class="panel" id="panel-quiz">
       <div class="score-bar" style="position:static;">
         <span class="label">Score updates as you answer each question</span>
@@ -507,6 +578,7 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
       <button class="admin-tab-btn active" data-apanel="content" id="content-tab-btn">Course Content</button>
       <button class="admin-tab-btn" data-apanel="students" id="students-tab-btn">Students</button>
       <button class="admin-tab-btn" data-apanel="notes" id="notes-tab-btn">Student Notes</button>
+      <button class="admin-tab-btn" data-apanel="templates" id="templates-tab-btn">Resources</button>
       <button class="admin-tab-btn" data-apanel="settings" id="settings-tab-btn">Settings</button>
       <button class="admin-tab-btn" data-apanel="platform" id="platform-tab-btn" style="display:none;">Platform</button>
     </div>
@@ -515,6 +587,22 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
     </div>
     <div class="admin-panel" id="apanel-students">
       <div id="students-panel"></div>
+    </div>
+    <div class="admin-panel" id="apanel-templates">
+      <div class="editor-block" style="max-width:760px;">
+        <h3>Add a resource — templates, handouts, worksheets, checklists…</h3>
+        <div class="tpl-form">
+          <div><label for="tpl-title">Title</label><input type="text" class="field-input" id="tpl-title" placeholder="e.g. Project charter template"></div>
+          <div><label for="tpl-lesson">Related lesson (optional)</label><select id="tpl-lesson"></select></div>
+          <div class="full"><label for="tpl-desc">Short description (optional)</label><input type="text" class="field-input" id="tpl-desc" placeholder="When and how students should use it"></div>
+          <div class="full"><label for="tpl-file">File (Word, Excel, PowerPoint, PDF… max 15MB)</label><input type="file" id="tpl-file"></div>
+        </div>
+        <div style="margin-top:14px;display:flex;align-items:center;gap:12px;">
+          <button type="button" class="btn btn-primary btn-sm" id="tpl-upload-btn" onclick="uploadTemplate()">Upload resource</button>
+          <span class="notes-status" id="tpl-status"></span>
+        </div>
+      </div>
+      <div id="templates-admin-list"></div>
     </div>
     <div class="admin-panel" id="apanel-notes">
       <div id="notes-panel"></div>
@@ -611,6 +699,17 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           <div class="radio-hint">Select the radio button next to the correct answer for each question.</div>
           <div id="editor-quiz"></div>
           <button type="button" class="upload-drop btn-reset" onclick="addQuestion()">+ Add a question</button>
+        </div>
+        <div class="editor-block">
+          <h3>Flashcards — key terms students can practise</h3>
+          <div id="editor-cards"></div>
+          <button type="button" class="upload-drop btn-reset" onclick="addCard()">+ Add a card</button>
+          <details style="margin-top:12px;">
+            <summary style="cursor:pointer;font-size:13px;color:var(--blue);">Paste many cards at once</summary>
+            <p style="font-size:12px;color:var(--ink-faint);margin:8px 0;">One card per line: <span class="mono">term - definition</span> (a tab or colon also works).</p>
+            <textarea class="field-textarea" id="cards-bulk" placeholder="WBS - Work breakdown structure: the project's deliverables split into smaller parts&#10;Critical path - The longest chain of dependent tasks"></textarea>
+            <button type="button" class="dl-btn" style="margin-top:8px;" onclick="bulkAddCards()">Add these cards</button>
+          </details>
         </div>
       </div>
       <div>
@@ -878,6 +977,8 @@ async function enterAdminSession(user){
   document.getElementById('settings-tab-btn').style.display = isSuperAdmin ? 'none' : '';
   document.getElementById('content-tab-btn').style.display  = isSuperAdmin ? 'none' : '';
   document.getElementById('students-tab-btn').style.display = isSuperAdmin ? 'none' : '';
+  document.getElementById('notes-tab-btn').style.display     = isSuperAdmin ? 'none' : '';
+  document.getElementById('templates-tab-btn').style.display = isSuperAdmin ? 'none' : '';
 
   if(isSuperAdmin){
     // The Super Admin only manages admins — no course context, no product name, no lessons/students.
@@ -894,14 +995,16 @@ async function enterAdminSession(user){
   renderAdminGrid();
   go('admin');
   activateAdminTab('content');
+  startNotifications();
 }
 
 async function enterStudentSession(me){
   currentUser = me;
-  currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {}, feedback: {} };
+  currentStudent = { uid: me.id, name: me.name, email: me.email, phone: me.phone, answers: {}, notes: {}, feedback: {}, cards: {} };
   for(const p of (me.progress || [])){
     currentStudent.answers[p.lesson_id] = p.answers || {};
     currentStudent.notes[p.lesson_id]   = p.note    || '';
+    currentStudent.cards[p.lesson_id]   = p.cards   || {};
     if(p.feedback || p.feedback_rating) (currentStudent.feedback = currentStudent.feedback || {})[p.lesson_id] = { text: p.feedback || '', rating: p.feedback_rating || null, at: p.feedback_at };
   }
   syncCourseSlugToUrl(me.course_slug);
@@ -910,6 +1013,8 @@ async function enterStudentSession(me){
   await loadLessons(currentCourseSlug);
   renderStudentGrid();
   go('student');
+  loadStudentTemplates();
+  startNotifications();
 }
 
 /* ─ INIT — load course/lessons from API, restore session if a token was saved ─ */
@@ -974,6 +1079,7 @@ function showLoading(show){
 }
 
 function signOutStudent(){
+  stopNotifications();
   setApiToken(null);
   currentStudent = null;
   setAuthMode('login');
@@ -982,6 +1088,7 @@ function signOutStudent(){
 
 function adminSignOut(){
   const wasSuperAdmin = currentUser && currentUser.role === 'super_admin';
+  stopNotifications();
   setApiToken(null);
   currentUser = null;
   if(wasSuperAdmin && !currentCourseSlug){
@@ -1125,6 +1232,7 @@ async function renderStudentsPanel(){
   panel.innerHTML = `<div class="empty-state"><div class="ei">⏳</div><p>Loading students…</p></div>`;
   try {
     const allUsers     = await api('GET', '/users');
+    window._studentsCache = allUsers;
     const studentsData = allUsers.filter(u => !u.is_admin);
     if(!studentsData.length){
       panel.innerHTML = `<div class="empty-state"><div class="ei">👤</div><p>No students have registered yet.</p></div>`;
@@ -1172,7 +1280,7 @@ async function renderStudentsPanel(){
         return `<td style="width:1%;white-space:nowrap;"><span class="score-chip ${cls}">${sc.correct}/${sc.total}</span></td>`;
       }).join('');
       return `<tr>
-        <td class="sticky-col"><div class="user-name">${s.name}</div><div class="user-email">${s.email}</div></td>
+        <td class="sticky-col"><button type="button" class="linklike" onclick="openStudentProfile('${s.id}')" title="Open student profile"><div class="user-name">${escapeHtml(s.name)}</div><div class="user-email">${escapeHtml(s.email)}</div></button></td>
         <td style="width:1%;white-space:nowrap;">${s.phone || '—'}</td>
         ${scoreCells}
         <td style="width:1%;text-align:right;white-space:nowrap;">
@@ -1447,6 +1555,349 @@ async function downloadAllMyNotes(){
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
+
+/* ═════ RESOURCES LIBRARY (templates, handouts…) ═════ */
+var studentTemplates = [];
+function templateCardHtml(t){
+  const l = lessons.find(x => x.id === t.lesson_id);
+  const path = `/templates/${t.id}/file`;
+  return `<div class="tpl-card">
+    <h4>${escapeHtml(t.title)}</h4>
+    ${t.description ? `<p>${escapeHtml(t.description)}</p>` : ''}
+    <div class="tpl-meta">${escapeHtml((t.name.split('.').pop() || '').toUpperCase())} · ${fmtSize(t.size)}${l ? ' · Lesson ' + escapeHtml(String(l.num)) : ''}</div>
+    <div class="tpl-actions">
+      <button type="button" class="dl-btn" onclick="previewAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))}, ${escapeHtml(JSON.stringify(t.mimetype||''))})">Preview</button>
+      <button type="button" class="dl-btn" onclick="downloadAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))})">Download</button>
+    </div></div>`;
+}
+async function loadStudentTemplates(){
+  try { studentTemplates = await api('GET', '/templates'); } catch(e){ studentTemplates = []; }
+  const el = document.getElementById('student-templates');
+  if(!el) return;
+  el.innerHTML = studentTemplates.length ? `
+    <div class="section-h"><h2>Resources</h2><span>${studentTemplates.length} file${studentTemplates.length!==1?'s':''} from your instructor</span></div>
+    <div class="tpl-grid">${studentTemplates.map(templateCardHtml).join('')}</div>` : '';
+}
+async function renderTemplatesAdmin(){
+  const sel = document.getElementById('tpl-lesson');
+  sel.innerHTML = `<option value="">— Whole course —</option>` + lessons.map(l => `<option value="${l.id}">Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</option>`).join('');
+  const box = document.getElementById('templates-admin-list');
+  box.innerHTML = `<div class="empty-state"><p>Loading resources…</p></div>`;
+  let list = [];
+  try { list = await api('GET', '/templates'); } catch(e){ box.innerHTML = `<div class="empty-state"><p>Failed to load resources.</p></div>`; return; }
+  if(!list.length){ box.innerHTML = `<div class="empty-state"><p>No resources yet. Upload the first one above — students see them on their dashboard and under the related lesson.</p></div>`; return; }
+  box.innerHTML = `<div class="students-meta">${list.length} resource${list.length!==1?'s':''}</div><div class="tpl-grid">` + list.map(t => {
+    const path = `/templates/${t.id}/file`;
+    return `<div class="tpl-card">
+      <h4>${escapeHtml(t.title)}</h4>
+      ${t.description ? `<p>${escapeHtml(t.description)}</p>` : ''}
+      <div class="tpl-meta">${escapeHtml(t.name)} · ${fmtSize(t.size)}</div>
+      <select aria-label="Related lesson" onchange="setTemplateLesson(${t.id}, this.value)" style="padding:7px 10px;border:1px solid var(--line-strong);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--ink);">
+        <option value="">— Whole course —</option>
+        ${lessons.map(l => `<option value="${l.id}"${l.id===t.lesson_id?' selected':''}>Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</option>`).join('')}
+      </select>
+      <div class="tpl-actions">
+        <button type="button" class="dl-btn" onclick="previewAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))}, ${escapeHtml(JSON.stringify(t.mimetype||''))})">Preview</button>
+        <button type="button" class="dl-btn" onclick="downloadAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))})">Download</button>
+        <button type="button" class="dl-btn danger" onclick="deleteTemplate(${t.id}, ${escapeHtml(JSON.stringify(t.title))})">Delete</button>
+      </div></div>`;
+  }).join('') + `</div>`;
+}
+async function uploadTemplate(){
+  const fileEl = document.getElementById('tpl-file'), st = document.getElementById('tpl-status'), btn = document.getElementById('tpl-upload-btn');
+  const file = fileEl.files[0];
+  if(!file){ st.textContent = 'Choose a file first.'; return; }
+  if(file.size > 15*1024*1024){ st.textContent = 'That file is larger than 15MB.'; return; }
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('title', document.getElementById('tpl-title').value.trim() || file.name.replace(/\.[^.]+$/, ''));
+  fd.append('description', document.getElementById('tpl-desc').value.trim());
+  fd.append('lesson_id', document.getElementById('tpl-lesson').value);
+  btn.disabled = true; st.textContent = 'Uploading…';
+  try {
+    const headers = {}; if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + '/templates', { method:'POST', headers, body: fd });
+    if(!r.ok) throw new Error('Upload failed');
+    ['tpl-title','tpl-desc'].forEach(id => document.getElementById(id).value = '');
+    fileEl.value = '';
+    st.textContent = 'Uploaded. Students have been notified.';
+    renderTemplatesAdmin();
+  } catch(e){ console.error(e); st.textContent = "Couldn't upload — try again."; }
+  finally { btn.disabled = false; }
+}
+async function setTemplateLesson(id, lessonId){
+  try { await api('PATCH', '/templates/'+id, { lesson_id: lessonId ? Number(lessonId) : null }); showToast('Saved.', { type:'success' }); }
+  catch(e){ console.error(e); showToast("Couldn't save that change."); }
+}
+async function deleteTemplate(id, title){
+  if(!confirm(`Delete "${title}"? Students will no longer see it.`)) return;
+  try { await api('DELETE', '/templates/'+id); renderTemplatesAdmin(); }
+  catch(e){ console.error(e); showToast("Couldn't delete it. Please try again."); }
+}
+
+/* ═════ FLASHCARDS ═════ */
+// Admin side: edited in the lesson editor, saved with the lesson.
+function renderEditorCards(l){
+  const cards = l.flashcards || (l.flashcards = []);
+  document.getElementById('editor-cards').innerHTML = cards.length ? cards.map((c,i) => `
+    <div class="fc-row">
+      <input type="text" class="field-input" aria-label="Term ${i+1}" placeholder="Term" value="${escapeHtml(c.term)}" oninput="updateCard(${i},'term',this.value)">
+      <textarea class="field-textarea" aria-label="Definition ${i+1}" placeholder="Definition / answer" oninput="updateCard(${i},'def',this.value)">${escapeHtml(c.def)}</textarea>
+      <button type="button" class="icon-btn" title="Remove card" aria-label="Remove card ${i+1}" onclick="removeCard(${i})">✕</button>
+    </div>`).join('') : `<p style="font-size:13px;color:var(--ink-faint);margin:0 0 12px;">No flashcards yet. Students get a Flashcards tab on this lesson once you add some.</p>`;
+}
+function curEditorLesson(){ return lessons.find(x => x.id === currentEditorId); }
+function addCard(){ const l = curEditorLesson(); (l.flashcards = l.flashcards || []).push({ term:'', def:'' }); renderEditorCards(l); saveLessonDebounced(l.id);
+  const rows = document.querySelectorAll('#editor-cards .fc-row input'); if(rows.length) rows[rows.length-1].focus(); }
+function updateCard(i, k, v){ const l = curEditorLesson(); l.flashcards[i][k] = v; saveLessonDebounced(l.id); }
+function removeCard(i){ const l = curEditorLesson(); l.flashcards.splice(i,1); renderEditorCards(l); saveLessonDebounced(l.id); }
+function bulkAddCards(){
+  const l = curEditorLesson(), ta = document.getElementById('cards-bulk');
+  const added = ta.value.split('\n').map(line => line.trim()).filter(Boolean).map(line => {
+    const m = line.match(/^(.+?)\s*(?:\t|\s[-–—]\s|:\s)\s*(.+)$/);
+    return m ? { term: m[1].trim(), def: m[2].trim() } : { term: line, def: '' };
+  });
+  if(!added.length) return;
+  (l.flashcards = l.flashcards || []).push(...added);
+  ta.value = '';
+  renderEditorCards(l); saveLessonDebounced(l.id);
+  showToast(`${added.length} card${added.length!==1?'s':''} added.`, { type:'success' });
+}
+
+// Student side: flip cards, mark "I know it" / "Review again", progress saved.
+var fcState = null;
+function fcLesson(){ return lessons.find(x => x.id === fcState?.lid); }
+function fcMarks(){ return (currentStudent?.cards?.[fcState.lid]) || {}; }
+function renderFlashcards(){
+  const panel = document.getElementById('panel-cards');
+  const l = fcLesson();
+  const cards = (l && l.flashcards) || [];
+  if(!cards.length){ panel.innerHTML = ''; return; }
+  const marks = fcMarks();
+  const known = cards.filter((c,i) => marks[i] === 'known').length;
+  let order = fcState.order;
+  if(fcState.mode === 'review') order = order.filter(i => marks[i] !== 'known');
+  if(!order.length){
+    panel.innerHTML = `<div class="fc-wrap"><div class="fc-top"><span>${known} of ${cards.length} known</span></div>
+      <div class="fc-bar"><div style="width:${Math.round(known/cards.length*100)}%"></div></div>
+      <div class="empty-state"><p>You know every card in this lesson. Nice work.</p></div>
+      <div class="fc-actions" style="justify-content:center;"><button type="button" class="dl-btn" onclick="fcSetMode('all')">Study all cards again</button>
+      <button type="button" class="dl-btn" onclick="fcReset()">Reset progress</button></div></div>`;
+    return;
+  }
+  if(fcState.pos >= order.length) fcState.pos = 0;
+  const idx = order[fcState.pos], c = cards[idx], mk = marks[idx];
+  panel.innerHTML = `<div class="fc-wrap">
+    <div class="fc-top">
+      <span>Card ${fcState.pos+1} of ${order.length}${fcState.mode==='review'?' (not yet known)':''} · <b>${known}</b> of ${cards.length} known</span>
+      <span style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button type="button" class="dl-btn" onclick="fcSetMode('${fcState.mode==='all'?'review':'all'}')">${fcState.mode==='all'?'Only cards to review':'Show all cards'}</button>
+        <button type="button" class="dl-btn" onclick="fcShuffle()">Shuffle</button>
+      </span>
+    </div>
+    <div class="fc-bar"><div style="width:${Math.round(known/cards.length*100)}%"></div></div>
+    <div class="fc-card${fcState.flipped?' flipped':''}" id="fc-card" role="button" tabindex="0" aria-label="${fcState.flipped?'Definition':'Term'}: ${escapeHtml(fcState.flipped?c.def:c.term)}. Press Space to flip." onclick="fcFlip()" onkeydown="fcKey(event)">
+      <div class="fc-inner">
+        <div class="fc-face fc-front"><div class="k">Term ${mk ? `<span class="fc-tag ${mk}">${mk==='known'?'Known':'To review'}</span>` : ''}</div><div class="w">${escapeHtml(c.term)}</div><div style="margin-top:16px;font-size:12px;color:var(--ink-faint);">Click or press Space to see the answer</div></div>
+        <div class="fc-face fc-back"><div class="k">Definition</div><div class="w">${escapeHtml(c.def || '—').replace(/\n/g,'<br>')}</div></div>
+      </div>
+    </div>
+    <div class="fc-actions">
+      <div class="grp"><button type="button" class="dl-btn" onclick="fcMove(-1)">← Previous</button><button type="button" class="dl-btn" onclick="fcMove(1)">Next →</button></div>
+      <div class="grp"><button type="button" class="dl-btn" onclick="fcMark('review')">Review again</button><button type="button" class="btn btn-primary btn-sm" onclick="fcMark('known')">I know it</button></div>
+    </div></div>`;
+}
+function fcFlip(){ fcState.flipped = !fcState.flipped; document.getElementById('fc-card')?.classList.toggle('flipped', fcState.flipped); }
+function fcKey(e){
+  if(e.key === ' ' || e.key === 'Enter'){ e.preventDefault(); fcFlip(); }
+  else if(e.key === 'ArrowRight') fcMove(1);
+  else if(e.key === 'ArrowLeft') fcMove(-1);
+}
+function fcVisibleCount(){ const m = fcMarks(); return fcState.mode === 'review' ? fcState.order.filter(i => m[i] !== 'known').length : fcState.order.length; }
+function fcMove(d){ const n = fcVisibleCount(); if(!n) return; fcState.pos = (fcState.pos + d + n) % n; fcState.flipped = false; renderFlashcards(); document.getElementById('fc-card')?.focus(); }
+function fcSetMode(m){ fcState.mode = m; fcState.pos = 0; fcState.flipped = false; renderFlashcards(); }
+function fcShuffle(){ const o = fcState.order; for(let i=o.length-1;i>0;i--){ const j = Math.floor(Math.random()*(i+1)); [o[i],o[j]] = [o[j],o[i]]; } fcState.pos = 0; fcState.flipped = false; renderFlashcards(); }
+function fcMark(kind){
+  if(!currentStudent) return;
+  const m = currentStudent.cards[fcState.lid] = currentStudent.cards[fcState.lid] || {};
+  const visible = fcState.mode === 'review' ? fcState.order.filter(i => m[i] !== 'known') : fcState.order;
+  const idx = visible[fcState.pos];
+  m[idx] = kind;
+  if(!(fcState.mode === 'review' && kind === 'known')) fcState.pos++;   // in review mode the known card drops out by itself
+  fcState.flipped = false;
+  renderFlashcards();
+  saveCardsDebounced(fcState.lid);
+}
+function fcReset(){ if(!confirm('Reset your flashcard progress for this lesson?')) return; currentStudent.cards[fcState.lid] = {}; fcSetMode('all'); saveCardsDebounced(fcState.lid); }
+const saveCardsDebounced = debounce(async (lid) => {
+  try { await api('PATCH', '/users/'+currentStudent.uid+'/progress/'+lid, { cards: currentStudent.cards[lid] || {} }); }
+  catch(e){ console.error(e); showToast("Couldn't save your flashcard progress — check your connection.", { retry: () => saveCardsDebounced(lid) }); }
+}, 700);
+
+/* ═════ NOTIFICATIONS ═════ */
+var notifData = { items: [], unread: 0 }, notifTimer = null, notifOpen = false;
+function notifBellHtml(){
+  return `<div class="notif-wrap" id="notif-wrap">
+    <button type="button" class="notif-btn" id="notif-btn" aria-haspopup="true" aria-expanded="${notifOpen}" aria-label="Notifications" onclick="toggleNotifPanel()">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+      <span class="notif-count" id="notif-count" style="display:none;"></span>
+    </button>
+  </div>`;
+}
+function updateNotifBadge(){
+  const c = document.getElementById('notif-count');
+  if(!c) return;
+  c.style.display = notifData.unread ? '' : 'none';
+  c.textContent = notifData.unread > 9 ? '9+' : notifData.unread;
+  const b = document.getElementById('notif-btn');
+  if(b) b.setAttribute('aria-label', notifData.unread ? `Notifications, ${notifData.unread} unread` : 'Notifications');
+}
+async function pollNotifications(){
+  if(!apiToken || (currentUser && currentUser.role === 'super_admin')) return;
+  try { notifData = await api('GET', '/notifications'); updateNotifBadge(); if(notifOpen) renderNotifPanel(); } catch(e){ /* quiet */ }
+}
+function startNotifications(){ stopNotifications(); pollNotifications(); notifTimer = setInterval(pollNotifications, 60000); }
+function stopNotifications(){ clearInterval(notifTimer); notifTimer = null; notifData = { items: [], unread: 0 }; closeNotifPanel(); }
+function timeAgo(ts){
+  const s = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
+  if(s < 60) return 'just now';
+  if(s < 3600) return Math.floor(s/60) + ' min ago';
+  if(s < 86400) return Math.floor(s/3600) + ' h ago';
+  if(s < 86400*7) return Math.floor(s/86400) + ' d ago';
+  return new Date(ts).toLocaleDateString();
+}
+function renderNotifPanel(){
+  const wrap = document.getElementById('notif-wrap');
+  if(!wrap) return;
+  let p = document.getElementById('notif-panel');
+  if(!p){ p = document.createElement('div'); p.className = 'notif-panel'; p.id = 'notif-panel'; p.setAttribute('role','dialog'); p.setAttribute('aria-label','Notifications'); wrap.appendChild(p); }
+  p.innerHTML = `<div class="notif-head"><span>Notifications</span></div>
+    <div class="notif-list">${notifData.items.length ? notifData.items.map(n => `
+      <button type="button" class="notif-item${n.unread?' unread':''}" onclick="openNotification(${n.id})">${escapeHtml(n.text)}<span class="t">${timeAgo(n.created_at)}</span></button>`).join('')
+      : `<div class="notif-empty">You're all caught up.</div>`}</div>`;
+}
+async function toggleNotifPanel(){
+  if(notifOpen){ closeNotifPanel(); return; }
+  notifOpen = true;
+  document.getElementById('notif-btn')?.setAttribute('aria-expanded','true');
+  renderNotifPanel();
+  setTimeout(() => document.addEventListener('click', notifOutside), 0);
+  document.addEventListener('keydown', notifEsc);
+  if(notifData.unread){
+    try { await api('POST', '/notifications/seen'); } catch(e){}
+    notifData.unread = 0; updateNotifBadge();
+    setTimeout(() => { notifData.items.forEach(n => n.unread = false); }, 0);
+  }
+}
+function closeNotifPanel(){
+  notifOpen = false;
+  document.getElementById('notif-panel')?.remove();
+  document.getElementById('notif-btn')?.setAttribute('aria-expanded','false');
+  document.removeEventListener('click', notifOutside);
+  document.removeEventListener('keydown', notifEsc);
+}
+function notifOutside(e){ if(!e.target.closest('#notif-wrap')) closeNotifPanel(); }
+function notifEsc(e){ if(e.key === 'Escape'){ closeNotifPanel(); document.getElementById('notif-btn')?.focus(); } }
+async function openNotification(id){
+  const n = notifData.items.find(x => x.id === id);
+  closeNotifPanel();
+  if(!n) return;
+  if(currentStudent){
+    if(n.kind === 'template'){ go('student'); await loadStudentTemplates(); document.getElementById('student-templates')?.scrollIntoView({ behavior:'smooth' }); return; }
+    if(n.lesson_id){
+      // New content may have opened since the page loaded — refresh first.
+      await loadLessons(currentCourseSlug); renderStudentGrid();
+      const idx = lessons.findIndex(l => l.id === n.lesson_id);
+      if(idx >= 0 && lessons[idx].status === 'open' && isPrereqDone(idx)){
+        openDetail(n.lesson_id);
+        if(n.kind === 'feedback') document.querySelector('.tab-btn[data-panel="notes"]')?.click();
+      } else { go('student'); showToast('That lesson is still locked for you.', { type:'success' }); }
+    }
+  } else if(n.kind === 'signup'){
+    go('admin'); activateAdminTab('students');
+  }
+}
+
+/* ═════ STUDENT PROFILE (admin) ═════ */
+function fmtDate(ts, withTime){
+  if(!ts) return '—';
+  const d = new Date(ts);
+  return withTime ? d.toLocaleString(undefined, { dateStyle:'medium', timeStyle:'short' }) : d.toLocaleDateString(undefined, { dateStyle:'medium' });
+}
+async function openStudentProfile(uid){
+  const o = document.createElement('div');
+  closeSmallModal();
+  o.className = 'sm-overlay'; o.id = 'sm-overlay';
+  o.addEventListener('click', e => { if(e.target === o) closeSmallModal(); });
+  o.innerHTML = `<div class="sp-box" role="dialog" aria-modal="true" aria-label="Student profile"><div class="sp-body"><p>Loading profile…</p></div></div>`;
+  document.body.appendChild(o);
+  const esc = e => { if(e.key === 'Escape'){ closeSmallModal(); document.removeEventListener('keydown', esc); } };
+  document.addEventListener('keydown', esc);
+  try {
+    const [users, nd] = await Promise.all([window._studentsCache ? Promise.resolve(window._studentsCache) : api('GET','/users'), api('GET','/admin/notes')]);
+    const s = users.find(u => u.id === uid);
+    if(!s) throw new Error('not found');
+    const prog = {}; (s.progress || []).forEach(p => prog[p.lesson_id] = p);
+    const notes = (nd.notes || []).filter(n => n.user_id === uid);
+    const files = (nd.files || []).filter(f => f.user_id === uid);
+    const fbs = (nd.feedback || []).filter(f => f.user_id === uid);
+    const answersAll = {}; Object.values(prog).forEach(p => answersAll[p.lesson_id] = p.answers || {});
+    let correct = 0, total = 0, quizzesDone = 0, cardsKnown = 0, cardsTotal = 0;
+    const rows = lessons.map(l => {
+      const p = prog[l.id] || {};
+      const sc = studentScore(answersAll, l.id);
+      total += l.quiz.length;
+      if(sc){ correct += sc.correct; }
+      const complete = l.quiz.length && isQuizComplete(l, answersAll);
+      if(complete) quizzesDone++;
+      const nc = (l.flashcards || []).length;
+      const known = nc ? Object.entries(p.cards || {}).filter(([i,v]) => v === 'known' && Number(i) < nc).length : 0;
+      cardsKnown += known; cardsTotal += nc;
+      const hasNote = notes.some(n => n.lesson_id === l.id);
+      const nf = files.filter(f => f.lesson_id === l.id).length;
+      const fb = fbs.find(f => f.lesson_id === l.id);
+      return `<tr>
+        <td><b class="mono" style="font-weight:500;">${escapeHtml(String(l.num))}</b> ${escapeHtml(l.title)}</td>
+        <td class="num">${!l.quiz.length ? '<span style="color:var(--ink-faint)">no quiz</span>' : sc ? `${sc.correct}/${sc.total}${complete?'':' <span style="color:var(--ink-faint)">(in progress)</span>'}` : '<span style="color:var(--ink-faint)">—</span>'}</td>
+        <td class="num">${nc ? `${known}/${nc}` : '<span style="color:var(--ink-faint)">—</span>'}</td>
+        <td>${hasNote ? 'Yes' : '<span style="color:var(--ink-faint)">—</span>'}${nf ? ` · ${nf} file${nf!==1?'s':''}` : ''}</td>
+        <td>${fb ? (fb.rating ? `<span style="color:#C98E00">${starsText(fb.rating)}</span>` : 'Feedback given') : '<span style="color:var(--ink-faint)">—</span>'}</td>
+      </tr>`;
+    }).join('');
+    const pct = total ? Math.round(correct/total*100) : 0;
+    const quizLessons = lessons.filter(l => l.quiz.length).length;
+    o.querySelector('.sp-box').innerHTML = `
+      <div class="sp-head">
+        <div><h2>${escapeHtml(s.name)}</h2>
+          <div style="font-size:13px;color:var(--ink-dim);">${escapeHtml(s.email)}${s.phone ? ' · ' + escapeHtml(s.phone) : ''} · ${s.approved ? '<span class="status-badge open">Approved</span>' : '<span class="status-badge pending">Pending</span>'}</div></div>
+        <button type="button" class="dl-btn" onclick="closeSmallModal()">Close</button>
+      </div>
+      <div class="sp-body">
+        <div class="sp-stats">
+          <div class="sp-stat"><div class="n">${pct}%</div><div class="l">Quiz score (${correct}/${total})</div></div>
+          <div class="sp-stat"><div class="n">${quizzesDone}/${quizLessons}</div><div class="l">Quizzes completed</div></div>
+          <div class="sp-stat"><div class="n">${notes.length}</div><div class="l">Lessons with notes · ${files.length} file${files.length!==1?'s':''}</div></div>
+          <div class="sp-stat"><div class="n">${cardsTotal ? cardsKnown + '/' + cardsTotal : '—'}</div><div class="l">Flashcards known</div></div>
+        </div>
+        <div class="sp-info">
+          <div><b>Joined</b>${fmtDate(s.created_at)}</div>
+          <div><b>Last sign-in</b>${fmtDate(s.last_login, true)}</div>
+          <div><b>Last active</b>${s.last_seen ? timeAgo(s.last_seen) : '—'}</div>
+        </div>
+        <div class="table-wrap"><table class="sp-table">
+          <thead><tr><th>Lesson</th><th>Quiz</th><th>Flashcards</th><th>Notes</th><th>Your review</th></tr></thead>
+          <tbody>${rows}</tbody></table></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px;">
+          <button type="button" class="btn btn-primary btn-sm" onclick="closeSmallModal(); window._notesPreselect='${s.id}'; go('admin'); activateAdminTab('notes');">View notes & give feedback</button>
+          <button type="button" class="dl-btn" onclick="closeSmallModal(); resetStudentPassword('${s.id}', ${escapeHtml(JSON.stringify(s.name))})">Reset password</button>
+        </div>
+      </div>`;
+  } catch(e){
+    console.error(e);
+    o.querySelector('.sp-box').innerHTML = `<div class="sp-body"><p>Couldn't load this profile.</p><button type="button" class="dl-btn" onclick="closeSmallModal()">Close</button></div>`;
+  }
+}
+
 function closeSmallModal(){ const o = document.getElementById('sm-overlay'); if(o) o.remove(); }
 function openSmallModal(html){
   closeSmallModal();
@@ -1612,6 +2063,7 @@ async function renderNotesPanel(){
         </select>
       </div>
       <div id="nv-list"></div>`;
+    if(window._notesPreselect){ const sel = document.getElementById('nv-student'); if([...sel.options].some(o => o.value === window._notesPreselect)) sel.value = window._notesPreselect; window._notesPreselect = null; }
     drawNotesList();
   } catch(e){
     console.error(e);
@@ -1649,7 +2101,21 @@ function pvKey(e){ if(e.key === 'Escape') closePreview(); }
 // Fetches the file with the admin's auth header (a plain <a href> can't send
 // it), then shows it in a modal: images, PDFs, text, audio/video inline;
 // anything else (Word, Excel, zip…) falls back to a download prompt.
-async function previewNoteFile(fileId, name, mimetype){
+function previewNoteFile(fileId, name, mimetype){ return previewAuthFile('/notes/files/' + fileId, name, mimetype); }
+async function downloadAuthFile(path, name){
+  try {
+    const headers = {};
+    if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
+    const r = await fetch(API_BASE + path, { headers });
+    if(!r.ok) throw new Error('Download failed');
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement('a');
+    a.href = url; a.download = name || 'file';
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch(e){ console.error(e); showToast("Couldn't download that file. Please try again."); }
+}
+async function previewAuthFile(path, name, mimetype){
   closePreview();
   const o = document.createElement('div');
   o.className = 'pv-overlay'; o.id = 'pv-overlay';
@@ -1660,12 +2126,12 @@ async function previewNoteFile(fileId, name, mimetype){
     <div class="pv-body" id="pv-body"><div class="pv-none">Loading preview…</div></div></div>`;
   document.body.appendChild(o);
   document.addEventListener('keydown', pvKey);
-  document.getElementById('pv-dl').onclick = () => downloadNoteFile(fileId, name);
+  document.getElementById('pv-dl').onclick = () => downloadAuthFile(path, name);
   const body = document.getElementById('pv-body');
   try {
     const headers = {};
     if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
-    const r = await fetch(API_BASE + '/notes/files/' + fileId + '?disposition=inline', { headers });
+    const r = await fetch(API_BASE + path + (path.includes('?') ? '&' : '?') + 'disposition=inline', { headers });
     if(!r.ok) throw new Error('Preview failed');
     const type = ((mimetype || r.headers.get('content-type') || '').split(';')[0]).toLowerCase();
     const ext  = (name.split('.').pop() || '').toLowerCase();
@@ -2128,6 +2594,19 @@ function openDetail(id){
   if(currentStudent && !currentStudent.answers[id]) currentStudent.answers[id] = {};
   renderQuiz(l);
 
+  // Flashcards tab only shows when the lesson has cards.
+  const nCards = (l.flashcards || []).length;
+  const ctab = document.getElementById('cards-tab-btn');
+  ctab.style.display = nCards ? '' : 'none';
+  ctab.textContent = nCards ? `Flashcards (${nCards})` : 'Flashcards';
+  fcState = { lid: id, order: nCards ? [...Array(nCards).keys()] : [], pos: 0, mode: 'all', flipped: false };
+  renderFlashcards();
+
+  // Templates linked to this lesson appear under its materials.
+  const lt = (studentTemplates || []).filter(t => t.lesson_id === id);
+  if(lt.length) document.getElementById('panel-slides').insertAdjacentHTML('beforeend',
+    `<div class="section-h" style="margin-top:28px;"><h2 style="font-size:18px;">Templates for this lesson</h2></div><div class="tpl-grid">${lt.map(templateCardHtml).join('')}</div>`);
+
   // Reset tabs
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
@@ -2452,7 +2931,7 @@ async function saveQuizAnswer(lid){
 const saveLessonDebounced = debounce(async (id) => {
   const l = lessons.find(x=>x.id===id);
   if(!l) return;
-  try { await api('PATCH', '/lessons/'+id, { title:l.title, blurb:l.blurb, quiz:l.quiz }); }
+  try { await api('PATCH', '/lessons/'+id, { title:l.title, blurb:l.blurb, quiz:l.quiz, flashcards: l.flashcards || [] }); }
   catch(e){
     console.error('Save lesson failed', e);
     showToast("Couldn't save your changes — check your connection.", { retry: () => saveLessonDebounced(id) });
@@ -2568,6 +3047,7 @@ function openEditor(id){
   document.getElementById('editor-desc-input').value    = l.blurb;
   renderEditorSlides(l);
   renderEditorQuiz(l);
+  renderEditorCards(l);
   const editorToggle = document.getElementById('editor-toggle');
   editorToggle.classList.toggle('on', l.status==='open');
   editorToggle.setAttribute('data-toggle-lesson', id);
@@ -2866,12 +3346,14 @@ function updateChrome(s){
   chrome.classList.toggle('mode-admin', isAdmin);
   if(isAdmin){
     const tag = (currentUser && currentUser.role === 'super_admin') ? 'Super Admin' : 'Admin';
-    right.innerHTML = `<span class="admin-tag">${tag}</span>
+    right.innerHTML = `${tag === 'Admin' ? notifBellHtml() : ''}<span class="admin-tag">${tag}</span>
       <button class="chrome-link" onclick="adminSignOut()">Sign out</button>`;
+    updateNotifBadge();
   } else if(isStudent && currentStudent){
-    right.innerHTML = `<span class="chrome-user">${escapeHtml(currentStudent.name)}</span>
+    right.innerHTML = `${notifBellHtml()}<span class="chrome-user">${escapeHtml(currentStudent.name)}</span>
       <button class="chrome-link" onclick="openChangePassword()">Change password</button>
       <button class="chrome-link" onclick="signOutStudent()">Sign out</button>`;
+    updateNotifBadge();
   } else {
     right.innerHTML = '';
   }
@@ -2883,6 +3365,7 @@ function activateAdminTab(panelName){
   document.querySelectorAll('.admin-panel').forEach(p=>p.classList.toggle('active', p.id === 'apanel-'+panelName));
   if(panelName === 'students') renderStudentsPanel();
   if(panelName === 'notes') renderNotesPanel();
+  if(panelName === 'templates') renderTemplatesAdmin();
   if(panelName === 'settings'){
     document.getElementById('settings-course-name').value = courseName;
     document.getElementById('settings-course-link').value = currentCourseSlug ? courseLinkFor(currentCourseSlug) : '';

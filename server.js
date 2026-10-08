@@ -159,6 +159,7 @@ app.post('/api/auth/register', async (req, res) => {
        RETURNING id, name, email, phone, is_admin, approved`,
       [name, email, phone || '', hash, courseId]
     );
+    notify({ course_id: courseId, audience: 'admin', kind: 'signup', text: `${name} signed up and is waiting for approval.` });
     // No token is issued — the account is pending admin approval.
     res.status(201).json({ pending: true, user: result.rows[0] });
   } catch (e) {
@@ -186,6 +187,7 @@ app.post('/api/auth/login', async (req, res) => {
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) return res.status(401).json({ error: 'wrong-password' });
     if (!user.is_admin && !user.approved) return res.status(403).json({ error: 'account-pending' });
+    pool.query('UPDATE users SET last_login = NOW(), last_seen = NOW() WHERE id = $1', [user.id]).catch(() => {});
     const token = jwt.sign(
       { id: user.id, email: user.email, is_admin: user.is_admin, role: user.role, course_id: user.course_id },
       JWT_SECRET,
@@ -217,13 +219,14 @@ app.get('/api/auth/me', auth, async (req, res) => {
       [req.user.id]
     );
     const progressRes = await pool.query(
-      `SELECT p.lesson_id, p.answers, p.note, f.comment AS feedback, f.rating AS feedback_rating, f.updated_at AS feedback_at
+      `SELECT p.lesson_id, p.answers, p.note, p.cards, f.comment AS feedback, f.rating AS feedback_rating, f.updated_at AS feedback_at
        FROM user_progress p
        LEFT JOIN note_feedback f ON f.user_id = p.user_id AND f.lesson_id = p.lesson_id
        WHERE p.user_id = $1`,
       [req.user.id]
     );
     const user = userRes.rows[0];
+    pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1', [req.user.id]).catch(() => {});
     user.progress = progressRes.rows; // array of { lesson_id, answers, note }
     res.json(user);
   } catch (e) {
@@ -231,6 +234,16 @@ app.get('/api/auth/me', auth, async (req, res) => {
     res.status(500).json({ error: 'Server error' });
   }
 });
+
+// Fire-and-forget: a failed notification must never break the action itself.
+async function notify({ course_id, user_id = null, audience = 'student', kind, text, lesson_id = null }) {
+  try {
+    await pool.query(
+      `INSERT INTO notifications (course_id, user_id, audience, kind, text, lesson_id) VALUES ($1,$2,$3,$4,$5,$6)`,
+      [course_id, user_id, audience, kind, text, lesson_id]
+    );
+  } catch (e) { console.error('Notify error:', e.message); }
+}
 
 // ─── LESSONS ROUTES ──────────────────────────────────────────────────────────
 
@@ -285,10 +298,10 @@ app.post('/api/lessons', auth, adminOnly, async (req, res) => {
 
 // PATCH /api/lessons/:id  — admin only, must own the lesson's course
 app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
-  const { title, blurb, status, quiz, slides, sort_order, quiz_mandatory } = req.body;
+  const { title, blurb, status, quiz, slides, sort_order, quiz_mandatory, flashcards } = req.body;
   const { id } = req.params;
   try {
-    const existing = await pool.query('SELECT course_id FROM lessons WHERE id = $1', [id]);
+    const existing = await pool.query('SELECT course_id, status, title FROM lessons WHERE id = $1', [id]);
     if (!existing.rows.length) return res.status(404).json({ error: 'Lesson not found' });
     if (existing.rows[0].course_id !== req.user.course_id) return res.status(403).json({ error: 'Forbidden' });
 
@@ -300,6 +313,11 @@ app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
     if (status  !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
     if (quiz    !== undefined) { fields.push(`quiz   = $${i++}`); values.push(JSON.stringify(quiz)); }
     if (slides  !== undefined) { fields.push(`slides = $${i++}`); values.push(JSON.stringify(slides)); }
+    if (flashcards !== undefined) {
+      const clean = (Array.isArray(flashcards) ? flashcards : []).slice(0, 300)
+        .map(c => ({ term: String((c && c.term) || '').slice(0, 300), def: String((c && c.def) || '').slice(0, 2000) }));
+      fields.push(`flashcards = $${i++}`); values.push(JSON.stringify(clean));
+    }
     if (quiz_mandatory !== undefined) { fields.push(`quiz_mandatory = $${i++}`); values.push(!!quiz_mandatory); }
     if (sort_order !== undefined) {
       const n = parseInt(sort_order, 10);
@@ -312,6 +330,9 @@ app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
       `UPDATE lessons SET ${fields.join(', ')} WHERE id = $${i} RETURNING *`,
       values
     );
+    if (status === 'open' && existing.rows[0].status !== 'open') {
+      notify({ course_id: req.user.course_id, kind: 'lesson', lesson_id: Number(id), text: `New lesson opened: ${result.rows[0].title}` });
+    }
     res.json(result.rows[0]);
   } catch (e) {
     console.error('Update lesson error:', e.message);
@@ -516,8 +537,16 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
   if (req.user.id !== req.params.id && !req.user.is_admin) {
     return res.status(403).json({ error: 'Forbidden' });
   }
-  const { answers, note } = req.body;
+  const { answers, note, cards } = req.body;
   try {
+    if (cards !== undefined) {
+      await pool.query(
+        `INSERT INTO user_progress (user_id, lesson_id, cards) VALUES ($1, $2, $3)
+         ON CONFLICT (user_id, lesson_id) DO UPDATE SET cards = $3`,
+        [req.params.id, req.params.lessonId, JSON.stringify(cards || {})]
+      );
+      if (answers === undefined && note === undefined) return res.json({ ok: true });
+    }
     await pool.query(
       `INSERT INTO user_progress (user_id, lesson_id, answers, note)
        VALUES ($1, $2, $3, $4)
@@ -643,6 +672,106 @@ app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
   }
 });
 
+// ─── TEMPLATES LIBRARY ───────────────────────────────────────────────────────
+
+// GET /api/templates — any signed-in user in the course (metadata only).
+app.get('/api/templates', auth, async (req, res) => {
+  try {
+    const r = await pool.query(
+      `SELECT id, lesson_id, title, description, name, mimetype, octet_length(data) AS size, created_at
+         FROM templates WHERE course_id = $1 ORDER BY created_at DESC`, [req.user.course_id]);
+    res.json(r.rows);
+  } catch (e) { console.error('Templates list error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/templates/:id/file — download (or ?disposition=inline) for course members.
+app.get('/api/templates/:id/file', auth, async (req, res) => {
+  try {
+    const r = await pool.query('SELECT course_id, name, mimetype, data FROM templates WHERE id = $1', [req.params.id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Template not found' });
+    const t = r.rows[0];
+    if (t.course_id !== req.user.course_id && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' });
+    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+    res.setHeader('Content-Type', t.mimetype || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `${disposition}; filename="${ensureExtension((t.name || 'template').replace(/[\r\n"]/g, ''), t.mimetype)}"`);
+    res.send(t.data);
+  } catch (e) { console.error('Template download error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/templates — admin uploads a template (multipart: file, title, description, lesson_id).
+app.post('/api/templates', auth, adminOnly, upload.single('file'), async (req, res) => {
+  if (!req.file) return res.status(400).json({ error: 'file is required' });
+  const title = String(req.body.title || req.file.originalname).trim().slice(0, 200);
+  const description = String(req.body.description || '').trim().slice(0, 2000);
+  let lessonId = req.body.lesson_id ? parseInt(req.body.lesson_id, 10) : null;
+  try {
+    if (lessonId) {
+      const l = await pool.query('SELECT 1 FROM lessons WHERE id = $1 AND course_id = $2', [lessonId, req.user.course_id]);
+      if (!l.rows.length) lessonId = null;
+    }
+    const r = await pool.query(
+      `INSERT INTO templates (course_id, lesson_id, title, description, name, mimetype, data)
+       VALUES ($1,$2,$3,$4,$5,$6,$7)
+       RETURNING id, lesson_id, title, description, name, mimetype, octet_length(data) AS size, created_at`,
+      [req.user.course_id, lessonId, title, description, req.file.originalname, req.file.mimetype || 'application/octet-stream', req.file.buffer]);
+    notify({ course_id: req.user.course_id, kind: 'template', text: `New resource available: ${title}` });
+    res.status(201).json(r.rows[0]);
+  } catch (e) { console.error('Template upload error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// PATCH /api/templates/:id — admin edits title/description/lesson.
+app.patch('/api/templates/:id', auth, adminOnly, async (req, res) => {
+  const { title, description, lesson_id } = req.body || {};
+  try {
+    const r = await pool.query(
+      `UPDATE templates SET
+         title = COALESCE($1, title), description = COALESCE($2, description),
+         lesson_id = CASE WHEN $3::text = 'keep' THEN lesson_id ELSE NULLIF($3::text, '')::int END
+       WHERE id = $4 AND course_id = $5
+       RETURNING id, lesson_id, title, description, name, mimetype, octet_length(data) AS size, created_at`,
+      [title != null ? String(title).slice(0, 200) : null, description != null ? String(description).slice(0, 2000) : null,
+       lesson_id === undefined ? 'keep' : (lesson_id === null ? '' : String(parseInt(lesson_id, 10) || '')),
+       req.params.id, req.user.course_id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Template not found' });
+    res.json(r.rows[0]);
+  } catch (e) { console.error('Template update error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /api/templates/:id — admin only, own course.
+app.delete('/api/templates/:id', auth, adminOnly, async (req, res) => {
+  try {
+    await pool.query('DELETE FROM templates WHERE id = $1 AND course_id = $2', [req.params.id, req.user.course_id]);
+    res.json({ ok: true });
+  } catch (e) { console.error('Template delete error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+
+// GET /api/notifications — latest 30 for the current user + unread count.
+app.get('/api/notifications', auth, async (req, res) => {
+  try {
+    const audience = req.user.is_admin ? 'admin' : 'student';
+    const u = await pool.query('SELECT notif_seen_at, created_at FROM users WHERE id = $1', [req.user.id]);
+    const seen = u.rows[0] && (u.rows[0].notif_seen_at || u.rows[0].created_at);
+    const r = await pool.query(
+      `SELECT id, kind, text, lesson_id, created_at, (created_at > $3) AS unread
+         FROM notifications
+        WHERE course_id = $1 AND audience = $4 AND (user_id IS NULL OR user_id = $2)
+          AND created_at >= (SELECT created_at FROM users WHERE id = $2) - INTERVAL '1 day'
+        ORDER BY created_at DESC LIMIT 30`,
+      [req.user.course_id, req.user.id, seen, audience]);
+    res.json({ items: r.rows, unread: r.rows.filter(x => x.unread).length });
+  } catch (e) { console.error('Notifications error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/notifications/seen — mark everything up to now as read.
+app.post('/api/notifications/seen', auth, async (req, res) => {
+  try {
+    await pool.query('UPDATE users SET notif_seen_at = NOW() WHERE id = $1', [req.user.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error('Notifications seen error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 // ─── ADMIN ROUTES (scoped to the admin's own course) ─────────────────────────
 
 // PATCH /api/users/:id/approval — approve or revoke a student account (admin only, own course)
@@ -703,6 +832,9 @@ app.put('/api/admin/notes/:userId/:lessonId/feedback', auth, adminOnly, async (r
        ON CONFLICT (user_id, lesson_id) DO UPDATE SET comment = $3, rating = $4, admin_id = $5, updated_at = NOW()`,
       [req.params.userId, req.params.lessonId, comment, rating, req.user.id]
     );
+    const ln = await pool.query('SELECT title FROM lessons WHERE id = $1', [req.params.lessonId]);
+    notify({ course_id: req.user.course_id, user_id: req.params.userId, kind: 'feedback', lesson_id: Number(req.params.lessonId),
+             text: `Your instructor left feedback on your notes for "${ln.rows[0] ? ln.rows[0].title : 'a lesson'}".` });
     res.json({ ok: true, comment, rating });
   } catch (e) {
     console.error('Feedback save error:', e.message);
@@ -769,7 +901,7 @@ app.patch('/api/admin/credentials', auth, adminOnly, async (req, res) => {
 app.get('/api/users', auth, adminOnly, async (req, res) => {
   try {
     const usersRes = await pool.query(
-      `SELECT id, name, email, phone, is_admin, approved, created_at FROM users
+      `SELECT id, name, email, phone, is_admin, approved, created_at, last_login, last_seen FROM users
        WHERE course_id = $1 AND role = 'student'
        ORDER BY created_at DESC`,
       [req.user.course_id]
@@ -780,7 +912,7 @@ app.get('/api/users', auth, adminOnly, async (req, res) => {
     const progressMap = {};
     for (const row of progressRes.rows) {
       if (!progressMap[row.user_id]) progressMap[row.user_id] = [];
-      progressMap[row.user_id].push({ lesson_id: row.lesson_id, answers: row.answers, note: row.note });
+      progressMap[row.user_id].push({ lesson_id: row.lesson_id, answers: row.answers, note: row.note, cards: row.cards });
     }
     const users = usersRes.rows.map(u => ({ ...u, progress: progressMap[u.id] || [] }));
     res.json(users);
@@ -970,6 +1102,39 @@ async function initDb() {
   await pool.query(`UPDATE lessons SET quiz_mandatory = TRUE WHERE quiz_mandatory IS NULL`);
   // Optional 1–5 star review an admin can give alongside written feedback.
   await pool.query(`ALTER TABLE note_feedback ADD COLUMN IF NOT EXISTS rating SMALLINT`);
+  // Flashcards (per lesson, admin-authored) and each student's card progress.
+  await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS flashcards JSONB DEFAULT '[]'`);
+  await pool.query(`ALTER TABLE user_progress ADD COLUMN IF NOT EXISTS cards JSONB DEFAULT '{}'`);
+  // Activity tracking + notification read marker.
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login TIMESTAMP`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen TIMESTAMP`);
+  await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS notif_seen_at TIMESTAMP DEFAULT NOW()`);
+  // PM templates library (course-wide files, optionally tied to a lesson).
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS templates (
+      id          SERIAL PRIMARY KEY,
+      course_id   INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+      lesson_id   INTEGER REFERENCES lessons(id) ON DELETE SET NULL,
+      title       TEXT NOT NULL,
+      description TEXT DEFAULT '',
+      name        TEXT NOT NULL,
+      mimetype    TEXT NOT NULL,
+      data        BYTEA NOT NULL,
+      created_at  TIMESTAMP DEFAULT NOW()
+    )`);
+  // Notifications: user_id NULL = for everyone in the course with that audience.
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS notifications (
+      id         SERIAL PRIMARY KEY,
+      course_id  INTEGER REFERENCES courses(id) ON DELETE CASCADE,
+      user_id    UUID REFERENCES users(id) ON DELETE CASCADE,
+      audience   TEXT NOT NULL DEFAULT 'student',
+      kind       TEXT NOT NULL,
+      text       TEXT NOT NULL,
+      lesson_id  INTEGER,
+      created_at TIMESTAMP DEFAULT NOW()
+    )`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS notifications_course_idx ON notifications(course_id, created_at DESC)`);
 
   // Lesson ordering used to be purely derived from creation order (id ASC).
   // sort_order lets an admin manually reorder/renumber lessons instead.
