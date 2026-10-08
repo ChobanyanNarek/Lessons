@@ -266,7 +266,18 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .empty-state .ei{font-size:38px;margin-bottom:12px;}
 .empty-state p{font-size:14px;}
 .notes-filter{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px;}
-.notes-filter select{padding:9px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:13px;}
+.notes-filter select{padding:9px 12px;border:1px solid var(--line-strong);border-radius:8px;background-color:var(--surface);color:var(--ink);font-family:inherit;font-size:13px;min-width:150px;}
+/* One consistent dropdown style: custom chevron with breathing room instead of
+   the browser's default arrow jammed against the edge. */
+select.app-select,.notes-filter select,.tpl-form select{
+  -webkit-appearance:none;-moz-appearance:none;appearance:none;cursor:pointer;
+  padding-right:38px !important;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8' fill='none' stroke='%234E5F7D' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M1 1.5l5 5 5-5'/%3E%3C/svg%3E");
+  background-repeat:no-repeat;background-position:right 14px center;background-size:12px 8px;
+  transition:border-color .15s, box-shadow .15s;
+}
+select.app-select:hover,.notes-filter select:hover,.tpl-form select:hover{border-color:var(--blue);}
+select.app-select:focus,.notes-filter select:focus,.tpl-form select:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
 .nv-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin-bottom:12px;}
 .nv-head{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;}
 .nv-body{font-size:14px;line-height:1.6;color:var(--ink);overflow-wrap:anywhere;}
@@ -336,7 +347,7 @@ tbody tr:hover td.sticky-col{background:var(--surface-alt);}
 .tpl-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .tpl-form .full{grid-column:1/-1;}
 .tpl-form label{display:block;font-size:12px;color:var(--ink-faint);margin-bottom:6px;}
-.tpl-form select{width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:6px;background:var(--surface);color:var(--ink);font-family:inherit;font-size:14px;}
+.tpl-form select{width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;background-color:var(--surface);color:var(--ink);font-family:inherit;font-size:14px;}
 @media(max-width:640px){.tpl-form{grid-template-columns:1fr;}}
 .fc-row{display:grid;grid-template-columns:1fr 2fr auto;gap:8px;margin-bottom:8px;align-items:start;}
 .fc-row textarea{min-height:42px;}
@@ -1593,7 +1604,7 @@ async function renderTemplatesAdmin(){
       <h4>${escapeHtml(t.title)}</h4>
       ${t.description ? `<p>${escapeHtml(t.description)}</p>` : ''}
       <div class="tpl-meta">${escapeHtml(t.name)} · ${fmtSize(t.size)}</div>
-      <select aria-label="Related lesson" onchange="setTemplateLesson(${t.id}, this.value)" style="padding:7px 10px;border:1px solid var(--line-strong);border-radius:6px;font-family:inherit;font-size:12px;background:var(--surface);color:var(--ink);">
+      <select class="app-select" aria-label="Related lesson" onchange="setTemplateLesson(${t.id}, this.value)" style="padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;font-family:inherit;font-size:12px;background-color:var(--surface);color:var(--ink);">
         <option value="">— Whole course —</option>
         ${lessons.map(l => `<option value="${l.id}"${l.id===t.lesson_id?' selected':''}>Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</option>`).join('')}
       </select>
