@@ -37,10 +37,23 @@ function auth(req, res, next) {
   try {
     const token = header.split(' ')[1];
     req.user = jwt.verify(token, JWT_SECRET);
+    trackActiveDay(req.user);
     next();
   } catch {
     res.status(401).json({ error: 'Invalid or expired token' });
   }
+}
+
+// One row per student per calendar day they use the platform (for "active
+// days" leaderboard points). Cached in memory so it's one DB write per day.
+const _activeSeen = new Map();
+function trackActiveDay(user) {
+  if (!user || user.is_admin) return;
+  const day = new Date().toISOString().slice(0, 10);
+  if (_activeSeen.get(user.id) === day) return;
+  _activeSeen.set(user.id, day);
+  pool.query('INSERT INTO activity_days (user_id, day) VALUES ($1, $2) ON CONFLICT DO NOTHING', [user.id, day])
+    .catch(() => _activeSeen.delete(user.id));
 }
 
 function adminOnly(req, res, next) {
@@ -331,6 +344,7 @@ app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
       values
     );
     if (status === 'open' && existing.rows[0].status !== 'open') {
+      lbSettings(req.user.course_id).then(st => { if (st.enabled && st.mode === 'lesson') return currentLeaderboard(req.user.course_id, { force: true }); }).catch(() => {});
       notify({ course_id: req.user.course_id, kind: 'lesson', lesson_id: Number(id), text: `New lesson opened: ${result.rows[0].title}` });
     }
     res.json(result.rows[0]);
@@ -892,6 +906,142 @@ app.put('/api/admin/questions/:id/answer', auth, adminOnly, async (req, res) => 
   } catch (e) { console.error('Answer error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
+// ─── LEADERBOARD ("Course points", top 3) ────────────────────────────────────
+const LB_POINTS = { correct: 10, lessonDone: 20, noteLesson: 5, reviewStar: 4, cardKnown: 1, question: 3, questionCapPerLesson: 2, activeDay: 2 };
+const LB_DEFAULTS = { enabled: true, mode: 'live' };          // mode: live | days2 | lesson
+
+function lbQuizCorrect(q, ans) {
+  if (q.multi) {
+    const c = (q.correct || []).slice().sort((a, b) => a - b);
+    const g = Array.isArray(ans) ? ans.slice().sort((a, b) => a - b) : [];
+    return c.length > 0 && c.length === g.length && c.every((v, i) => v === g[i]);
+  }
+  return ans === q.answer;
+}
+function lbAnswered(q, ans) { return q.multi ? Array.isArray(ans) : ans !== undefined && ans !== null; }
+
+async function lbSettings(courseId) {
+  const r = await pool.query('SELECT value FROM settings WHERE key = $1', ['lb:' + courseId]);
+  let v = {};
+  try { v = r.rows.length ? JSON.parse(r.rows[0].value) : {}; } catch (_) {}
+  return { ...LB_DEFAULTS, ...v };
+}
+async function lbSaveSettings(courseId, v) {
+  await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`, ['lb:' + courseId, JSON.stringify(v)]);
+}
+
+// Full live ranking of approved students in a course, with a points breakdown.
+async function computeLeaderboard(courseId) {
+  const [stu, les, prog, fb, qs, act] = await Promise.all([
+    pool.query(`SELECT id, name, created_at FROM users WHERE course_id = $1 AND role = 'student' AND approved = true`, [courseId]),
+    pool.query(`SELECT id, quiz, flashcards FROM lessons WHERE course_id = $1`, [courseId]),
+    pool.query(`SELECT p.user_id, p.lesson_id, p.answers, p.note, p.cards FROM user_progress p JOIN users u ON u.id = p.user_id WHERE u.course_id = $1`, [courseId]),
+    pool.query(`SELECT f.user_id, f.rating FROM note_feedback f JOIN users u ON u.id = f.user_id WHERE u.course_id = $1 AND f.rating IS NOT NULL`, [courseId]),
+    pool.query(`SELECT user_id, lesson_id, COUNT(*)::int AS n FROM lesson_questions WHERE course_id = $1 GROUP BY user_id, lesson_id`, [courseId]),
+    pool.query(`SELECT a.user_id, COUNT(*)::int AS n FROM activity_days a JOIN users u ON u.id = a.user_id WHERE u.course_id = $1 GROUP BY a.user_id`, [courseId]),
+  ]);
+  const lessonById = {};
+  les.rows.forEach(l => { lessonById[l.id] = { quiz: Array.isArray(l.quiz) ? l.quiz : [], cards: Array.isArray(l.flashcards) ? l.flashcards.length : 0 }; });
+  const rows = {};
+  stu.rows.forEach(u => { rows[u.id] = { id: u.id, name: u.name, joined: u.created_at,
+    b: { correct: 0, lessonsDone: 0, noteLessons: 0, stars: 0, cardsKnown: 0, questions: 0, activeDays: 0 } }; });
+  prog.rows.forEach(p => {
+    const r = rows[p.user_id], l = lessonById[p.lesson_id]; if (!r || !l) return;
+    const ans = p.answers || {};
+    if (l.quiz.length) {
+      r.b.correct += l.quiz.filter((q, i) => lbQuizCorrect(q, ans[i])).length;
+      if (l.quiz.every((q, i) => lbAnswered(q, ans[i]))) r.b.lessonsDone += 1;
+    }
+    const text = String(p.note || '').replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
+    if (text) r.b.noteLessons += 1;
+    const cards = p.cards || {};
+    r.b.cardsKnown += Object.entries(cards).filter(([i, v]) => v === 'known' && Number(i) < l.cards).length;
+  });
+  fb.rows.forEach(f => { if (rows[f.user_id]) rows[f.user_id].b.stars += Number(f.rating) || 0; });
+  qs.rows.forEach(q => { if (rows[q.user_id]) rows[q.user_id].b.questions += Math.min(q.n, LB_POINTS.questionCapPerLesson); });
+  act.rows.forEach(a => { if (rows[a.user_id]) rows[a.user_id].b.activeDays += a.n; });
+  const list = Object.values(rows).map(r => {
+    const b = r.b, P = LB_POINTS;
+    const parts = { quiz: b.correct * P.correct, lessons: b.lessonsDone * P.lessonDone, notes: b.noteLessons * P.noteLesson,
+                    reviews: b.stars * P.reviewStar, flashcards: b.cardsKnown * P.cardKnown, questions: b.questions * P.question, activity: b.activeDays * P.activeDay };
+    const points = Object.values(parts).reduce((a, x) => a + x, 0);
+    return { id: r.id, name: r.name, points, parts, counts: b, joined: r.joined };
+  });
+  // Ties: more correct answers first, then whoever joined earlier.
+  list.sort((a, b) => b.points - a.points || b.counts.correct - a.counts.correct || new Date(a.joined) - new Date(b.joined));
+  list.forEach((r, i) => { r.rank = i + 1; delete r.joined; });
+  return list;
+}
+
+// Returns the ranking students should see, honouring the update mode:
+// live = always fresh; days2 = refreshed at most every 48h; lesson = frozen
+// until the admin opens a new lesson. Also announces new top-3 entries.
+async function currentLeaderboard(courseId, { force = false } = {}) {
+  const st = await lbSettings(courseId);
+  let ranking, at;
+  const stale = !st.snapshot || (st.mode === 'days2' && Date.now() - new Date(st.snapshot.at).getTime() > 48 * 3600 * 1000);
+  if (st.mode === 'live' || force || stale) {
+    ranking = await computeLeaderboard(courseId);
+    at = new Date().toISOString();
+    const prevTop = (st.snapshot && st.snapshot.top3) || [];
+    const top3 = ranking.slice(0, 3).filter(r => r.points > 0).map(r => r.id);
+    const newcomers = top3.filter(id => !prevTop.includes(id));
+    st.snapshot = { at, top3, ranking: st.mode === 'live' ? undefined : ranking };
+    if (st.mode === 'live') delete st.snapshot.ranking;
+    await lbSaveSettings(courseId, st);
+    if (prevTop.length || st.notifiedOnce) {
+      newcomers.forEach(id => { const r = ranking.find(x => x.id === id);
+        notify({ course_id: courseId, kind: 'leaderboard', text: `${r.name} entered the top 3 with ${r.points} points!` }); });
+    }
+    if (!st.notifiedOnce) { st.notifiedOnce = true; await lbSaveSettings(courseId, st); }
+  } else {
+    ranking = st.snapshot.ranking || await computeLeaderboard(courseId);
+    at = st.snapshot.at;
+  }
+  return { settings: st, ranking, at };
+}
+
+// GET /api/leaderboard — top 3 + the caller's own position.
+app.get('/api/leaderboard', auth, async (req, res) => {
+  try {
+    if (!req.user.course_id) return res.json({ enabled: false });
+    const st = await lbSettings(req.user.course_id);
+    if (!st.enabled) return res.json({ enabled: false });
+    const { ranking, at, settings } = await currentLeaderboard(req.user.course_id);
+    const top = ranking.filter(r => r.points > 0).slice(0, 3).map(r => ({ rank: r.rank, name: r.name, points: r.points, me: r.id === req.user.id }));
+    const mine = ranking.find(r => r.id === req.user.id);
+    const third = ranking[2];
+    res.json({ enabled: true, mode: settings.mode, updated_at: at, total: ranking.length, points: LB_POINTS, top,
+      me: mine ? { rank: mine.rank, points: mine.points, parts: mine.parts, to_top3: mine.rank > 3 && third ? Math.max(1, third.points - mine.points + 1) : 0 } : null });
+  } catch (e) { console.error('Leaderboard error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// GET /api/admin/leaderboard — full live ranking with breakdown + settings.
+app.get('/api/admin/leaderboard', auth, adminOnly, async (req, res) => {
+  try {
+    const st = await lbSettings(req.user.course_id);
+    const ranking = await computeLeaderboard(req.user.course_id);
+    res.json({ settings: { enabled: st.enabled, mode: st.mode, updated_at: st.snapshot ? st.snapshot.at : null }, points: LB_POINTS, ranking });
+  } catch (e) { console.error('Admin leaderboard error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// PUT /api/admin/leaderboard/settings — { enabled?, mode? }
+app.put('/api/admin/leaderboard/settings', auth, adminOnly, async (req, res) => {
+  try {
+    const st = await lbSettings(req.user.course_id);
+    if (typeof req.body.enabled === 'boolean') st.enabled = req.body.enabled;
+    if (['live', 'days2', 'lesson'].includes(req.body.mode) && req.body.mode !== st.mode) { st.mode = req.body.mode; delete st.snapshot; }
+    await lbSaveSettings(req.user.course_id, st);
+    res.json({ enabled: st.enabled, mode: st.mode });
+  } catch (e) { console.error('Leaderboard settings error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/admin/leaderboard/refresh — recalculate what students see now.
+app.post('/api/admin/leaderboard/refresh', auth, adminOnly, async (req, res) => {
+  try { const r = await currentLeaderboard(req.user.course_id, { force: true }); res.json({ ok: true, updated_at: r.at }); }
+  catch (e) { console.error('Leaderboard refresh error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 // ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
 
 // GET /api/notifications — latest 30 for the current user + unread count.
@@ -1329,6 +1479,12 @@ async function initDb() {
       answer      TEXT,
       answered_at TIMESTAMP,
       created_at  TIMESTAMP DEFAULT NOW()
+    )`);
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS activity_days (
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      day     DATE NOT NULL,
+      PRIMARY KEY (user_id, day)
     )`);
   // Resources can also be plain links (no file).
   await pool.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS url TEXT`);
