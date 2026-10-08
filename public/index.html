@@ -346,6 +346,12 @@ select.app-select:focus,.notes-filter select:focus,.tpl-form select:focus{outlin
 .section-h span{font-size:13px;color:var(--ink-faint);}
 .tpl-form{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
 .tpl-form .full{grid-column:1/-1;}
+.seg{display:inline-flex;border:1px solid var(--line-strong);border-radius:8px;overflow:hidden;}
+.seg-btn{padding:8px 16px;font-family:inherit;font-size:13px;border:none;background:var(--surface);color:var(--ink-dim);cursor:pointer;}
+.seg-btn + .seg-btn{border-left:1px solid var(--line-strong);}
+.seg-btn.on{background:var(--blue-soft);color:var(--blue);font-weight:600;}
+.seg-btn:focus-visible{outline:2px solid var(--blue);outline-offset:-2px;}
+a.dl-btn{text-decoration:none;display:inline-flex;align-items:center;}
 .tpl-form label{display:block;font-size:12px;color:var(--ink-faint);margin-bottom:6px;}
 .tpl-form select{width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:8px;background-color:var(--surface);color:var(--ink);font-family:inherit;font-size:14px;}
 @media(max-width:640px){.tpl-form{grid-template-columns:1fr;}}
@@ -607,7 +613,14 @@ textarea.field-textarea:focus{outline:2px solid var(--blue);outline-offset:1px;b
           <div><label for="tpl-title">Title</label><input type="text" class="field-input" id="tpl-title" placeholder="e.g. Project charter template"></div>
           <div><label for="tpl-lesson">Related lesson (optional)</label><select id="tpl-lesson"></select></div>
           <div class="full"><label for="tpl-desc">Short description (optional)</label><input type="text" class="field-input" id="tpl-desc" placeholder="When and how students should use it"></div>
-          <div class="full"><label for="tpl-file">File (Word, Excel, PowerPoint, PDF… max 15MB)</label><input type="file" id="tpl-file"></div>
+          <div class="full">
+            <div class="seg" role="radiogroup" aria-label="Resource type">
+              <button type="button" class="seg-btn on" role="radio" aria-checked="true" id="tpl-kind-file" onclick="setTplKind('file')">Upload a file</button>
+              <button type="button" class="seg-btn" role="radio" aria-checked="false" id="tpl-kind-link" onclick="setTplKind('link')">Add a link</button>
+            </div>
+          </div>
+          <div class="full" id="tpl-file-row"><label for="tpl-file">File (Word, Excel, PowerPoint, PDF… max 15MB)</label><input type="file" id="tpl-file"></div>
+          <div class="full" id="tpl-link-row" style="display:none;"><label for="tpl-url">Link (Google Drive, Notion, a website, a video…)</label><input type="url" class="field-input" id="tpl-url" placeholder="https://…"></div>
         </div>
         <div style="margin-top:14px;display:flex;align-items:center;gap:12px;">
           <button type="button" class="btn btn-primary btn-sm" id="tpl-upload-btn" onclick="uploadTemplate()">Upload resource</button>
@@ -1570,24 +1583,43 @@ async function downloadAllMyNotes(){
 
 /* ═════ RESOURCES LIBRARY (templates, handouts…) ═════ */
 var studentTemplates = [];
+function linkHost(u){ try { return new URL(u).hostname.replace(/^www\./,''); } catch(e){ return u; } }
+function safeHref(u){ return /^https?:\/\//i.test(u || '') ? u : '#'; }
+function templateMetaHtml(t, l){
+  const lessonPart = l ? ' · Lesson ' + escapeHtml(String(l.num)) : '';
+  return t.url ? `Link · ${escapeHtml(linkHost(t.url))}${lessonPart}`
+    : `${escapeHtml(((t.name||'').split('.').pop() || '').toUpperCase())} · ${fmtSize(t.size)}${lessonPart}`;
+}
+function templateActionsHtml(t){
+  if(t.url) return `<a class="dl-btn" href="${escapeHtml(safeHref(t.url))}" target="_blank" rel="noopener noreferrer">Open link ↗</a>`;
+  const path = `/templates/${t.id}/file`;
+  return `<button type="button" class="dl-btn" onclick="previewAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))}, ${escapeHtml(JSON.stringify(t.mimetype||''))})">Preview</button>
+      <button type="button" class="dl-btn" onclick="downloadAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))})">Download</button>`;
+}
+function setTplKind(k){
+  document.getElementById('tpl-kind-file').classList.toggle('on', k==='file');
+  document.getElementById('tpl-kind-link').classList.toggle('on', k==='link');
+  document.getElementById('tpl-kind-file').setAttribute('aria-checked', k==='file');
+  document.getElementById('tpl-kind-link').setAttribute('aria-checked', k==='link');
+  document.getElementById('tpl-file-row').style.display = k==='file' ? '' : 'none';
+  document.getElementById('tpl-link-row').style.display = k==='link' ? '' : 'none';
+  document.getElementById('tpl-upload-btn').textContent = k==='file' ? 'Upload resource' : 'Add link';
+  document.getElementById('tpl-status').textContent = '';
+}
 function templateCardHtml(t){
   const l = lessons.find(x => x.id === t.lesson_id);
-  const path = `/templates/${t.id}/file`;
   return `<div class="tpl-card">
     <h4>${escapeHtml(t.title)}</h4>
     ${t.description ? `<p>${escapeHtml(t.description)}</p>` : ''}
-    <div class="tpl-meta">${escapeHtml((t.name.split('.').pop() || '').toUpperCase())} · ${fmtSize(t.size)}${l ? ' · Lesson ' + escapeHtml(String(l.num)) : ''}</div>
-    <div class="tpl-actions">
-      <button type="button" class="dl-btn" onclick="previewAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))}, ${escapeHtml(JSON.stringify(t.mimetype||''))})">Preview</button>
-      <button type="button" class="dl-btn" onclick="downloadAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))})">Download</button>
-    </div></div>`;
+    <div class="tpl-meta">${templateMetaHtml(t, l)}</div>
+    <div class="tpl-actions">${templateActionsHtml(t)}</div></div>`;
 }
 async function loadStudentTemplates(){
   try { studentTemplates = await api('GET', '/templates'); } catch(e){ studentTemplates = []; }
   const el = document.getElementById('student-templates');
   if(!el) return;
   el.innerHTML = studentTemplates.length ? `
-    <div class="section-h"><h2>Resources</h2><span>${studentTemplates.length} file${studentTemplates.length!==1?'s':''} from your instructor</span></div>
+    <div class="section-h"><h2>Resources</h2><span>${studentTemplates.length} resource${studentTemplates.length!==1?'s':''} from your instructor</span></div>
     <div class="tpl-grid">${studentTemplates.map(templateCardHtml).join('')}</div>` : '';
 }
 async function renderTemplatesAdmin(){
@@ -1599,40 +1631,47 @@ async function renderTemplatesAdmin(){
   try { list = await api('GET', '/templates'); } catch(e){ box.innerHTML = `<div class="empty-state"><p>Failed to load resources.</p></div>`; return; }
   if(!list.length){ box.innerHTML = `<div class="empty-state"><p>No resources yet. Upload the first one above — students see them on their dashboard and under the related lesson.</p></div>`; return; }
   box.innerHTML = `<div class="students-meta">${list.length} resource${list.length!==1?'s':''}</div><div class="tpl-grid">` + list.map(t => {
-    const path = `/templates/${t.id}/file`;
     return `<div class="tpl-card">
       <h4>${escapeHtml(t.title)}</h4>
       ${t.description ? `<p>${escapeHtml(t.description)}</p>` : ''}
-      <div class="tpl-meta">${escapeHtml(t.name)} · ${fmtSize(t.size)}</div>
+      <div class="tpl-meta">${t.url ? 'Link · ' + escapeHtml(linkHost(t.url)) : escapeHtml(t.name) + ' · ' + fmtSize(t.size)}</div>
       <select class="app-select" aria-label="Related lesson" onchange="setTemplateLesson(${t.id}, this.value)" style="padding:7px 10px;border:1px solid var(--line-strong);border-radius:8px;font-family:inherit;font-size:12px;background-color:var(--surface);color:var(--ink);">
         <option value="">— Whole course —</option>
         ${lessons.map(l => `<option value="${l.id}"${l.id===t.lesson_id?' selected':''}>Lesson ${escapeHtml(String(l.num))} — ${escapeHtml(l.title)}</option>`).join('')}
       </select>
       <div class="tpl-actions">
-        <button type="button" class="dl-btn" onclick="previewAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))}, ${escapeHtml(JSON.stringify(t.mimetype||''))})">Preview</button>
-        <button type="button" class="dl-btn" onclick="downloadAuthFile(${escapeHtml(JSON.stringify(path))}, ${escapeHtml(JSON.stringify(t.name))})">Download</button>
+        ${templateActionsHtml(t)}
         <button type="button" class="dl-btn danger" onclick="deleteTemplate(${t.id}, ${escapeHtml(JSON.stringify(t.title))})">Delete</button>
       </div></div>`;
   }).join('') + `</div>`;
 }
 async function uploadTemplate(){
   const fileEl = document.getElementById('tpl-file'), st = document.getElementById('tpl-status'), btn = document.getElementById('tpl-upload-btn');
-  const file = fileEl.files[0];
-  if(!file){ st.textContent = 'Choose a file first.'; return; }
-  if(file.size > 15*1024*1024){ st.textContent = 'That file is larger than 15MB.'; return; }
+  const isLink = document.getElementById('tpl-kind-link').classList.contains('on');
+  const urlEl = document.getElementById('tpl-url');
   const fd = new FormData();
-  fd.append('file', file);
-  fd.append('title', document.getElementById('tpl-title').value.trim() || file.name.replace(/\.[^.]+$/, ''));
+  if(isLink){
+    const url = urlEl.value.trim();
+    if(!url){ st.textContent = 'Paste a link first.'; return; }
+    fd.append('url', url);
+    fd.append('title', document.getElementById('tpl-title').value.trim() || linkHost(/^https?:/i.test(url) ? url : 'https://' + url));
+  } else {
+    const file = fileEl.files[0];
+    if(!file){ st.textContent = 'Choose a file first.'; return; }
+    if(file.size > 15*1024*1024){ st.textContent = 'That file is larger than 15MB.'; return; }
+    fd.append('file', file);
+    fd.append('title', document.getElementById('tpl-title').value.trim() || file.name.replace(/\.[^.]+$/, ''));
+  }
   fd.append('description', document.getElementById('tpl-desc').value.trim());
   fd.append('lesson_id', document.getElementById('tpl-lesson').value);
   btn.disabled = true; st.textContent = 'Uploading…';
   try {
     const headers = {}; if(apiToken) headers['Authorization'] = 'Bearer ' + apiToken;
     const r = await fetch(API_BASE + '/templates', { method:'POST', headers, body: fd });
-    if(!r.ok) throw new Error('Upload failed');
-    ['tpl-title','tpl-desc'].forEach(id => document.getElementById(id).value = '');
+    if(!r.ok){ const d = await r.json().catch(() => ({})); if(d.error === 'invalid-url'){ st.textContent = "That doesn't look like a valid link."; return; } throw new Error('Upload failed'); }
+    ['tpl-title','tpl-desc','tpl-url'].forEach(id => document.getElementById(id).value = '');
     fileEl.value = '';
-    st.textContent = 'Uploaded. Students have been notified.';
+    st.textContent = (isLink ? 'Link added.' : 'Uploaded.') + ' Students have been notified.';
     renderTemplatesAdmin();
   } catch(e){ console.error(e); st.textContent = "Couldn't upload — try again."; }
   finally { btn.disabled = false; }

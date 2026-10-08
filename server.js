@@ -739,7 +739,7 @@ app.get('/api/admin/notes', auth, adminOnly, async (req, res) => {
 app.get('/api/templates', auth, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT id, lesson_id, title, description, name, mimetype, octet_length(data) AS size, created_at
+      `SELECT id, lesson_id, title, description, name, mimetype, url, octet_length(data) AS size, created_at
          FROM templates WHERE course_id = $1 ORDER BY created_at DESC`, [req.user.course_id]);
     res.json(r.rows);
   } catch (e) { console.error('Templates list error:', e.message); res.status(500).json({ error: 'Server error' }); }
@@ -749,7 +749,7 @@ app.get('/api/templates', auth, async (req, res) => {
 app.get('/api/templates/:id/file', auth, async (req, res) => {
   try {
     const r = await pool.query('SELECT course_id, name, mimetype, data FROM templates WHERE id = $1', [req.params.id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Template not found' });
+    if (!r.rows.length || !r.rows[0].data) return res.status(404).json({ error: 'Template not found' });
     const t = r.rows[0];
     if (t.course_id !== req.user.course_id && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' });
     const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
@@ -761,8 +761,14 @@ app.get('/api/templates/:id/file', auth, async (req, res) => {
 
 // POST /api/templates — admin uploads a template (multipart: file, title, description, lesson_id).
 app.post('/api/templates', auth, adminOnly, upload.single('file'), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: 'file is required' });
-  const title = String(req.body.title || req.file.originalname).trim().slice(0, 200);
+  let url = String((req.body && req.body.url) || '').trim();
+  if (!req.file && !url) return res.status(400).json({ error: 'A file or a link is required' });
+  if (!req.file) {
+    if (!/^https?:\/\//i.test(url)) url = 'https://' + url;
+    try { const u = new URL(url); if (!/^https?:$/.test(u.protocol) || !u.hostname.includes('.')) throw 0; url = u.href; }
+    catch (_) { return res.status(400).json({ error: 'invalid-url' }); }
+  } else { url = null; }
+  const title = String(req.body.title || (req.file ? req.file.originalname : url)).trim().slice(0, 200);
   const description = String(req.body.description || '').trim().slice(0, 2000);
   let lessonId = req.body.lesson_id ? parseInt(req.body.lesson_id, 10) : null;
   try {
@@ -771,10 +777,12 @@ app.post('/api/templates', auth, adminOnly, upload.single('file'), async (req, r
       if (!l.rows.length) lessonId = null;
     }
     const r = await pool.query(
-      `INSERT INTO templates (course_id, lesson_id, title, description, name, mimetype, data)
-       VALUES ($1,$2,$3,$4,$5,$6,$7)
-       RETURNING id, lesson_id, title, description, name, mimetype, octet_length(data) AS size, created_at`,
-      [req.user.course_id, lessonId, title, description, req.file.originalname, req.file.mimetype || 'application/octet-stream', req.file.buffer]);
+      `INSERT INTO templates (course_id, lesson_id, title, description, name, mimetype, data, url)
+       VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+       RETURNING id, lesson_id, title, description, name, mimetype, url, octet_length(data) AS size, created_at`,
+      [req.user.course_id, lessonId, title, description,
+       req.file ? req.file.originalname : null, req.file ? (req.file.mimetype || 'application/octet-stream') : null,
+       req.file ? req.file.buffer : null, url]);
     notify({ course_id: req.user.course_id, kind: 'template', text: `New resource available: ${title}` });
     res.status(201).json(r.rows[0]);
   } catch (e) { console.error('Template upload error:', e.message); res.status(500).json({ error: 'Server error' }); }
@@ -789,7 +797,7 @@ app.patch('/api/templates/:id', auth, adminOnly, async (req, res) => {
          title = COALESCE($1, title), description = COALESCE($2, description),
          lesson_id = CASE WHEN $3::text = 'keep' THEN lesson_id ELSE NULLIF($3::text, '')::int END
        WHERE id = $4 AND course_id = $5
-       RETURNING id, lesson_id, title, description, name, mimetype, octet_length(data) AS size, created_at`,
+       RETURNING id, lesson_id, title, description, name, mimetype, url, octet_length(data) AS size, created_at`,
       [title != null ? String(title).slice(0, 200) : null, description != null ? String(description).slice(0, 2000) : null,
        lesson_id === undefined ? 'keep' : (lesson_id === null ? '' : String(parseInt(lesson_id, 10) || '')),
        req.params.id, req.user.course_id]);
@@ -1232,6 +1240,11 @@ async function initDb() {
       lesson_id  INTEGER,
       created_at TIMESTAMP DEFAULT NOW()
     )`);
+  // Resources can also be plain links (no file).
+  await pool.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS url TEXT`);
+  await pool.query(`ALTER TABLE templates ALTER COLUMN data DROP NOT NULL`);
+  await pool.query(`ALTER TABLE templates ALTER COLUMN name DROP NOT NULL`);
+  await pool.query(`ALTER TABLE templates ALTER COLUMN mimetype DROP NOT NULL`);
   await pool.query(`CREATE INDEX IF NOT EXISTS notifications_course_idx ON notifications(course_id, created_at DESC)`);
 
   // Lesson ordering used to be purely derived from creation order (id ASC).
