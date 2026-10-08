@@ -61,6 +61,16 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .chrome.mode-admin .chrome-link{color:#9DB4E8;}
 .chrome.mode-admin .chrome-link:hover{color:#fff;}
 .admin-tag{font-size:10px;letter-spacing:0.1em;text-transform:uppercase;color:#9DB4E8;border:1px solid #2D4F99;padding:4px 11px;border-radius:100px;}
+.lang-sw{display:inline-flex;border:1px solid var(--line-strong);border-radius:7px;overflow:hidden;}
+.lang-sw button{background:none;border:none;padding:5px 8px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.04em;color:var(--ink-dim);cursor:pointer;}
+.lang-sw button + button{border-left:1px solid var(--line-strong);}
+.lang-sw button:hover{color:var(--blue);}
+.lang-sw button.on{background:var(--blue-soft);color:var(--blue);font-weight:600;}
+.lang-sw button:focus-visible{outline:2px solid var(--blue);outline-offset:-2px;}
+.chrome.mode-admin .lang-sw{border-color:rgba(255,255,255,.25);}
+.chrome.mode-admin .lang-sw button{color:#9DB4E8;}
+.chrome.mode-admin .lang-sw button + button{border-left-color:rgba(255,255,255,.25);}
+.chrome.mode-admin .lang-sw button.on{background:rgba(255,255,255,.14);color:#fff;}
 .chrome-user{font-size:13px;color:var(--ink-dim);}
 
 /* ── Screens ── */
@@ -175,7 +185,8 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .detail-head{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;gap:20px;}
 .detail-head h1{font-size:30px;font-weight:500;margin:0 0 8px;}
 .detail-meta{color:var(--ink-dim);font-size:14px;margin-bottom:30px;}
-.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:28px;}
+.tabs{display:flex;gap:0;border-bottom:1px solid var(--line);margin-bottom:28px;overflow-x:auto;scrollbar-width:thin;}
+.tabs .tab-btn{white-space:nowrap;flex-shrink:0;}
 .tab-btn{padding:11px 4px;margin-right:28px;background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:14px;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
 .tab-btn.active{color:var(--ink);border-bottom-color:var(--blue);}
 .panel{display:none;}
@@ -234,8 +245,8 @@ body{background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans',sans-seri
 .lock-caption{font-size:12px;color:var(--ink-faint);margin-top:10px;}
 
 /* ── Admin tabs ── */
-.admin-tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:30px;}
-.admin-tab-btn{padding:12px 4px;margin-right:30px;background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
+.admin-tabs{display:flex;border-bottom:1px solid var(--line);margin-bottom:30px;overflow-x:auto;scrollbar-width:thin;}
+.admin-tab-btn{white-space:nowrap;flex-shrink:0;padding:12px 4px;margin-right:26px;background:none;border:none;color:var(--ink-faint);font-family:inherit;font-size:14px;font-weight:500;cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px;}
 .admin-tab-btn.active{color:var(--ink);border-bottom-color:var(--blue);}
 .admin-panel{display:none;}
 .admin-panel.active{display:block;animation:fadein .2s ease;}
@@ -829,6 +840,199 @@ function setApiToken(token){
   if(token) localStorage.setItem('apiToken', token);
   else      localStorage.removeItem('apiToken');
 }
+
+
+/* ═════ I18N — patterns for text that contains numbers or names ═════ */
+// Russian plural forms: 1 урок, 2 урока, 5 уроков.
+function ruP(n, one, few, many){ n = Math.abs(Number(n)) % 100; const n1 = n % 10;
+  if(n > 10 && n < 20) return many; if(n1 > 1 && n1 < 5) return few; if(n1 === 1) return one; return many; }
+const trIn = s => tr(s);   // translate an embedded fragment (e.g. "9 min ago")
+var I18N_RX = [
+  [/^(\d+) lessons? on your syllabus · (\d+) currently open$/, {
+    ru: m => `${m[1]} ${ruP(m[1],'урок','урока','уроков')} в программе · ${m[2]} ${ruP(m[2],'открыт','открыто','открыто')}`,
+    hy: m => `Ծրագրում ${m[1]} դաս · բաց է ${m[2]}-ը` }],
+  [/^Welcome back, (.+)$/, { ru: m => `С возвращением, ${m[1]}`, hy: m => `Բարի վերադարձ, ${m[1]}` }],
+  [/^(\d+) of (\d+) correct$/, { ru: m => `${m[1]} из ${m[2]} верно`, hy: m => `${m[1]} / ${m[2]} ճիշտ` }],
+  [/^(\d+) \/ (\d+) correct$/, { ru: m => `${m[1]} / ${m[2]} верно`, hy: m => `${m[1]} / ${m[2]} ճիշտ` }],
+  [/^(\d+) files? · (\d+) questions?(?: · quiz (required|optional))?$/, {
+    ru: m => `${m[1]} ${ruP(m[1],'файл','файла','файлов')} · ${m[2]} ${ruP(m[2],'вопрос','вопроса','вопросов')}${m[3] ? (m[3]==='required' ? ' · тест обязателен' : ' · тест необязателен') : ''}`,
+    hy: m => `${m[1]} ֆայլ · ${m[2]} հարց${m[3] ? (m[3]==='required' ? ' · թեստը պարտադիր է' : ' · թեստը պարտադիր չէ') : ''}` }],
+  [/^Complete Lesson (\S+)'s quiz to unlock this lesson\.$/, { ru: m => `Пройдите тест урока ${m[1]}, чтобы открыть этот урок.`, hy: m => `Այս դասը բացելու համար անցեք ${m[1]}-րդ դասի թեստը։` }],
+  [/^Complete Lesson (\S+)'s quiz to unlock$/, { ru: m => `Пройдите тест урока ${m[1]}`, hy: m => `Անցեք ${m[1]}-րդ դասի թեստը` }],
+  [/^Lesson (\S+) · (.+)$/, { ru: m => `Урок ${m[1]} · ${m[2]}`, hy: m => `Դաս ${m[1]} · ${m[2]}` }],
+  [/^Lesson (\S+) — (.+)$/, { ru: m => `Урок ${m[1]} — ${m[2]}`, hy: m => `Դաս ${m[1]} — ${m[2]}` }],
+  [/^Lesson (\S+): (.+)$/, { ru: m => `Урок ${m[1]}: ${m[2]}`, hy: m => `Դաս ${m[1]}: ${m[2]}` }],
+  [/^Lesson (\S+)$/, { ru: m => `Урок ${m[1]}`, hy: m => `Դաս ${m[1]}` }],
+  [/^Edit — Lesson (\S+)$/, { ru: m => `Редактирование — урок ${m[1]}`, hy: m => `Խմբագրում — դաս ${m[1]}` }],
+  [/^Edit lesson (\S+)$/, { ru: m => `Редактировать урок ${m[1]}`, hy: m => `Խմբագրել դաս ${m[1]}` }],
+  [/^Delete lesson (\S+)$/, { ru: m => `Удалить урок ${m[1]}`, hy: m => `Ջնջել դաս ${m[1]}` }],
+  [/^(Open|Closed) to students — Lesson (\S+)$/, { ru: m => `${m[1]==='Open'?'Открыт':'Закрыт'} для студентов — урок ${m[2]}`, hy: m => `${m[1]==='Open'?'Բաց է':'Փակ է'} ուսանողների համար — դաս ${m[2]}` }],
+  [/^(.*) · Lesson (\S+)$/, { ru: m => `${trIn(m[1])} · урок ${m[2]}`, hy: m => `${trIn(m[1])} · դաս ${m[2]}` }],
+  [/^Link · (.+)$/, { ru: m => `Ссылка · ${m[1]}`, hy: m => `Հղում · ${m[1]}` }],
+  [/^Question (\d+) of (\d+)( · select all that apply)?$/, {
+    ru: m => `Вопрос ${m[1]} из ${m[2]}${m[3] ? ' · выберите все подходящие' : ''}`,
+    hy: m => `Հարց ${m[1]} / ${m[2]}${m[3] ? ' · ընտրեք բոլոր ճիշտ տարբերակները' : ''}` }],
+  [/^Not quite —$/, { ru: () => 'Не совсем —', hy: () => 'Ոչ այնքան —' }],
+  [/^(Flashcards|Ask instructor|Questions|Student Notes) \((\d+)\)$/, {
+    ru: m => `${({Flashcards:'Карточки','Ask instructor':'Вопрос преподавателю',Questions:'Вопросы','Student Notes':'Заметки студентов'})[m[1]]} (${m[2]})`,
+    hy: m => `${({Flashcards:'Քարտեր','Ask instructor':'Հարց դասախոսին',Questions:'Հարցեր','Student Notes':'Ուսանողների նշումներ'})[m[1]]} (${m[2]})` }],
+  [/^(\d+) approved students?$/, { ru: m => `${m[1]} ${ruP(m[1],'одобренный студент','одобренных студента','одобренных студентов')}`, hy: m => `${m[1]} հաստատված ուսանող` }],
+  [/^(\d+) accounts? awaiting approval$/, { ru: m => `${m[1]} ${ruP(m[1],'аккаунт ожидает','аккаунта ожидают','аккаунтов ожидают')} одобрения`, hy: m => `${m[1]} հաշիվ սպասում է հաստատման` }],
+  [/^(\d+) admins? on the platform$/, { ru: m => `${m[1]} ${ruP(m[1],'администратор','администратора','администраторов')} на платформе`, hy: m => `Հարթակում ${m[1]} ադմինիստրատոր` }],
+  [/^(\d+) notes?$/, { ru: m => `${m[1]} ${ruP(m[1],'заметка','заметки','заметок')}`, hy: m => `${m[1]} նշում` }],
+  [/^(\d+) questions?$/, { ru: m => `${m[1]} ${ruP(m[1],'вопрос','вопроса','вопросов')}`, hy: m => `${m[1]} հարց` }],
+  [/^(\d+) resources?$/, { ru: m => `${m[1]} ${ruP(m[1],'ресурс','ресурса','ресурсов')}`, hy: m => `${m[1]} ռեսուրս` }],
+  [/^(\d+) resources? from your instructor$/, { ru: m => `${m[1]} ${ruP(m[1],'ресурс','ресурса','ресурсов')} от преподавателя`, hy: m => `${m[1]} ռեսուրս դասախոսից` }],
+  [/^(\d+) cards? added\.$/, { ru: m => `${ruP(m[1],'Добавлена','Добавлено','Добавлено')} ${m[1]} ${ruP(m[1],'карточка','карточки','карточек')}.`, hy: m => `Ավելացվեց ${m[1]} քարտ։` }],
+  [/^(\d+) min ago$/, { ru: m => `${m[1]} мин назад`, hy: m => `${m[1]} րոպե առաջ` }],
+  [/^(\d+) h ago$/, { ru: m => `${m[1]} ч назад`, hy: m => `${m[1]} ժամ առաջ` }],
+  [/^(\d+) d ago$/, { ru: m => `${m[1]} дн назад`, hy: m => `${m[1]} օր առաջ` }],
+  [/^You asked (.+)$/, { ru: m => `Вы спросили ${trIn(m[1])}`, hy: m => `Հարցրել եք ${trIn(m[1])}` }],
+  [/^Instructor's answer · (.+)$/, { ru: m => `Ответ преподавателя · ${trIn(m[1])}`, hy: m => `Դասախոսի պատասխանը · ${trIn(m[1])}` }],
+  [/^(.+@.+) · (.+)$/, { ru: m => `${m[1]} · ${trIn(m[2])}`, hy: m => `${m[1]} · ${trIn(m[2])}` }],
+  [/^Your feedback to (.+)$/, { ru: m => `Ваш отзыв для ${m[1]}`, hy: m => `Ձեր կարծիքը ${m[1]}-ին` }],
+  [/^Card (\d+) of (\d+)( \(not yet known\))? ·$/, { ru: m => `Карточка ${m[1]} из ${m[2]}${m[3] ? ' (ещё не выучены)' : ''} ·`, hy: m => `Քարտ ${m[1]} / ${m[2]}${m[3] ? ' (դեռ չսովորած)' : ''} ·` }],
+  [/^of (\d+) known$/, { ru: m => `из ${m[1]} выучено`, hy: m => `/ ${m[1]} սովորած` }],
+  [/^(\d+) of (\d+) known$/, { ru: m => `${m[1]} из ${m[2]} выучено`, hy: m => `${m[1]} / ${m[2]} սովորած` }],
+  [/^(Term|Definition): ([\s\S]+)\. Press Space to flip\.$/, { ru: m => `${m[1]==='Term'?'Термин':'Определение'}: ${m[2]}. Нажмите «Пробел», чтобы перевернуть.`, hy: m => `${m[1]==='Term'?'Տերմին':'Սահմանում'}: ${m[2]}։ Սեղմեք «Բացատ»՝ շրջելու համար։` }],
+  [/^(Term|Definition|Remove card) (\d+)$/, { ru: m => `${({Term:'Термин',Definition:'Определение','Remove card':'Удалить карточку'})[m[1]]} ${m[2]}`, hy: m => `${({Term:'Տերմին',Definition:'Սահմանում','Remove card':'Հեռացնել քարտ'})[m[1]]} ${m[2]}` }],
+  [/^(\d) stars?$/, { ru: m => `${m[1]} ${ruP(m[1],'звезда','звезды','звёзд')}`, hy: m => `${m[1]} աստղ` }],
+  [/^Rated (\d) out of 5$/, { ru: m => `Оценка ${m[1]} из 5`, hy: m => `Գնահատական՝ ${m[1]} / 5` }],
+  [/^Insert (.+)$/, { ru: m => `Вставить ${m[1]}`, hy: m => `Տեղադրել ${m[1]}` }],
+  [/^Notifications, (\d+) unread$/, { ru: m => `Уведомления, непрочитанных: ${m[1]}`, hy: m => `Ծանուցումներ, չկարդացված՝ ${m[1]}` }],
+  [/^Preview of (.+)$/, { ru: m => `Просмотр: ${m[1]}`, hy: m => `Դիտում՝ ${m[1]}` }],
+  [/^Quiz score \((\d+)\/(\d+)\)$/, { ru: m => `Результат тестов (${m[1]}/${m[2]})`, hy: m => `Թեստերի արդյունք (${m[1]}/${m[2]})` }],
+  [/^Lessons with notes · (\d+) files?$/, { ru: m => `Уроков с заметками · ${m[1]} ${ruP(m[1],'файл','файла','файлов')}`, hy: m => `Նշումներով դասեր · ${m[1]} ֆայլ` }],
+  [/^Give this to (.+) \((.+)\)\. It is shown only once; they can change it after signing in\.$/, {
+    ru: m => `Передайте его студенту ${m[1]} (${m[2]}). Пароль показывается только один раз; после входа его можно сменить.`,
+    hy: m => `Փոխանցեք այն ${m[1]}-ին (${m[2]})։ Գաղտնաբառը ցուցադրվում է միայն մեկ անգամ․ մուտքից հետո այն կարելի է փոխել։` }],
+  // server-generated notifications
+  [/^New lesson opened: (.+)$/, { ru: m => `Открыт новый урок: ${m[1]}`, hy: m => `Բացվել է նոր դաս՝ ${m[1]}` }],
+  [/^New (?:resource|template) available: (.+)$/, { ru: m => `Новый ресурс: ${m[1]}`, hy: m => `Նոր ռեսուրս՝ ${m[1]}` }],
+  [/^Your instructor left feedback on your notes for "(.+)"\.$/, { ru: m => `Преподаватель оставил отзыв на ваши заметки к уроку «${m[1]}».`, hy: m => `Դասախոսը կարծիք է թողել «${m[1]}» դասի Ձեր նշումների վերաբերյալ։` }],
+  [/^(.+) signed up and is waiting for approval\.$/, { ru: m => `${m[1]} зарегистрировался(-ась) и ждёт одобрения.`, hy: m => `${m[1]}-ը գրանցվել է և սպասում է հաստատման։` }],
+  [/^(.+) asked a question about "(.+)"\.$/, { ru: m => `${m[1]} задал(а) вопрос по уроку «${m[2]}».`, hy: m => `${m[1]}-ը հարց է տվել «${m[2]}» դասի վերաբերյալ։` }],
+  [/^Your instructor answered your question about "(.+)"\.$/, { ru: m => `Преподаватель ответил на ваш вопрос по уроку «${m[1]}».`, hy: m => `Դասախոսը պատասխանել է «${m[1]}» դասի վերաբերյալ Ձեր հարցին։` }],
+  // confirmations
+  [/^Delete "(.+)"\? Students will no longer see it\.$/, { ru: m => `Удалить «${m[1]}»? Студенты больше не будут его видеть.`, hy: m => `Ջնջե՞լ «${m[1]}»-ը։ Ուսանողներն այլևս այն չեն տեսնի։` }],
+  [/^Create a temporary password for (.+)\? Their current password will stop working\.$/, { ru: m => `Создать временный пароль для ${m[1]}? Текущий пароль перестанет работать.`, hy: m => `Ստեղծե՞լ ժամանակավոր գաղտնաբառ ${m[1]}-ի համար։ Ընթացիկ գաղտնաբառն այլևս չի աշխատի։` }],
+  [/^Delete (.+)'s account\? This permanently removes their profile, quiz answers, and notes\. This cannot be undone\.$/, { ru: m => `Удалить аккаунт ${m[1]}? Профиль, ответы на тесты и заметки будут удалены навсегда. Это действие нельзя отменить.`, hy: m => `Ջնջե՞լ ${m[1]}-ի հաշիվը։ Պրոֆիլը, թեստերի պատասխանները և նշումները կջնջվեն ընդմիշտ։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Delete admin "(.+)"\? This permanently removes their course, its lessons, and all their students\. This cannot be undone\.$/, { ru: m => `Удалить администратора «${m[1]}»? Его курс, уроки и все студенты будут удалены навсегда. Это действие нельзя отменить.`, hy: m => `Ջնջե՞լ «${m[1]}» ադմինիստրատորին։ Նրա դասընթացը, դասերը և բոլոր ուսանողները կջնջվեն ընդմիշտ։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Delete your note for this lesson(?: and its (\d+) attached files?)?\? This cannot be undone\.$/, {
+    ru: m => `Удалить вашу заметку к этому уроку${m[1] ? ` и ${m[1]} ${ruP(m[1],'прикреплённый файл','прикреплённых файла','прикреплённых файлов')}` : ''}? Это действие нельзя отменить.`,
+    hy: m => `Ջնջե՞լ այս դասի Ձեր նշումը${m[1] ? ` և ${m[1]} կցված ֆայլը` : ''}։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Delete (.+)'s note for this lesson(?:, its (\d+) attached files?)? and your feedback on it\? This cannot be undone\.$/, {
+    ru: m => `Удалить заметку ${m[1]} к этому уроку${m[2] ? `, ${m[2]} ${ruP(m[2],'прикреплённый файл','прикреплённых файла','прикреплённых файлов')}` : ''} и ваш отзыв? Это действие нельзя отменить.`,
+    hy: m => `Ջնջե՞լ ${m[1]}-ի նշումն այս դասի համար${m[2] ? `, ${m[2]} կցված ֆայլը` : ''} և Ձեր կարծիքը։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Delete the attachment "(.+)"\? This cannot be undone\.$/, { ru: m => `Удалить файл «${m[1]}»? Это действие нельзя отменить.`, hy: m => `Ջնջե՞լ «${m[1]}» ֆայլը։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Delete "(.+)"\? This permanently removes the lesson, its materials, and quiz\. This cannot be undone\.$/, { ru: m => `Удалить «${m[1]}»? Урок, его материалы и тест будут удалены навсегда. Это действие нельзя отменить.`, hy: m => `Ջնջե՞լ «${m[1]}»-ը։ Դասը, նրա նյութերը և թեստը կջնջվեն ընդմիշտ։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Remove "(.+)" from this lesson's materials\? This cannot be undone\.$/, { ru: m => `Убрать «${m[1]}» из материалов урока? Это действие нельзя отменить.`, hy: m => `Հեռացնե՞լ «${m[1]}»-ը դասի նյութերից։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Remove question (\d+) \(([\s\S]*)\)\? This cannot be undone\.$/, { ru: m => `Удалить вопрос ${m[1]} (${m[2]})? Это действие нельзя отменить.`, hy: m => `Հեռացնե՞լ ${m[1]}-րդ հարցը (${m[2]})։ Այս գործողությունը հնարավոր չէ հետարկել։` }],
+  [/^Link copied: (.+)$/, { ru: m => `Ссылка скопирована:\n${m[1]}`, hy: m => `Հղումը պատճենված է․\n${m[1]}` }],
+];
+
+/* ═════ I18N — English / Русский / Հայերեն ═════
+   Interface text only: lesson titles, materials, quiz questions, notes and
+   other course content stay exactly as the admin/students wrote them.
+   Works by translating rendered text nodes + placeholder/title/aria-label
+   (and confirm/alert messages), so every render path is covered without
+   touching each template. */
+var LANG = (function(){ try { const l = localStorage.getItem('lang'); return ['en','ru','hy'].includes(l) ? l : 'en'; } catch(e){ return 'en'; } })();
+var I18N = { ru: {"Sign in": "Войти", "Sign in →": "Войти →", "Sign out": "Выйти", "Change password": "Сменить пароль", "Notifications": "Уведомления", "You're all caught up.": "Новых уведомлений нет.", "Admin": "Админ", "Super Admin": "Суперадмин", "Online Course": "Онлайн-курс", "Online course": "Онлайн-курс", "Course Platform": "Платформа курсов", "Platform sign in": "Вход на платформу", "Logo": "Логотип", "Loading course…": "Загрузка курса…", "Waking up the server — this can take up to a minute after inactivity. Thanks for your patience…": "Сервер просыпается — после простоя это может занять до минуты. Спасибо за терпение…", "Loading…": "Загрузка…", "Please wait…": "Пожалуйста, подождите…", "Save": "Сохранить", "Saved.": "Сохранено.", "Saving…": "Сохранение…", "Cancel": "Отмена", "Close": "Закрыть", "Copy": "Копировать", "Copied.": "Скопировано.", "Delete": "Удалить", "Done": "Готово", "Open": "Открыть", "Closed": "Закрыто", "Pending": "Ожидает", "Approved": "Одобрен", "Preview": "Просмотр", "Download": "Скачать", "Downloading…": "Скачивание…", "Uploading…": "Загрузка…", "Sending…": "Отправка…", "Yes": "Да", "just now": "только что", "Something went wrong. Please try again.": "Что-то пошло не так. Попробуйте ещё раз.", "Request failed": "Ошибка запроса", "Retry": "Повторить", "Welcome back": "С возвращением", "Welcome back. Enter your credentials to continue.": "С возвращением. Введите данные для входа.", "Create a student account": "Создайте аккаунт студента", "Join the course — it only takes a moment.": "Присоединяйтесь к курсу — это займёт минуту.", "Email address": "Электронная почта", "Password": "Пароль", "First name": "Имя", "Last name": "Фамилия", "Phone number": "Номер телефона", "Phone": "Телефон", "New here?": "Впервые здесь?", "Create an account": "Создать аккаунт", "Create account →": "Создать аккаунт →", "Already have an account?": "Уже есть аккаунт?", "Incorrect email or password.": "Неверная почта или пароль.", "No account found with this email.": "Аккаунт с такой почтой не найден.", "An account with this email exists — sign in instead.": "Аккаунт с такой почтой уже есть — войдите.", "Please enter your email and password.": "Введите почту и пароль.", "Please enter your first and last name.": "Введите имя и фамилию.", "Please fill in all fields.": "Заполните все поля.", "Account created. An admin needs to approve it before you can sign in — check back shortly.": "Аккаунт создан. Администратор должен его одобрить, прежде чем вы сможете войти — загляните чуть позже.", "Your account is awaiting admin approval. Please check back later.": "Ваш аккаунт ожидает одобрения администратора. Загляните позже.", "This course link is invalid or no longer exists.": "Ссылка на курс недействительна или больше не существует.", "This link is missing a course — ask your admin for the correct sign-up link.": "В ссылке не указан курс — попросите у администратора правильную ссылку для регистрации.", "Your quiz results — all lessons combined": "Ваши результаты тестов — по всем урокам", "Download all my notes": "Скачать все мои заметки", "🎥 Join video call": "🎥 Присоединиться к видеозвонку", "Enter →": "Открыть →", "Locked": "Закрыто", "No lessons on your syllabus yet — check back once your admin adds the first one.": "В вашей программе пока нет уроков — загляните, когда администратор добавит первый.", "This lesson isn't open yet — check back once your admin opens it.": "Этот урок ещё не открыт — загляните, когда администратор его откроет.", "Resources": "Ресурсы", "That lesson is still locked for you.": "Этот урок для вас пока закрыт.", "← Back to dashboard": "← Назад на главную", "Materials": "Материалы", "My notes": "Мои заметки", "Flashcards": "Карточки", "Quiz": "Тест", "Ask instructor": "Вопрос преподавателю", "No materials added for this lesson yet.": "К этому уроку пока не добавлены материалы.", "Templates for this lesson": "Ресурсы для этого урока", "Open link ↗": "Открыть ссылку ↗", "Bold": "Жирный", "Italic": "Курсив", "Underline": "Подчёркнутый", "Bulleted list": "Маркированный список", "Numbered list": "Нумерованный список", "Checklist": "Чек-лист", "Attach a file": "Прикрепить файл", "Write anything you want to remember from this lesson…": "Запишите всё, что хотите запомнить из этого урока…", "Save notes": "Сохранить заметки", "Delete note": "Удалить заметку", "Nothing to save yet.": "Пока нечего сохранять.", "Unsaved changes — click Save notes.": "Есть несохранённые изменения — нажмите «Сохранить заметки».", "Notes saved.": "Заметки сохранены.", "Note deleted.": "Заметка удалена.", "There is no note to delete.": "Нечего удалять.", "To-do item": "Пункт списка", "Feedback from your instructor": "Отзыв преподавателя", "Couldn't save — check your connection and try again.": "Не удалось сохранить — проверьте подключение и попробуйте ещё раз.", "Couldn't save your note — check your connection.": "Не удалось сохранить заметку — проверьте подключение.", "Couldn't delete the note — check your connection and try again.": "Не удалось удалить заметку — проверьте подключение и попробуйте ещё раз.", "You have unsaved notes. Leave without saving?": "Есть несохранённые заметки. Уйти без сохранения?", "You have unsaved changes in this note. The download includes only saved notes. Continue?": "В этой заметке есть несохранённые изменения. В файл попадут только сохранённые заметки. Продолжить?", "You don't have any saved notes yet.": "У вас пока нет сохранённых заметок.", "Preparing your notes…": "Готовим ваши заметки…", "Couldn't prepare the download — check your connection and try again.": "Не удалось подготовить файл — проверьте подключение и попробуйте ещё раз.", "That file is larger than 15MB — please attach a smaller file.": "Файл больше 15 МБ — прикрепите файл поменьше.", "Could not attach the file. Please try again.": "Не удалось прикрепить файл. Попробуйте ещё раз.", "Could not download that file.": "Не удалось скачать файл.", "Couldn't download that file. Please try again.": "Не удалось скачать файл. Попробуйте ещё раз.", "Could not download this file. Please try again.": "Не удалось скачать файл. Попробуйте ещё раз.", "Could not download this file. Please check your connection and try again.": "Не удалось скачать файл. Проверьте подключение и попробуйте ещё раз.", "Loading preview…": "Загрузка просмотра…", "This file type can't be previewed in the browser.": "Этот тип файла нельзя просмотреть в браузере.", "Use Download to open it.": "Скачайте его, чтобы открыть.", "Couldn't load the preview. Try Download instead.": "Не удалось загрузить просмотр. Попробуйте скачать файл.", "Score updates as you answer each question": "Счёт обновляется после каждого ответа", "Submit answer": "Ответить", "Correct": "Верно", "Incorrect": "Неверно", "Locked in — answers can't be changed after submitting": "Ответ принят — после отправки его нельзя изменить", "Couldn't save your answer — check your connection.": "Не удалось сохранить ответ — проверьте подключение.", "No questions yet — add one below.": "Вопросов пока нет — добавьте первый ниже.", "Only cards to review": "Только карточки для повторения", "Show all cards": "Показать все карточки", "Shuffle": "Перемешать", "Term": "Термин", "Definition": "Определение", "Known": "Знаю", "To review": "Повторить", "Click or press Space to see the answer": "Нажмите или клавишу «Пробел», чтобы увидеть ответ", "← Previous": "← Назад", "Next →": "Далее →", "Review again": "Повторить ещё", "I know it": "Я знаю", "You know every card in this lesson. Nice work.": "Вы знаете все карточки этого урока. Отличная работа!", "Study all cards again": "Пройти все карточки заново", "Reset progress": "Сбросить прогресс", "Reset your flashcard progress for this lesson?": "Сбросить прогресс по карточкам этого урока?", "Couldn't save your flashcard progress — check your connection.": "Не удалось сохранить прогресс по карточкам — проверьте подключение.", "Questions here go privately to your instructor — other students can't see them. You'll get a notification when it's answered.": "Вопросы отсюда видит только преподаватель — другие студенты их не видят. Когда придёт ответ, вы получите уведомление.", "Ask your instructor about this lesson": "Задайте вопрос преподавателю по этому уроку", "Ask another question": "Задать ещё вопрос", "What would you like to ask?": "Что вы хотите спросить?", "Send question": "Отправить вопрос", "Waiting for an answer": "Ожидает ответа", "Write your question first.": "Сначала напишите вопрос.", "Question sent to your instructor.": "Вопрос отправлен преподавателю.", "Couldn't send — check your connection and try again.": "Не удалось отправить — проверьте подключение и попробуйте ещё раз.", "Delete this question?": "Удалить этот вопрос?", "Couldn't delete the question. It may already have been answered.": "Не удалось удалить вопрос. Возможно, на него уже ответили.", "Current password": "Текущий пароль", "New password (at least 6 characters)": "Новый пароль (не менее 6 символов)", "New password must be at least 6 characters.": "Новый пароль должен содержать не менее 6 символов.", "Current password is incorrect.": "Текущий пароль неверный.", "Couldn't change the password. Please try again.": "Не удалось сменить пароль. Попробуйте ещё раз.", "Password changed.": "Пароль изменён.", "Admin Console": "Панель администратора", "Manage course content and monitor student progress.": "Управляйте содержимым курса и следите за прогрессом студентов.", "Course Content": "Содержание курса", "Students": "Студенты", "Student Notes": "Заметки студентов", "Questions": "Вопросы", "Settings": "Настройки", "Platform": "Платформа", "New lesson": "Новый урок", "Edit lesson": "Редактировать урок", "Delete lesson": "Удалить урок", "Add a short description.": "Добавьте краткое описание.", "Could not delete this lesson. Please try again.": "Не удалось удалить урок. Попробуйте ещё раз.", "Couldn't save that change — check your connection.": "Не удалось сохранить изменение — проверьте подключение.", "Couldn't save your changes — check your connection.": "Не удалось сохранить изменения — проверьте подключение.", "Couldn't save that change.": "Не удалось сохранить изменение.", "Export results (CSV)": "Экспорт результатов (CSV)", "Approve": "Одобрить", "Revoke": "Отозвать", "Reset password": "Сбросить пароль", "Student": "Студент", "Loading students…": "Загрузка студентов…", "No students have registered yet.": "Пока никто не зарегистрировался.", "No approved students yet.": "Одобренных студентов пока нет.", "Failed to load students.": "Не удалось загрузить студентов.", "Could not update approval status. Please try again.": "Не удалось изменить статус одобрения. Попробуйте ещё раз.", "Could not delete this account. Please try again.": "Не удалось удалить аккаунт. Попробуйте ещё раз.", "Open student profile": "Открыть профиль студента", "Couldn't export the results. Please try again.": "Не удалось экспортировать результаты. Попробуйте ещё раз.", "Temporary password": "Временный пароль", "Couldn't reset that password. Please try again.": "Не удалось сбросить пароль. Попробуйте ещё раз.", "Student profile": "Профиль студента", "Loading profile…": "Загрузка профиля…", "Couldn't load this profile.": "Не удалось загрузить профиль.", "Quizzes completed": "Пройдено тестов", "Flashcards known": "Выучено карточек", "Joined": "Регистрация", "Last sign-in": "Последний вход", "Last active": "Последняя активность", "Lesson": "Урок", "Notes": "Заметки", "Your review": "Ваша оценка", "Feedback given": "Отзыв оставлен", "no quiz": "без теста", "(in progress)": "(в процессе)", "View notes & give feedback": "Заметки и отзыв", "All students": "Все студенты", "All lessons": "Все уроки", "All notes": "Все заметки", "Hidden": "Скрытые", "Filter by student": "Фильтр по студенту", "Filter by lesson": "Фильтр по уроку", "Filter by review status": "Фильтр по статусу проверки", "Loading notes…": "Загрузка заметок…", "Failed to load student notes.": "Не удалось загрузить заметки студентов.", "Mark as done": "Отметить как проверенное", "Reopen": "Вернуть в работу", "Hide": "Скрыть", "Unhide": "Показать", "Updated since done": "Обновлено после проверки", "Marked as done.": "Отмечено как проверенное.", "Note hidden — find it under \"Hidden\".": "Заметка скрыта — она в разделе «Скрытые».", "Moved back to To review.": "Возвращено в «На проверку».", "Couldn't update the note. Please try again.": "Не удалось обновить заметку. Попробуйте ещё раз.", "Nothing left to review. Notes you mark as done or hide are under the other filters.": "Всё проверено. Проверенные и скрытые заметки — в других фильтрах.", "No notes match.": "Нет подходящих заметок.", "No notes or attachments match.": "Нет подходящих заметок или файлов.", "No written note — attachments only.": "Текста нет — только файлы.", "Insert emoji": "Вставить эмодзи", "Review rating": "Оценка", "Review": "Оценка", "clear": "сбросить", "Write feedback on this note…": "Напишите отзыв на эту заметку…", "Save feedback": "Сохранить отзыв", "Unsaved changes.": "Есть несохранённые изменения.", "Saved. The student sees it on their lesson page.": "Сохранено. Студент увидит это на странице урока.", "Feedback removed.": "Отзыв удалён.", "Couldn't save — try again.": "Не удалось сохранить — попробуйте ещё раз.", "Attachment deleted.": "Файл удалён.", "Couldn't delete the note. Please try again.": "Не удалось удалить заметку. Попробуйте ещё раз.", "Couldn't delete the attachment. Please try again.": "Не удалось удалить файл. Попробуйте ещё раз.", "Unanswered": "Без ответа", "Answered": "Отвечено", "All questions": "Все вопросы", "Filter questions": "Фильтр вопросов", "Waiting": "Ожидает", "Your answer": "Ваш ответ", "Your answer (edit and resend if needed)": "Ваш ответ (можно изменить и отправить снова)", "Send answer": "Отправить ответ", "Update answer": "Обновить ответ", "Delete question": "Удалить вопрос", "Loading questions…": "Загрузка вопросов…", "Failed to load questions.": "Не удалось загрузить вопросы.", "No unanswered questions. Nice.": "Неотвеченных вопросов нет. Отлично.", "No questions match.": "Нет подходящих вопросов.", "Write an answer first.": "Сначала напишите ответ.", "Answer sent. The student has been notified.": "Ответ отправлен. Студент получил уведомление.", "Couldn't send the answer. Please try again.": "Не удалось отправить ответ. Попробуйте ещё раз.", "Delete this question? The student will no longer see it.": "Удалить вопрос? Студент больше не будет его видеть.", "Couldn't delete the question.": "Не удалось удалить вопрос.", "Add a resource — templates, handouts, worksheets, checklists…": "Добавить ресурс — шаблоны, раздаточные материалы, рабочие листы, чек-листы…", "Title": "Название", "Related lesson (optional)": "Связанный урок (необязательно)", "Related lesson": "Связанный урок", "— Whole course —": "— Весь курс —", "Short description (optional)": "Краткое описание (необязательно)", "When and how students should use it": "Когда и как студентам этим пользоваться", "e.g. Project charter template": "напр. Шаблон устава проекта", "Resource type": "Тип ресурса", "Upload a file": "Загрузить файл", "Add a link": "Добавить ссылку", "File (Word, Excel, PowerPoint, PDF… max 15MB)": "Файл (Word, Excel, PowerPoint, PDF… до 15 МБ)", "Link (Google Drive, Notion, a website, a video…)": "Ссылка (Google Drive, Notion, сайт, видео…)", "Upload resource": "Загрузить ресурс", "Add link": "Добавить ссылку", "Choose a file first.": "Сначала выберите файл.", "Paste a link first.": "Сначала вставьте ссылку.", "That file is larger than 15MB.": "Файл больше 15 МБ.", "That doesn't look like a valid link.": "Это не похоже на ссылку.", "Couldn't upload — try again.": "Не удалось загрузить — попробуйте ещё раз.", "Uploaded. Students have been notified.": "Загружено. Студенты получили уведомление.", "Link added. Students have been notified.": "Ссылка добавлена. Студенты получили уведомление.", "Loading resources…": "Загрузка ресурсов…", "Failed to load resources.": "Не удалось загрузить ресурсы.", "No resources yet. Upload the first one above — students see them on their dashboard and under the related lesson.": "Ресурсов пока нет. Загрузите первый выше — студенты увидят его на главной странице и в связанном уроке.", "Couldn't delete it. Please try again.": "Не удалось удалить. Попробуйте ещё раз.", "Product name": "Название продукта", "Shown on the sign-in page, browser tab, and header for your students": "Показывается студентам на странице входа, во вкладке браузера и в шапке", "Your course link": "Ссылка на ваш курс", "Share this link with students so they can find your course and sign up.": "Отправьте эту ссылку студентам, чтобы они нашли курс и зарегистрировались.", "Video call link": "Ссылка на видеозвонок", "A Zoom, Google Meet, or Microsoft Teams link — shown to students as a \"Join video call\" button on their dashboard. Leave blank to hide it.": "Ссылка Zoom, Google Meet или Microsoft Teams — студенты увидят кнопку «Присоединиться к видеозвонку» на главной. Оставьте пустым, чтобы скрыть.", "Please enter a name.": "Введите название.", "Could not save. Please try again.": "Не удалось сохранить. Попробуйте ещё раз.", "That doesn't look like a valid link — please paste the meeting URL.": "Это не похоже на ссылку — вставьте адрес встречи.", "← Back to course content": "← Назад к содержанию курса", "Changes are saved as you make them.": "Изменения сохраняются автоматически.", "Done editing": "Готово", "Lesson details": "Об уроке", "Lesson number": "Номер урока", "Sets where this lesson sits in the course order — students always see clean, gap-free numbering.": "Определяет место урока в курсе — студенты всегда видят аккуратную нумерацию без пропусков.", "Description": "Описание", "Materials — students get an Open and a Download button for each": "Материалы — у каждого у студентов есть кнопки «Открыть» и «Скачать»", "No links or files added yet.": "Ссылки и файлы пока не добавлены.", "Label (e.g. Lecture Slides Week 1)": "Название (напр. Слайды лекции, неделя 1)", "Link URL (Google Drive, Dropbox, etc.)": "Ссылка (Google Drive, Dropbox и т. д.)", "+ Add link": "+ Добавить ссылку", "+ Upload file": "+ Загрузить файл", "Downloading a link routes through the server so it saves the actual file — even a regular Google Drive share link.": "Скачивание по ссылке идёт через сервер, поэтому сохраняется сам файл — даже по обычной ссылке Google Drive.", "Upload a PDF, Word doc, PowerPoint, etc. directly (max 15MB). Larger files should be shared as a link instead.": "Загрузите PDF, Word, PowerPoint и т. п. напрямую (до 15 МБ). Файлы побольше добавляйте ссылкой.", "Please enter both a label and a URL.": "Укажите и название, и ссылку.", "Please choose a file first.": "Сначала выберите файл.", "That file is larger than 15MB — please share it as a link instead (e.g. Google Drive).": "Файл больше 15 МБ — добавьте его ссылкой (например, Google Drive).", "Could not upload the file. Please try again.": "Не удалось загрузить файл. Попробуйте ещё раз.", "Quiz questions": "Вопросы теста", "Select the radio button next to the correct answer for each question.": "Отметьте правильный ответ для каждого вопроса.", "+ Add a question": "+ Добавить вопрос", "+ Add option": "+ Добавить вариант", "New question": "Новый вопрос", "New option": "Новый вариант", "Option A": "Вариант A", "Option B": "Вариант B", "Option text": "Текст варианта", "Mark as correct answer": "Отметить как правильный ответ", "Multiple correct answers (students pick as many as apply)": "Несколько правильных ответов (студенты выбирают все подходящие)", "Explanation — shown to students only if they get this question wrong (optional)": "Пояснение — показывается студенту только при неверном ответе (необязательно)", "Remove question": "Удалить вопрос", "✕ remove": "✕ удалить", "⧉ duplicate": "⧉ дублировать", "A question needs at least two options.": "У вопроса должно быть не меньше двух вариантов.", "Flashcards — key terms students can practise": "Карточки — ключевые термины для тренировки", "+ Add a card": "+ Добавить карточку", "Paste many cards at once": "Вставить много карточек сразу", "One card per line:": "По одной карточке в строке:", "(a tab or colon also works).": "(можно также через табуляцию или двоеточие).", "term - definition": "термин - определение", "Add these cards": "Добавить эти карточки", "No flashcards yet. Students get a Flashcards tab on this lesson once you add some.": "Карточек пока нет. Когда вы их добавите, у студентов появится вкладка «Карточки».", "Definition / answer": "Определение / ответ", "Remove card": "Удалить карточку", "Session visibility": "Видимость урока", "Visible to students": "Виден студентам", "Closed lessons are listed but locked.": "Закрытые уроки видны в списке, но заблокированы.", "Quiz required": "Обязательный тест", "On: students must answer every question before the next lesson unlocks. Off: the quiz is optional.": "Вкл.: следующий урок откроется только после ответа на все вопросы. Выкл.: тест необязателен.", "Danger zone": "Опасная зона", "Delete this lesson": "Удалить этот урок", "Permanently removes the lesson, its materials, and quiz.": "Навсегда удаляет урок, его материалы и тест.", "Could not save the lesson number. Please try again.": "Не удалось сохранить номер урока. Попробуйте ещё раз.", "Admin Platform": "Платформа администраторов", "Create a new admin": "Создать администратора", "Admin name": "Имя администратора", "Admin email": "Почта администратора", "Admin password": "Пароль администратора", "Their course name": "Название их курса", "Create admin": "Создать администратора", "Loading admins…": "Загрузка администраторов…", "Failed to load admins.": "Не удалось загрузить администраторов.", "That admin email is already in use.": "Эта почта администратора уже используется.", "Could not create the admin. Please try again.": "Не удалось создать администратора. Попробуйте ещё раз.", "Could not delete this admin. Please try again.": "Не удалось удалить администратора. Попробуйте ещё раз.", "No link": "Нет ссылки", "Courses": "Курсы", "No admins yet.": "Администраторов пока нет.", "e.g. Data Analytics Fundamentals": "напр. Основы анализа данных", "Language": "Язык", "Name": "Имя", "Email": "Почта", "Status": "Статус", "Total correct": "Всего верно", "Total questions": "Всего вопросов", "Overall %": "Итого %", "Lessons with notes": "Уроков с заметками", "Attachments": "Файлы", "MY COURSE NOTES": "МОИ ЗАМЕТКИ ПО КУРСУ", "Summary": "Сводка", "Not started": "Не начат", "No quiz": "Без теста", "No written note for this lesson.": "Для этого урока нет текстовой заметки.", "Instructor feedback": "Отзыв преподавателя", "Exported": "Экспортировано", "badge:Open": "Открыт", "badge:Closed": "Закрыт", "badge:Pending": "Ожидает", "badge:Approved": "Одобрен", "badge:Done": "Проверено", "badge:Hidden": "Скрыто", "badge:Answered": "Отвечено", "badge:Waiting": "Ожидает", "badge:Updated since done": "Обновлено после проверки", "opt:Done": "Проверенные", "opt:Hidden": "Скрытые", "opt:To review": "На проверку", "Average review": "Средняя оценка"}, hy: {"Sign in": "Մուտք", "Sign in →": "Մուտք →", "Sign out": "Ելք", "Change password": "Փոխել գաղտնաբառը", "Notifications": "Ծանուցումներ", "You're all caught up.": "Նոր ծանուցումներ չկան։", "Admin": "Ադմին", "Super Admin": "Սուպերադմին", "Online Course": "Առցանց դասընթաց", "Online course": "Առցանց դասընթաց", "Course Platform": "Դասընթացների հարթակ", "Platform sign in": "Մուտք հարթակ", "Logo": "Լոգո", "Loading course…": "Դասընթացը բեռնվում է…", "Waking up the server — this can take up to a minute after inactivity. Thanks for your patience…": "Սերվերը արթնանում է․ անգործությունից հետո դա կարող է տևել մինչև մեկ րոպե։ Շնորհակալություն համբերության համար…", "Loading…": "Բեռնվում է…", "Please wait…": "Խնդրում ենք սպասել…", "Save": "Պահպանել", "Saved.": "Պահպանված է։", "Saving…": "Պահպանվում է…", "Cancel": "Չեղարկել", "Close": "Փակել", "Copy": "Պատճենել", "Copied.": "Պատճենված է։", "Delete": "Ջնջել", "Done": "Պատրաստ է", "Open": "Բացել", "Closed": "Փակ", "Pending": "Սպասման մեջ", "Approved": "Հաստատված", "Preview": "Դիտել", "Download": "Ներբեռնել", "Downloading…": "Ներբեռնվում է…", "Uploading…": "Վերբեռնվում է…", "Sending…": "Ուղարկվում է…", "Yes": "Այո", "just now": "հենց նոր", "Something went wrong. Please try again.": "Ինչ-որ բան սխալ գնաց։ Կրկին փորձեք։", "Request failed": "Հարցումը ձախողվեց", "Retry": "Կրկնել", "Welcome back": "Բարի վերադարձ", "Welcome back. Enter your credentials to continue.": "Բարի վերադարձ։ Մուտքագրեք Ձեր տվյալները՝ շարունակելու համար։", "Create a student account": "Ստեղծեք ուսանողի հաշիվ", "Join the course — it only takes a moment.": "Միացեք դասընթացին․ դա կտևի ընդամենը մի պահ։", "Email address": "Էլ. փոստ", "Password": "Գաղտնաբառ", "First name": "Անուն", "Last name": "Ազգանուն", "Phone number": "Հեռախոսահամար", "Phone": "Հեռախոս", "New here?": "Նո՞ր եք այստեղ։", "Create an account": "Ստեղծել հաշիվ", "Create account →": "Ստեղծել հաշիվ →", "Already have an account?": "Արդեն ունե՞ք հաշիվ։", "Incorrect email or password.": "Էլ. փոստը կամ գաղտնաբառը սխալ է։", "No account found with this email.": "Այս էլ. փոստով հաշիվ չի գտնվել։", "An account with this email exists — sign in instead.": "Այս էլ. փոստով հաշիվ արդեն կա․ մուտք գործեք։", "Please enter your email and password.": "Մուտքագրեք էլ. փոստը և գաղտնաբառը։", "Please enter your first and last name.": "Մուտքագրեք անունը և ազգանունը։", "Please fill in all fields.": "Լրացրեք բոլոր դաշտերը։", "Account created. An admin needs to approve it before you can sign in — check back shortly.": "Հաշիվը ստեղծված է։ Մուտք գործելուց առաջ ադմինիստրատորը պետք է այն հաստատի․ փորձեք մի փոքր ուշ։", "Your account is awaiting admin approval. Please check back later.": "Ձեր հաշիվը սպասում է ադմինիստրատորի հաստատմանը։ Խնդրում ենք փորձել ավելի ուշ։", "This course link is invalid or no longer exists.": "Դասընթացի հղումը անվավեր է կամ այլևս գոյություն չունի։", "This link is missing a course — ask your admin for the correct sign-up link.": "Հղման մեջ դասընթացը նշված չէ․ խնդրեք ադմինիստրատորից ճիշտ գրանցման հղումը։", "Your quiz results — all lessons combined": "Ձեր թեստերի արդյունքները՝ բոլոր դասերով", "Download all my notes": "Ներբեռնել իմ բոլոր նշումները", "🎥 Join video call": "🎥 Միանալ տեսազանգին", "Enter →": "Բացել →", "Locked": "Փակ է", "No lessons on your syllabus yet — check back once your admin adds the first one.": "Ձեր ծրագրում դեռ դասեր չկան․ ստուգեք, երբ ադմինիստրատորը ավելացնի առաջինը։", "This lesson isn't open yet — check back once your admin opens it.": "Այս դասը դեռ բաց չէ․ ստուգեք, երբ ադմինիստրատորը բացի այն։", "Resources": "Ռեսուրսներ", "That lesson is still locked for you.": "Այս դասը Ձեզ համար դեռ փակ է։", "← Back to dashboard": "← Վերադառնալ գլխավոր էջ", "Materials": "Նյութեր", "My notes": "Իմ նշումները", "Flashcards": "Քարտեր", "Quiz": "Թեստ", "Ask instructor": "Հարց դասախոսին", "No materials added for this lesson yet.": "Այս դասին դեռ նյութեր չեն ավելացվել։", "Templates for this lesson": "Այս դասի ռեսուրսները", "Open link ↗": "Բացել հղումը ↗", "Bold": "Թավ", "Italic": "Շեղ", "Underline": "Ընդգծված", "Bulleted list": "Կետավոր ցուցակ", "Numbered list": "Համարակալված ցուցակ", "Checklist": "Ստուգացուցակ", "Attach a file": "Կցել ֆայլ", "Write anything you want to remember from this lesson…": "Գրեք այն ամենը, ինչ ուզում եք հիշել այս դասից…", "Save notes": "Պահպանել նշումները", "Delete note": "Ջնջել նշումը", "Nothing to save yet.": "Պահպանելու բան դեռ չկա։", "Unsaved changes — click Save notes.": "Կան չպահպանված փոփոխություններ․ սեղմեք «Պահպանել նշումները»։", "Notes saved.": "Նշումները պահպանված են։", "Note deleted.": "Նշումը ջնջված է։", "There is no note to delete.": "Ջնջելու նշում չկա։", "To-do item": "Անելիք", "Feedback from your instructor": "Դասախոսի կարծիքը", "Couldn't save — check your connection and try again.": "Չհաջողվեց պահպանել․ ստուգեք կապը և կրկին փորձեք։", "Couldn't save your note — check your connection.": "Չհաջողվեց պահպանել նշումը․ ստուգեք կապը։", "Couldn't delete the note — check your connection and try again.": "Չհաջողվեց ջնջել նշումը․ ստուգեք կապը և կրկին փորձեք։", "You have unsaved notes. Leave without saving?": "Ունեք չպահպանված նշումներ։ Դուրս գա՞լ առանց պահպանելու։", "You have unsaved changes in this note. The download includes only saved notes. Continue?": "Այս նշումում կան չպահպանված փոփոխություններ։ Ֆայլում կներառվեն միայն պահպանված նշումները։ Շարունակե՞լ։", "You don't have any saved notes yet.": "Դուք դեռ պահպանված նշումներ չունեք։", "Preparing your notes…": "Պատրաստում ենք Ձեր նշումները…", "Couldn't prepare the download — check your connection and try again.": "Չհաջողվեց պատրաստել ֆայլը․ ստուգեք կապը և կրկին փորձեք։", "That file is larger than 15MB — please attach a smaller file.": "Ֆայլը 15ՄԲ-ից մեծ է․ կցեք ավելի փոքր ֆայլ։", "Could not attach the file. Please try again.": "Չհաջողվեց կցել ֆայլը։ Կրկին փորձեք։", "Could not download that file.": "Չհաջողվեց ներբեռնել ֆայլը։", "Couldn't download that file. Please try again.": "Չհաջողվեց ներբեռնել ֆայլը։ Կրկին փորձեք։", "Could not download this file. Please try again.": "Չհաջողվեց ներբեռնել ֆայլը։ Կրկին փորձեք։", "Could not download this file. Please check your connection and try again.": "Չհաջողվեց ներբեռնել ֆայլը։ Ստուգեք կապը և կրկին փորձեք։", "Loading preview…": "Դիտումը բեռնվում է…", "This file type can't be previewed in the browser.": "Այս տեսակի ֆայլը հնարավոր չէ դիտել բրաուզերում։", "Use Download to open it.": "Ներբեռնեք՝ բացելու համար։", "Couldn't load the preview. Try Download instead.": "Չհաջողվեց բեռնել դիտումը։ Փորձեք ներբեռնել։", "Score updates as you answer each question": "Միավորը թարմացվում է յուրաքանչյուր պատասխանից հետո", "Submit answer": "Պատասխանել", "Correct": "Ճիշտ է", "Incorrect": "Սխալ է", "Locked in — answers can't be changed after submitting": "Պատասխանը ընդունված է․ ուղարկելուց հետո այն հնարավոր չէ փոխել", "Couldn't save your answer — check your connection.": "Չհաջողվեց պահպանել պատասխանը․ ստուգեք կապը։", "No questions yet — add one below.": "Հարցեր դեռ չկան․ ավելացրեք առաջինը ստորև։", "Only cards to review": "Միայն կրկնելու քարտերը", "Show all cards": "Ցույց տալ բոլոր քարտերը", "Shuffle": "Խառնել", "Term": "Տերմին", "Definition": "Սահմանում", "Known": "Գիտեմ", "To review": "Կրկնել", "Click or press Space to see the answer": "Սեղմեք կամ «Բացատ» ստեղնը՝ պատասխանը տեսնելու համար", "← Previous": "← Նախորդը", "Next →": "Հաջորդը →", "Review again": "Կրկնել նորից", "I know it": "Գիտեմ", "You know every card in this lesson. Nice work.": "Դուք գիտեք այս դասի բոլոր քարտերը։ Գերազանց է։", "Study all cards again": "Կրկին անցնել բոլոր քարտերը", "Reset progress": "Զրոյացնել առաջընթացը", "Reset your flashcard progress for this lesson?": "Զրոյացնե՞լ այս դասի քարտերի առաջընթացը։", "Couldn't save your flashcard progress — check your connection.": "Չհաջողվեց պահպանել քարտերի առաջընթացը․ ստուգեք կապը։", "Questions here go privately to your instructor — other students can't see them. You'll get a notification when it's answered.": "Այստեղից ուղարկված հարցերը տեսնում է միայն դասախոսը, մյուս ուսանողները չեն տեսնում։ Պատասխանի դեպքում կստանաք ծանուցում։", "Ask your instructor about this lesson": "Հարց տվեք դասախոսին այս դասի վերաբերյալ", "Ask another question": "Տալ ևս մեկ հարց", "What would you like to ask?": "Ի՞նչ եք ուզում հարցնել", "Send question": "Ուղարկել հարցը", "Waiting for an answer": "Սպասում է պատասխանի", "Write your question first.": "Նախ գրեք Ձեր հարցը։", "Question sent to your instructor.": "Հարցն ուղարկված է դասախոսին։", "Couldn't send — check your connection and try again.": "Չհաջողվեց ուղարկել․ ստուգեք կապը և կրկին փորձեք։", "Delete this question?": "Ջնջե՞լ այս հարցը։", "Couldn't delete the question. It may already have been answered.": "Չհաջողվեց ջնջել հարցը։ Հնարավոր է՝ այն արդեն պատասխանված է։", "Current password": "Ընթացիկ գաղտնաբառ", "New password (at least 6 characters)": "Նոր գաղտնաբառ (առնվազն 6 նիշ)", "New password must be at least 6 characters.": "Նոր գաղտնաբառը պետք է լինի առնվազն 6 նիշ։", "Current password is incorrect.": "Ընթացիկ գաղտնաբառը սխալ է։", "Couldn't change the password. Please try again.": "Չհաջողվեց փոխել գաղտնաբառը։ Կրկին փորձեք։", "Password changed.": "Գաղտնաբառը փոխված է։", "Admin Console": "Ադմինիստրատորի վահանակ", "Manage course content and monitor student progress.": "Կառավարեք դասընթացի բովանդակությունը և հետևեք ուսանողների առաջընթացին։", "Course Content": "Դասընթացի բովանդակություն", "Students": "Ուսանողներ", "Student Notes": "Ուսանողների նշումներ", "Questions": "Հարցեր", "Settings": "Կարգավորումներ", "Platform": "Հարթակ", "New lesson": "Նոր դաս", "Edit lesson": "Խմբագրել դասը", "Delete lesson": "Ջնջել դասը", "Add a short description.": "Ավելացրեք կարճ նկարագրություն։", "Could not delete this lesson. Please try again.": "Չհաջողվեց ջնջել դասը։ Կրկին փորձեք։", "Couldn't save that change — check your connection.": "Չհաջողվեց պահպանել փոփոխությունը․ ստուգեք կապը։", "Couldn't save your changes — check your connection.": "Չհաջողվեց պահպանել փոփոխությունները․ ստուգեք կապը։", "Couldn't save that change.": "Չհաջողվեց պահպանել փոփոխությունը։", "Export results (CSV)": "Արտահանել արդյունքները (CSV)", "Approve": "Հաստատել", "Revoke": "Չեղարկել", "Reset password": "Վերականգնել գաղտնաբառը", "Student": "Ուսանող", "Loading students…": "Ուսանողները բեռնվում են…", "No students have registered yet.": "Դեռ ոչ ոք չի գրանցվել։", "No approved students yet.": "Հաստատված ուսանողներ դեռ չկան։", "Failed to load students.": "Չհաջողվեց բեռնել ուսանողներին։", "Could not update approval status. Please try again.": "Չհաջողվեց փոխել հաստատման կարգավիճակը։ Կրկին փորձեք։", "Could not delete this account. Please try again.": "Չհաջողվեց ջնջել հաշիվը։ Կրկին փորձեք։", "Open student profile": "Բացել ուսանողի պրոֆիլը", "Couldn't export the results. Please try again.": "Չհաջողվեց արտահանել արդյունքները։ Կրկին փորձեք։", "Temporary password": "Ժամանակավոր գաղտնաբառ", "Couldn't reset that password. Please try again.": "Չհաջողվեց վերականգնել գաղտնաբառը։ Կրկին փորձեք։", "Student profile": "Ուսանողի պրոֆիլ", "Loading profile…": "Պրոֆիլը բեռնվում է…", "Couldn't load this profile.": "Չհաջողվեց բեռնել պրոֆիլը։", "Quizzes completed": "Ավարտված թեստեր", "Flashcards known": "Սովորած քարտեր", "Joined": "Գրանցվել է", "Last sign-in": "Վերջին մուտք", "Last active": "Վերջին ակտիվություն", "Lesson": "Դաս", "Notes": "Նշումներ", "Your review": "Ձեր գնահատականը", "Feedback given": "Կարծիքը տրված է", "no quiz": "առանց թեստի", "(in progress)": "(ընթացքում)", "View notes & give feedback": "Նշումներ և կարծիք", "All students": "Բոլոր ուսանողները", "All lessons": "Բոլոր դասերը", "All notes": "Բոլոր նշումները", "Hidden": "Թաքցված", "Filter by student": "Զտել ըստ ուսանողի", "Filter by lesson": "Զտել ըստ դասի", "Filter by review status": "Զտել ըստ ստուգման կարգավիճակի", "Loading notes…": "Նշումները բեռնվում են…", "Failed to load student notes.": "Չհաջողվեց բեռնել ուսանողների նշումները։", "Mark as done": "Նշել որպես ստուգված", "Reopen": "Վերաբացել", "Hide": "Թաքցնել", "Unhide": "Ցուցադրել", "Updated since done": "Թարմացվել է ստուգումից հետո", "Marked as done.": "Նշված է որպես ստուգված։", "Note hidden — find it under \"Hidden\".": "Նշումը թաքցված է․ այն կգտնեք «Թաքցված» բաժնում։", "Moved back to To review.": "Վերադարձվեց «Ստուգման» բաժին։", "Couldn't update the note. Please try again.": "Չհաջողվեց թարմացնել նշումը։ Կրկին փորձեք։", "Nothing left to review. Notes you mark as done or hide are under the other filters.": "Ստուգելու բան չի մնացել։ Ստուգված և թաքցված նշումները մյուս զտիչներում են։", "No notes match.": "Համապատասխան նշումներ չկան։", "No notes or attachments match.": "Համապատասխան նշումներ կամ ֆայլեր չկան։", "No written note — attachments only.": "Գրավոր նշում չկա, միայն ֆայլեր։", "Insert emoji": "Տեղադրել էմոջի", "Review rating": "Գնահատական", "Review": "Գնահատական", "clear": "մաքրել", "Write feedback on this note…": "Գրեք կարծիք այս նշման վերաբերյալ…", "Save feedback": "Պահպանել կարծիքը", "Unsaved changes.": "Կան չպահպանված փոփոխություններ։", "Saved. The student sees it on their lesson page.": "Պահպանված է։ Ուսանողը այն կտեսնի դասի էջում։", "Feedback removed.": "Կարծիքը հեռացված է։", "Couldn't save — try again.": "Չհաջողվեց պահպանել․ կրկին փորձեք։", "Attachment deleted.": "Ֆայլը ջնջված է։", "Couldn't delete the note. Please try again.": "Չհաջողվեց ջնջել նշումը։ Կրկին փորձեք։", "Couldn't delete the attachment. Please try again.": "Չհաջողվեց ջնջել ֆայլը։ Կրկին փորձեք։", "Unanswered": "Անպատասխան", "Answered": "Պատասխանված", "All questions": "Բոլոր հարցերը", "Filter questions": "Զտել հարցերը", "Waiting": "Սպասում է", "Your answer": "Ձեր պատասխանը", "Your answer (edit and resend if needed)": "Ձեր պատասխանը (անհրաժեշտության դեպքում խմբագրեք և կրկին ուղարկեք)", "Send answer": "Ուղարկել պատասխանը", "Update answer": "Թարմացնել պատասխանը", "Delete question": "Ջնջել հարցը", "Loading questions…": "Հարցերը բեռնվում են…", "Failed to load questions.": "Չհաջողվեց բեռնել հարցերը։", "No unanswered questions. Nice.": "Անպատասխան հարցեր չկան։ Հիանալի է։", "No questions match.": "Համապատասխան հարցեր չկան։", "Write an answer first.": "Նախ գրեք պատասխանը։", "Answer sent. The student has been notified.": "Պատասխանն ուղարկված է։ Ուսանողը ծանուցում է ստացել։", "Couldn't send the answer. Please try again.": "Չհաջողվեց ուղարկել պատասխանը։ Կրկին փորձեք։", "Delete this question? The student will no longer see it.": "Ջնջե՞լ հարցը։ Ուսանողն այլևս այն չի տեսնի։", "Couldn't delete the question.": "Չհաջողվեց ջնջել հարցը։", "Add a resource — templates, handouts, worksheets, checklists…": "Ավելացնել ռեսուրս՝ ձևանմուշներ, ձեռնարկներ, աշխատանքային թերթիկներ, ստուգացուցակներ…", "Title": "Վերնագիր", "Related lesson (optional)": "Կապված դաս (ըստ ցանկության)", "Related lesson": "Կապված դաս", "— Whole course —": "— Ամբողջ դասընթացը —", "Short description (optional)": "Կարճ նկարագրություն (ըստ ցանկության)", "When and how students should use it": "Երբ և ինչպես պետք է ուսանողներն օգտագործեն այն", "e.g. Project charter template": "օր.՝ Նախագծի կանոնադրության ձևանմուշ", "Resource type": "Ռեսուրսի տեսակ", "Upload a file": "Վերբեռնել ֆայլ", "Add a link": "Ավելացնել հղում", "File (Word, Excel, PowerPoint, PDF… max 15MB)": "Ֆայլ (Word, Excel, PowerPoint, PDF… մինչև 15ՄԲ)", "Link (Google Drive, Notion, a website, a video…)": "Հղում (Google Drive, Notion, կայք, տեսանյութ…)", "Upload resource": "Վերբեռնել ռեսուրսը", "Add link": "Ավելացնել հղումը", "Choose a file first.": "Նախ ընտրեք ֆայլը։", "Paste a link first.": "Նախ տեղադրեք հղումը։", "That file is larger than 15MB.": "Ֆայլը 15ՄԲ-ից մեծ է։", "That doesn't look like a valid link.": "Սա նման չէ վավեր հղման։", "Couldn't upload — try again.": "Չհաջողվեց վերբեռնել․ կրկին փորձեք։", "Uploaded. Students have been notified.": "Վերբեռնված է։ Ուսանողները ծանուցում են ստացել։", "Link added. Students have been notified.": "Հղումն ավելացված է։ Ուսանողները ծանուցում են ստացել։", "Loading resources…": "Ռեսուրսները բեռնվում են…", "Failed to load resources.": "Չհաջողվեց բեռնել ռեսուրսները։", "No resources yet. Upload the first one above — students see them on their dashboard and under the related lesson.": "Ռեսուրսներ դեռ չկան։ Վերբեռնեք առաջինը վերևում․ ուսանողները կտեսնեն այն գլխավոր էջում և կապված դասում։", "Couldn't delete it. Please try again.": "Չհաջողվեց ջնջել։ Կրկին փորձեք։", "Product name": "Արտադրանքի անվանում", "Shown on the sign-in page, browser tab, and header for your students": "Ցուցադրվում է ուսանողներին մուտքի էջում, բրաուզերի ներդիրում և վերնագրում", "Your course link": "Ձեր դասընթացի հղումը", "Share this link with students so they can find your course and sign up.": "Կիսվեք այս հղումով ուսանողների հետ, որպեսզի նրանք գտնեն դասընթացը և գրանցվեն։", "Video call link": "Տեսազանգի հղում", "A Zoom, Google Meet, or Microsoft Teams link — shown to students as a \"Join video call\" button on their dashboard. Leave blank to hide it.": "Zoom, Google Meet կամ Microsoft Teams հղում․ ուսանողները գլխավոր էջում կտեսնեն «Միանալ տեսազանգին» կոճակը։ Թողեք դատարկ՝ թաքցնելու համար։", "Please enter a name.": "Մուտքագրեք անվանումը։", "Could not save. Please try again.": "Չհաջողվեց պահպանել։ Կրկին փորձեք։", "That doesn't look like a valid link — please paste the meeting URL.": "Սա նման չէ վավեր հղման․ տեղադրեք հանդիպման հասցեն։", "← Back to course content": "← Վերադառնալ բովանդակությանը", "Changes are saved as you make them.": "Փոփոխությունները պահպանվում են ավտոմատ։", "Done editing": "Ավարտել խմբագրումը", "Lesson details": "Դասի տվյալներ", "Lesson number": "Դասի համար", "Sets where this lesson sits in the course order — students always see clean, gap-free numbering.": "Սահմանում է դասի տեղը դասընթացում․ ուսանողները միշտ տեսնում են հաջորդական համարակալում։", "Description": "Նկարագրություն", "Materials — students get an Open and a Download button for each": "Նյութեր․ ուսանողները յուրաքանչյուրի համար ունեն «Բացել» և «Ներբեռնել» կոճակներ", "No links or files added yet.": "Հղումներ կամ ֆայլեր դեռ չեն ավելացվել։", "Label (e.g. Lecture Slides Week 1)": "Անվանում (օր.՝ Դասախոսության սլայդներ, շաբաթ 1)", "Link URL (Google Drive, Dropbox, etc.)": "Հղում (Google Drive, Dropbox և այլն)", "+ Add link": "+ Ավելացնել հղում", "+ Upload file": "+ Վերբեռնել ֆայլ", "Downloading a link routes through the server so it saves the actual file — even a regular Google Drive share link.": "Հղումով ներբեռնումն անցնում է սերվերով, այնպես որ պահպանվում է բուն ֆայլը, նույնիսկ սովորական Google Drive հղման դեպքում։", "Upload a PDF, Word doc, PowerPoint, etc. directly (max 15MB). Larger files should be shared as a link instead.": "Վերբեռնեք PDF, Word, PowerPoint և այլն ուղղակիորեն (մինչև 15ՄԲ)։ Ավելի մեծ ֆայլերը ավելացրեք հղումով։", "Please enter both a label and a URL.": "Նշեք և՛ անվանումը, և՛ հղումը։", "Please choose a file first.": "Նախ ընտրեք ֆայլը։", "That file is larger than 15MB — please share it as a link instead (e.g. Google Drive).": "Ֆայլը 15ՄԲ-ից մեծ է․ ավելացրեք այն հղումով (օր.՝ Google Drive)։", "Could not upload the file. Please try again.": "Չհաջողվեց վերբեռնել ֆայլը։ Կրկին փորձեք։", "Quiz questions": "Թեստի հարցեր", "Select the radio button next to the correct answer for each question.": "Նշեք յուրաքանչյուր հարցի ճիշտ պատասխանը։", "+ Add a question": "+ Ավելացնել հարց", "+ Add option": "+ Ավելացնել տարբերակ", "New question": "Նոր հարց", "New option": "Նոր տարբերակ", "Option A": "Տարբերակ A", "Option B": "Տարբերակ B", "Option text": "Տարբերակի տեքստ", "Mark as correct answer": "Նշել որպես ճիշտ պատասխան", "Multiple correct answers (students pick as many as apply)": "Մի քանի ճիշտ պատասխան (ուսանողներն ընտրում են բոլոր համապատասխանները)", "Explanation — shown to students only if they get this question wrong (optional)": "Բացատրություն․ ցուցադրվում է միայն սխալ պատասխանի դեպքում (ըստ ցանկության)", "Remove question": "Հեռացնել հարցը", "✕ remove": "✕ հեռացնել", "⧉ duplicate": "⧉ կրկնօրինակել", "A question needs at least two options.": "Հարցը պետք է ունենա առնվազն երկու տարբերակ։", "Flashcards — key terms students can practise": "Քարտեր․ հիմնական տերմիններ ուսանողների պարապմունքի համար", "+ Add a card": "+ Ավելացնել քարտ", "Paste many cards at once": "Տեղադրել շատ քարտեր միանգամից", "One card per line:": "Յուրաքանչյուր տողում մեկ քարտ․", "(a tab or colon also works).": "(կարելի է նաև տաբով կամ երկու կետով)։", "term - definition": "տերմին - սահմանում", "Add these cards": "Ավելացնել այս քարտերը", "No flashcards yet. Students get a Flashcards tab on this lesson once you add some.": "Քարտեր դեռ չկան։ Ավելացնելուց հետո ուսանողները կտեսնեն «Քարտեր» ներդիրը։", "Definition / answer": "Սահմանում / պատասխան", "Remove card": "Հեռացնել քարտը", "Session visibility": "Դասի տեսանելիություն", "Visible to students": "Տեսանելի է ուսանողներին", "Closed lessons are listed but locked.": "Փակ դասերը երևում են ցանկում, բայց կողպված են։", "Quiz required": "Պարտադիր թեստ", "On: students must answer every question before the next lesson unlocks. Off: the quiz is optional.": "Միացված․ հաջորդ դասը կբացվի միայն բոլոր հարցերին պատասխանելուց հետո։ Անջատված․ թեստը պարտադիր չէ։", "Danger zone": "Վտանգավոր գոտի", "Delete this lesson": "Ջնջել այս դասը", "Permanently removes the lesson, its materials, and quiz.": "Ընդմիշտ ջնջում է դասը, նրա նյութերը և թեստը։", "Could not save the lesson number. Please try again.": "Չհաջողվեց պահպանել դասի համարը։ Կրկին փորձեք։", "Admin Platform": "Ադմինիստրատորների հարթակ", "Create a new admin": "Ստեղծել նոր ադմինիստրատոր", "Admin name": "Ադմինիստրատորի անուն", "Admin email": "Ադմինիստրատորի էլ. փոստ", "Admin password": "Ադմինիստրատորի գաղտնաբառ", "Their course name": "Նրանց դասընթացի անվանումը", "Create admin": "Ստեղծել ադմինիստրատոր", "Loading admins…": "Ադմինիստրատորները բեռնվում են…", "Failed to load admins.": "Չհաջողվեց բեռնել ադմինիստրատորներին։", "That admin email is already in use.": "Այս էլ. փոստն արդեն օգտագործվում է։", "Could not create the admin. Please try again.": "Չհաջողվեց ստեղծել ադմինիստրատորին։ Կրկին փորձեք։", "Could not delete this admin. Please try again.": "Չհաջողվեց ջնջել ադմինիստրատորին։ Կրկին փորձեք։", "No link": "Հղում չկա", "Courses": "Դասընթացներ", "No admins yet.": "Ադմինիստրատորներ դեռ չկան։", "e.g. Data Analytics Fundamentals": "օր.՝ Տվյալների վերլուծության հիմունքներ", "Language": "Լեզու", "Name": "Անուն", "Email": "Էլ. փոստ", "Status": "Կարգավիճակ", "Total correct": "Ընդամենը ճիշտ", "Total questions": "Ընդամենը հարցեր", "Overall %": "Ընդհանուր %", "Lessons with notes": "Նշումներով դասեր", "Attachments": "Կցված ֆայլեր", "MY COURSE NOTES": "ԻՄ ՆՇՈՒՄՆԵՐԸ", "Summary": "Ամփոփում", "Not started": "Չի սկսվել", "No quiz": "Առանց թեստի", "No written note for this lesson.": "Այս դասի համար գրավոր նշում չկա։", "Instructor feedback": "Դասախոսի կարծիքը", "Exported": "Արտահանված է", "badge:Open": "Բաց", "badge:Closed": "Փակ", "badge:Pending": "Սպասման մեջ", "badge:Approved": "Հաստատված", "badge:Done": "Ստուգված", "badge:Hidden": "Թաքցված", "badge:Answered": "Պատասխանված", "badge:Waiting": "Սպասում է", "badge:Updated since done": "Թարմացվել է ստուգումից հետո", "opt:Done": "Ստուգված", "opt:Hidden": "Թաքցված", "opt:To review": "Ստուգման համար", "Average review": "Միջին գնահատական"} };
+function tr(src, ctx){
+  if(LANG === 'en' || src == null) return src;
+  const str = String(src);
+  const m = str.match(/^(\s*)([\s\S]*?)(\s*)$/);
+  const core = m[2].replace(/\s+/g, ' ');
+  if(!core || !/[A-Za-z]/.test(core)) return str;
+  const d = I18N[LANG];
+  if(ctx && Object.prototype.hasOwnProperty.call(d, ctx + ':' + core)) return m[1] + d[ctx + ':' + core] + m[3];
+  if(Object.prototype.hasOwnProperty.call(d, core)) return m[1] + d[core] + m[3];
+  for(const [rx, f] of I18N_RX){
+    const mm = core.match(rx);
+    if(mm && f[LANG]) return m[1] + f[LANG](mm) + m[3];
+  }
+  return str;
+}
+function i18nLocale(){ return ({ ru:'ru-RU', hy:'hy-AM' })[LANG] || undefined; }
+// Content written by the admin or students is never machine-translated.
+const I18N_SKIP = 'script,style,textarea,[contenteditable],[translate="no"],#detail-title,.card h3,.card p,.slide-name,.quiz-q h4,.quiz-explanation,.fc-face .w,.tpl-card h4,.tpl-card p,.nv-body,.qa-q,.user-name,.chrome-user,.p-text .user-name,.notes,.sp-head h2';
+function i18nSkip(el){
+  if(!el) return true;
+  if(el.closest(I18N_SKIP)) return true;
+  if(el.tagName === 'LABEL' && el.classList.contains('option')) return true;   // quiz option text
+  return false;
+}
+function i18nText(n){
+  const p = n.parentElement;
+  if(i18nSkip(p)) return;
+  const cur = n.nodeValue;
+  const src = (n.__i18nOut !== undefined && n.__i18nOut === cur) ? n.__i18nSrc : cur;
+  if(!/[A-Za-z]/.test(src)) return;
+  const ctx = p.closest('.status-badge') ? 'badge' : (p.tagName === 'OPTION' ? 'opt' : null);
+  const out = tr(src, ctx);
+  n.__i18nSrc = src; n.__i18nOut = out;
+  if(out !== cur) n.nodeValue = out;
+}
+const I18N_ATTRS = ['placeholder','title','aria-label'];
+function i18nAttrs(el){
+  if(i18nSkip(el) && !el.matches('textarea[placeholder]')) return;
+  if(!el.__i18nA) el.__i18nA = {};
+  for(const a of I18N_ATTRS){
+    const cur = el.getAttribute(a);
+    if(cur == null || !/[A-Za-z]/.test(cur)) continue;
+    const rec = el.__i18nA[a];
+    const src = (rec && rec.out === cur) ? rec.src : cur;
+    const out = tr(src);
+    el.__i18nA[a] = { src, out };
+    if(out !== cur) el.setAttribute(a, out);
+  }
+}
+function i18nTree(root){
+  if(!root) return;
+  if(root.nodeType === 3){ i18nText(root); return; }
+  if(root.nodeType !== 1) return;
+  if(root.matches && (root.matches('[placeholder],[title],[aria-label]'))) i18nAttrs(root);
+  root.querySelectorAll && root.querySelectorAll('[placeholder],[title],[aria-label]').forEach(i18nAttrs);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let n; while((n = w.nextNode())) i18nText(n);
+}
+var i18nObserver = null;
+function i18nStart(){
+  if(i18nObserver) return;
+  i18nObserver = new MutationObserver(muts => {
+    for(const mu of muts){
+      if(mu.type === 'characterData') i18nText(mu.target);
+      else if(mu.type === 'attributes') { if(mu.target.nodeType === 1) i18nAttrs(mu.target); }
+      else mu.addedNodes.forEach(i18nTree);
+    }
+  });
+  i18nObserver.observe(document.body, { subtree:true, childList:true, characterData:true, attributes:true, attributeFilter:I18N_ATTRS });
+}
+function setLang(l){
+  if(!['en','ru','hy'].includes(l)) return;
+  LANG = l;
+  try { localStorage.setItem('lang', l); } catch(e){}
+  document.documentElement.lang = l;
+  i18nTree(document.body);
+  document.querySelectorAll('.lang-sw button').forEach(b => {
+    const on = b.dataset.lang === l;
+    b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false');
+  });
+}
+function langSwitchHtml(){
+  const L = [['en','EN','English'],['ru','РУ','Русский'],['hy','ՀՅ','Հայերեն']];
+  return `<div class="lang-sw" role="group" aria-label="${tr('Language')}" translate="no">${L.map(([k,lbl,full]) =>
+    `<button type="button" data-lang="${k}" class="${k===LANG?'on':''}" aria-pressed="${k===LANG}" title="${full}" onclick="setLang('${k}')">${lbl}</button>`).join('')}</div>`;
+}
+(function(){
+  const _confirm = window.confirm.bind(window), _alert = window.alert.bind(window);
+  window.confirm = msg => _confirm(tr(msg));
+  window.alert = msg => _alert(tr(msg));
+})();
+
+i18nStart();
+if(LANG !== 'en'){ document.documentElement.lang = LANG; i18nTree(document.body); }
 
 async function api(method, path, body){
   const opts = { method, headers: { 'Content-Type': 'application/json' } };
@@ -1475,11 +1679,11 @@ async function downloadAllMyNotes(){
   await Promise.all(files.map(async f => { try { blobs[f.id] = await fetchNoteFileBlob(f.id); } catch(e){ console.warn('Skipped attachment', f.name, e); } }));
 
   const quizText = l => {
-    if(!l.quiz || !l.quiz.length) return 'No quiz';
+    if(!l.quiz || !l.quiz.length) return tr('No quiz');
     const ans = currentStudent.answers?.[l.id] || {};
-    if(!Object.keys(ans).length) return 'Not started';
+    if(!Object.keys(ans).length) return tr('Not started');
     const c = l.quiz.filter((q,qi) => quizIsCorrect(q, ans[qi])).length;
-    return `${c} of ${l.quiz.length} correct`;
+    return tr(`${c} of ${l.quiz.length} correct`);
   };
   const items = lessons.map(l => {
     const raw = notes[l.id] || '';
@@ -1499,25 +1703,25 @@ async function downloadAllMyNotes(){
   });
 
   const children = [
-    P(T('MY COURSE NOTES', { color: ACCENT, size: 18, bold: true, characterSpacing: 40 }), { spacing: { after: 60 } }),
+    P(T(tr('MY COURSE NOTES'), { color: ACCENT, size: 18, bold: true, characterSpacing: 40 }), { spacing: { after: 60 } }),
     P(T(courseName || 'Course', { size: 44, bold: true, color: BLUE }), { spacing: { after: 60 } }),
     P(T(currentStudent.name, { size: 26 }), { spacing: { after: 40 } }),
-    P(T(`${currentStudent.email ? currentStudent.email + '  ·  ' : ''}Exported ${date}`, { color: GREY, size: 20 }), { spacing: { after: 320 } }),
+    P(T(`${currentStudent.email ? currentStudent.email + '  ·  ' : ''}${tr('Exported')} ${date}`, { color: GREY, size: 20 }), { spacing: { after: 320 } }),
   ];
 
   // Overall summary
   const g = globalQuizScore();
   const totalFiles = files.length;
   const reviewed = items.filter(x => x.f && x.f.rating);
-  children.push(P(T('Summary', { bold: true, size: 28, color: BLUE }), { spacing: { after: 120 } }));
+  children.push(P(T(tr('Summary'), { bold: true, size: 28, color: BLUE }), { spacing: { after: 120 } }));
   children.push(P([
-    T(`${withContent.length} lesson${withContent.length!==1?'s':''} with notes  ·  `),
-    T(`${totalFiles} attachment${totalFiles!==1?'s':''}  ·  `),
-    T(`Quiz total: ${g.correct} of ${g.total} correct`),
-    reviewed.length ? T(`  ·  Average review: ${(reviewed.reduce((a,x)=>a+x.f.rating,0)/reviewed.length).toFixed(1)}/5`) : T(''),
+    T(`${tr('Lessons with notes')}: ${withContent.length}  ·  `),
+    T(`${tr('Attachments')}: ${totalFiles}  ·  `),
+    T(`${tr('Quiz')}: ${tr(`${g.correct} of ${g.total} correct`)}`),
+    reviewed.length ? T(`  ·  ${tr('Average review')}: ${(reviewed.reduce((a,x)=>a+x.f.rating,0)/reviewed.length).toFixed(1)}/5`) : T(''),
   ].map(r => r), { spacing: { after: 160 } }));
 
-  const head = new D.TableRow({ tableHeader: true, children: ['Lesson','Notes','Attachments','Quiz','Review'].map(h => cell(h, { head: true })) });
+  const head = new D.TableRow({ tableHeader: true, children: ['Lesson','Notes','Attachments','Quiz','Review'].map(h => cell(tr(h), { head: true })) });
   const rows = items.map((x, i) => new D.TableRow({ children: [
     cell(`${x.l.num}  ${x.l.title}`, { zebra: i % 2 }),
     cell(x.hasText ? 'Yes' : '—', { zebra: i % 2, color: x.hasText ? undefined : FAINT }),
@@ -1531,19 +1735,19 @@ async function downloadAllMyNotes(){
   // One section per lesson that has something in it, each on its own page.
   for(const x of withContent){
     const { l, raw, hasText, f } = x;
-    children.push(P(T(`LESSON ${l.num}`, { color: ACCENT, size: 18, bold: true, characterSpacing: 40 }), { pageBreakBefore: true, spacing: { after: 40 } }));
+    children.push(P(T(`${tr('Lesson').toUpperCase()} ${l.num}`, { color: ACCENT, size: 18, bold: true, characterSpacing: 40 }), { pageBreakBefore: true, spacing: { after: 40 } }));
     children.push(new D.Paragraph({ heading: D.HeadingLevel.HEADING_1, spacing: { after: 80 }, children: [T(l.title, { color: BLUE })] }));
-    children.push(P(T(`Quiz: ${quizText(l)}`, { color: GREY, size: 20 }), { spacing: { after: 240 },
+    children.push(P(T(`${tr('Quiz')}: ${quizText(l)}`, { color: GREY, size: 20 }), { spacing: { after: 240 },
       border: { bottom: { style: D.BorderStyle.SINGLE, size: 6, color: 'DEE6F3', space: 6 } } }));
 
-    children.push(P(T('My notes', { bold: true, size: 24, color: BLUE }), { spacing: { after: 100 } }));
+    children.push(P(T(tr('My notes'), { bold: true, size: 24, color: BLUE }), { spacing: { after: 100 } }));
     if(hasText) children.push(...noteToDocxParagraphs(D, raw));
-    else children.push(P(T('No written note for this lesson.', { italics: true, color: FAINT })));
+    else children.push(P(T(tr('No written note for this lesson.'), { italics: true, color: FAINT })));
 
     if(x.files.length){
-      children.push(P(T('Attachments', { bold: true, size: 24, color: BLUE }), { spacing: { before: 280, after: 100 } }));
+      children.push(P(T(tr('Attachments'), { bold: true, size: 24, color: BLUE }), { spacing: { before: 280, after: 100 } }));
       for(const file of x.files){
-        children.push(P([T('• ' + file.name, { bold: true }), T(`   ${fmtSize(file.size)}  ·  in Attachments/${lessonFolderName(l)}/`, { color: GREY, size: 18 })], { spacing: { after: 60 } }));
+        children.push(P([T('• ' + file.name, { bold: true }), T(`   ${fmtSize(file.size)}  ·  Attachments/${lessonFolderName(l)}/`, { color: GREY, size: 18 })], { spacing: { after: 60 } }));
         const it = imageTypeFor(file.mimetype, file.name);
         const blob = blobs[file.id];
         if(it && blob){
@@ -1561,8 +1765,8 @@ async function downloadAllMyNotes(){
       const box = { shading: { type: D.ShadingType.CLEAR, fill: 'EEF3FC', color: 'auto' },
                     border: { left: { style: D.BorderStyle.SINGLE, size: 24, color: ACCENT, space: 10 } },
                     indent: { left: 160, right: 160 } };
-      children.push(P(T('Instructor feedback', { bold: true, color: BLUE }), { ...box, spacing: { before: 320 } }));
-      if(f.rating) children.push(P([T(starsText(f.rating), { color: STAR, size: 26 }), T(`  ${f.rating} out of 5`, { color: GREY, size: 20 })], box));
+      children.push(P(T(tr('Instructor feedback'), { bold: true, color: BLUE }), { ...box, spacing: { before: 320 } }));
+      if(f.rating) children.push(P([T(starsText(f.rating), { color: STAR, size: 26 }), T(`  ${f.rating} / 5`, { color: GREY, size: 20 })], box));
       (f.text || '').split('\n').forEach((line, i, arr) => children.push(P(T(line), { ...box, spacing: { after: i === arr.length-1 ? 120 : 0 } })));
     }
   }
@@ -1841,7 +2045,7 @@ function timeAgo(ts){
   if(s < 3600) return Math.floor(s/60) + ' min ago';
   if(s < 86400) return Math.floor(s/3600) + ' h ago';
   if(s < 86400*7) return Math.floor(s/86400) + ' d ago';
-  return new Date(ts).toLocaleDateString();
+  return new Date(ts).toLocaleDateString(i18nLocale());
 }
 function renderNotifPanel(){
   const wrap = document.getElementById('notif-wrap');
@@ -1902,7 +2106,7 @@ async function openNotification(id){
 function fmtDate(ts, withTime){
   if(!ts) return '—';
   const d = new Date(ts);
-  return withTime ? d.toLocaleString(undefined, { dateStyle:'medium', timeStyle:'short' }) : d.toLocaleDateString(undefined, { dateStyle:'medium' });
+  return withTime ? d.toLocaleString(i18nLocale(), { dateStyle:'medium', timeStyle:'short' }) : d.toLocaleDateString(i18nLocale(), { dateStyle:'medium' });
 }
 async function openStudentProfile(uid){
   const o = document.createElement('div');
@@ -2169,8 +2373,8 @@ async function exportResultsCsv(){
     const noteCount = {}, fileCount = {};
     (nd.notes||[]).forEach(n => { noteCount[n.user_id] = (noteCount[n.user_id]||0) + 1; });
     (nd.files||[]).forEach(f => { fileCount[f.user_id] = (fileCount[f.user_id]||0) + 1; });
-    const head = ['Name','Email','Phone','Status', ...lessons.map(l => `Lesson ${l.num} - ${l.title}`),
-                  'Total correct','Total questions','Overall %','Lessons with notes','Attachments'];
+    const head = ['Name','Email','Phone','Status'].map(h => tr(h)).concat(lessons.map(l => `${tr('Lesson')} ${l.num} - ${l.title}`),
+                  ['Total correct','Total questions','Overall %','Lessons with notes','Attachments'].map(h => tr(h)));
     const rows = students.map(s => {
       const answers = {}; for(const p of (s.progress||[])) answers[p.lesson_id] = p.answers || {};
       let c = 0, t = 0;
@@ -2178,9 +2382,9 @@ async function exportResultsCsv(){
         t += l.quiz.length;
         const sc = studentScore(answers, l.id);
         if(!sc) return '';
-        c += sc.correct; return `${sc.correct} of ${sc.total}`;
+        c += sc.correct; return LANG === 'en' ? `${sc.correct} of ${sc.total}` : `${sc.correct} / ${sc.total}`;
       });
-      return [s.name, s.email, s.phone||'', s.approved ? 'Approved' : 'Pending', ...cells,
+      return [s.name, s.email, s.phone||'', tr(s.approved ? 'Approved' : 'Pending'), ...cells,
               c, t, t ? Math.round(c/t*100)+'%' : '', noteCount[s.id]||0, fileCount[s.id]||0];
     });
     const csv = '\uFEFF' + [head, ...rows].map(r => r.map(csvCell).join(',')).join('\r\n');
@@ -3661,16 +3865,16 @@ function updateChrome(s){
   chrome.classList.toggle('mode-admin', isAdmin);
   if(isAdmin){
     const tag = (currentUser && currentUser.role === 'super_admin') ? 'Super Admin' : 'Admin';
-    right.innerHTML = `${tag === 'Admin' ? notifBellHtml() : ''}<span class="admin-tag">${tag}</span>
+    right.innerHTML = `${langSwitchHtml()}${tag === 'Admin' ? notifBellHtml() : ''}<span class="admin-tag">${tag}</span>
       <button class="chrome-link" onclick="adminSignOut()">Sign out</button>`;
     updateNotifBadge();
   } else if(isStudent && currentStudent){
-    right.innerHTML = `${notifBellHtml()}<span class="chrome-user">${escapeHtml(currentStudent.name)}</span>
+    right.innerHTML = `${langSwitchHtml()}${notifBellHtml()}<span class="chrome-user">${escapeHtml(currentStudent.name)}</span>
       <button class="chrome-link" onclick="openChangePassword()">Change password</button>
       <button class="chrome-link" onclick="signOutStudent()">Sign out</button>`;
     updateNotifBadge();
   } else {
-    right.innerHTML = '';
+    right.innerHTML = langSwitchHtml();
   }
 }
 
