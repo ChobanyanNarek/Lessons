@@ -3269,7 +3269,6 @@ async function downloadMaterial(btn, name, url){
 function renderMaterialRow(s){
   const hasTarget = !!(s.fileId || s.url);
   const openUrl = materialOpenUrl(s);
-  const dlUrl   = materialDownloadUrl(s);
   return `
     <div class="slide-row">
       <div class="slide-info">
@@ -3279,7 +3278,6 @@ function renderMaterialRow(s){
       ${hasTarget ? `
         <div style="display:flex;gap:8px;flex-shrink:0;">
           <button class="dl-btn" onclick="window.open('${jsEscape(openUrl)}','_blank')">Open</button>
-          <button class="dl-btn" onclick="downloadMaterial(this,'${jsEscape(s.name)}','${jsEscape(dlUrl)}')">Download</button>
         </div>`
         : `<button class="dl-btn" style="opacity:0.45;cursor:default;" disabled>No link</button>`}
     </div>`;

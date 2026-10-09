@@ -401,7 +401,8 @@ app.get('/api/files/:fileId', async (req, res) => {
     const result = await pool.query('SELECT name, mimetype, data FROM lesson_files WHERE id = $1', [req.params.fileId]);
     if (!result.rows.length) return res.status(404).json({ error: 'File not found' });
     const file = result.rows[0];
-    const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
+    // Lesson materials are view-only: always served inline, never as a download.
+    const disposition = 'inline';
     const safeName = ensureExtension((file.name || 'download').replace(/[\r\n"]/g, ''), file.mimetype);
     res.setHeader('Content-Type', file.mimetype || 'application/octet-stream');
     res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
@@ -483,66 +484,8 @@ function ensureExtension(name, mimetype) {
   return ext ? name + ext : name;
 }
 
-// GET /api/download — proxies an external link (Google Docs/Slides/Sheets, Google
-// Drive, Dropbox, etc.) and forces a real download via Content-Disposition, since
-// the browser's <a download> attribute is ignored for cross-origin links.
-app.get('/api/download', async (req, res) => {
-  const { url, name } = req.query;
-  if (!url) return res.status(400).json({ error: 'url is required' });
-  let target = String(url);
-  if (!/^https?:\/\//i.test(target)) return res.status(400).json({ error: 'Only http(s) links are supported' });
-
-  const docsExport = googleDocsExportUrl(target);
-  const gdrive = !docsExport && (
-    target.match(/drive\.google\.com\/file\/d\/([^/]+)/) ||
-    target.match(/drive\.google\.com\/open\?id=([^&]+)/) ||
-    target.match(/drive\.google\.com\/uc\?.*[?&]id=([^&]+)/)
-  );
-
-  try {
-    let upstream;
-    if (docsExport) {
-      upstream = await fetch(docsExport, { redirect: 'follow' });
-      const ct = upstream.headers.get('content-type') || '';
-      if (upstream.ok && ct.includes('text/html')) {
-        return res.status(502).json({
-          error: 'Google would not export this doc — make sure it\'s shared as "Anyone with the link" (Share → General access), then try again.'
-        });
-      }
-    } else if (gdrive) {
-      const { resp, stillHtml } = await fetchGoogleDriveFile(gdrive[1]);
-      if (stillHtml) {
-        return res.status(502).json({
-          error: 'Google Drive would not hand over the raw file for this link — this usually means the link isn\'t set to "Anyone with the link", or Drive is showing a confirmation page it wouldn\'t skip. Double-check the sharing setting and try again.'
-        });
-      }
-      upstream = resp;
-    } else {
-      upstream = await fetch(target, { redirect: 'follow' });
-    }
-    if (!upstream.ok) return res.status(502).json({ error: 'Could not fetch the file from its source.' });
-
-    const contentLength = parseInt(upstream.headers.get('content-length') || '0', 10);
-    if (contentLength && contentLength > 50 * 1024 * 1024) {
-      return res.status(413).json({ error: 'That file is larger than this proxy supports (50MB). Try opening the link directly instead.' });
-    }
-
-    const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-    if (!docsExport && !gdrive && contentType.includes('text/html')) {
-      // The source handed back a webpage, not a file — sending that through would just
-      // produce a "corrupt"/unreadable download labeled with the wrong extension.
-      return res.status(502).json({ error: 'That link points to a webpage, not a direct file — the download would come out unreadable. Use a direct file link instead.' });
-    }
-
-    const safeName = ensureExtension(String(name || 'download').replace(/[\r\n"]/g, ''), contentType);
-    res.setHeader('Content-Type', contentType);
-    res.setHeader('Content-Disposition', `attachment; filename="${safeName}"`);
-    res.send(Buffer.from(await upstream.arrayBuffer()));
-  } catch (e) {
-    console.error('Download proxy error:', e.message);
-    res.status(502).json({ error: 'Could not download the file from its source.' });
-  }
-});
+// GET /api/download — disabled: course materials are view-only for students.
+app.get('/api/download', (req, res) => res.status(410).json({ error: 'Downloading materials is disabled.' }));
 
 // ─── USER PROGRESS ROUTES ────────────────────────────────────────────────────
 
