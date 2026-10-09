@@ -358,6 +358,19 @@ select.app-select:focus,.notes-filter select:focus,.tpl-form select:focus{outlin
 .notif-item.unread{background:#F3F7FF;box-shadow:inset 3px 0 0 var(--blue);}
 .notif-item .t{display:block;font-size:11px;color:var(--ink-faint);margin-top:3px;}
 .notif-empty{padding:22px 14px;text-align:center;color:var(--ink-faint);font-size:13px;}
+.notif-x{display:none;width:30px;height:30px;border:none;background:none;border-radius:8px;font-size:18px;line-height:1;color:var(--ink-dim);cursor:pointer;}
+.notif-x:hover{background:var(--blue-soft);color:var(--blue);}
+.notif-backdrop{display:none;}
+@media (max-width:640px){
+  .notif-backdrop{display:block;position:fixed;inset:0;background:rgba(15,32,57,.35);z-index:59;}
+  .notif-panel{position:fixed;left:12px;right:12px;top:var(--notif-top,72px);width:auto;max-width:none;border-radius:14px;box-shadow:0 18px 48px rgba(15,32,57,.28);}
+  .notif-head{padding:10px 10px 10px 16px;font-size:15px;}
+  .notif-x{display:inline-flex;align-items:center;justify-content:center;}
+  .notif-panel{display:flex;flex-direction:column;max-height:calc(100vh - var(--notif-top,72px) - 16px);max-height:calc(100dvh - var(--notif-top,72px) - 16px);}
+  .notif-list{max-height:none;flex:1;min-height:0;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;}
+  .notif-item{padding:14px 16px;font-size:14px;}
+  .notif-item .t{font-size:12px;margin-top:4px;}
+}
 .tpl-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;}
 .tpl-card{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:16px 18px;display:flex;flex-direction:column;gap:8px;}
 .tpl-card h4{margin:0;font-size:15px;font-weight:600;color:var(--ink);}
@@ -2154,7 +2167,12 @@ function renderNotifPanel(){
   if(!wrap) return;
   let p = document.getElementById('notif-panel');
   if(!p){ p = document.createElement('div'); p.className = 'notif-panel'; p.id = 'notif-panel'; p.setAttribute('role','dialog'); p.setAttribute('aria-label','Notifications'); wrap.appendChild(p); }
-  p.innerHTML = `<div class="notif-head"><span>Notifications</span></div>
+  if(window.innerWidth <= 640){
+    const r = document.getElementById('notif-btn')?.getBoundingClientRect();
+    p.style.setProperty('--notif-top', Math.max(12, Math.round((r ? r.bottom : 60) + 8)) + 'px');
+    if(!document.getElementById('notif-backdrop')){ const bd = document.createElement('div'); bd.className = 'notif-backdrop'; bd.id = 'notif-backdrop'; wrap.appendChild(bd); }
+  }
+  p.innerHTML = `<div class="notif-head"><span>Notifications</span><button type="button" class="notif-x" aria-label="Close" onclick="event.stopPropagation();closeNotifPanel()">✕</button></div>
     <div class="notif-list">${notifData.items.length ? notifData.items.map(n => `
       <button type="button" class="notif-item${n.unread?' unread':''}" onclick="openNotification(${n.id})">${escapeHtml(n.text)}<span class="t">${timeAgo(n.created_at)}</span></button>`).join('')
       : `<div class="notif-empty">You're all caught up.</div>`}</div>`;
@@ -2175,11 +2193,12 @@ async function toggleNotifPanel(){
 function closeNotifPanel(){
   notifOpen = false;
   document.getElementById('notif-panel')?.remove();
+  document.getElementById('notif-backdrop')?.remove();
   document.getElementById('notif-btn')?.setAttribute('aria-expanded','false');
   document.removeEventListener('click', notifOutside);
   document.removeEventListener('keydown', notifEsc);
 }
-function notifOutside(e){ if(!e.target.closest('#notif-wrap')) closeNotifPanel(); }
+function notifOutside(e){ if(!e.target.closest('#notif-wrap') || e.target.id === 'notif-backdrop') closeNotifPanel(); }
 function notifEsc(e){ if(e.key === 'Escape'){ closeNotifPanel(); document.getElementById('notif-btn')?.focus(); } }
 async function openNotification(id){
   const n = notifData.items.find(x => x.id === id);
