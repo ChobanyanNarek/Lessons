@@ -837,7 +837,7 @@ app.get('/api/questions', auth, async (req, res) => {
     let where = 'user_id = $1';
     if (req.query.lesson_id) { params.push(parseInt(req.query.lesson_id, 10)); where += ' AND lesson_id = $2'; }
     const r = await pool.query(
-      `SELECT id, lesson_id, question, answer, answered_at, created_at FROM lesson_questions
+      `SELECT id, lesson_id, question, answer, answered_at, closed_at, created_at FROM lesson_questions
         WHERE ${where} ORDER BY created_at ASC`, params);
     res.json(r.rows);
   } catch (e) { console.error('Questions list error:', e.message); res.status(500).json({ error: 'Server error' }); }
@@ -862,14 +862,29 @@ app.post('/api/questions', auth, async (req, res) => {
   } catch (e) { console.error('Question create error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
+// PUT /api/admin/questions/:id/close — { closed: true|false }. Closing marks a
+// question as handled without (or after) an answer, e.g. a "thank you" message.
+app.put('/api/admin/questions/:id/close', auth, adminOnly, async (req, res) => {
+  const closed = req.body && req.body.closed !== false;
+  try {
+    const r = await pool.query(
+      `UPDATE lesson_questions SET closed_at = ${closed ? 'NOW()' : 'NULL'}
+        WHERE id = $1 AND course_id = $2
+        RETURNING id, lesson_id, user_id, question, answer, answered_at, closed_at, created_at`,
+      [req.params.id, req.user.course_id]);
+    if (!r.rows.length) return res.status(404).json({ error: 'Question not found' });
+    res.json(r.rows[0]);
+  } catch (e) { console.error('Question close error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 // DELETE /api/questions/:id — the student who asked (only while unanswered), or a course admin.
 app.delete('/api/questions/:id', auth, async (req, res) => {
   try {
-    const q = await pool.query('SELECT user_id, course_id, answer FROM lesson_questions WHERE id = $1', [req.params.id]);
+    const q = await pool.query('SELECT user_id, course_id, answer, closed_at FROM lesson_questions WHERE id = $1', [req.params.id]);
     if (!q.rows.length) return res.status(404).json({ error: 'Question not found' });
     const row = q.rows[0];
     const isAdmin = req.user.is_admin && row.course_id === req.user.course_id;
-    const isOwner = row.user_id === req.user.id && !row.answer;
+    const isOwner = row.user_id === req.user.id && !row.answer && !row.closed_at;
     if (!isAdmin && !isOwner) return res.status(403).json({ error: 'Forbidden' });
     await pool.query('DELETE FROM lesson_questions WHERE id = $1', [req.params.id]);
     res.json({ ok: true });
@@ -880,9 +895,9 @@ app.delete('/api/questions/:id', auth, async (req, res) => {
 app.get('/api/admin/questions', auth, adminOnly, async (req, res) => {
   try {
     const r = await pool.query(
-      `SELECT q.id, q.lesson_id, q.user_id, u.name, u.email, q.question, q.answer, q.answered_at, q.created_at
+      `SELECT q.id, q.lesson_id, q.user_id, u.name, u.email, q.question, q.answer, q.answered_at, q.closed_at, q.created_at
          FROM lesson_questions q JOIN users u ON u.id = q.user_id
-        WHERE q.course_id = $1 ORDER BY (q.answer IS NULL) DESC, q.created_at DESC`, [req.user.course_id]);
+        WHERE q.course_id = $1 ORDER BY (q.answer IS NULL AND q.closed_at IS NULL) DESC, q.created_at DESC`, [req.user.course_id]);
     res.json(r.rows);
   } catch (e) { console.error('Admin questions error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
@@ -895,7 +910,7 @@ app.put('/api/admin/questions/:id/answer', auth, adminOnly, async (req, res) => 
     const r = await pool.query(
       `UPDATE lesson_questions SET answer = $1, answered_at = NOW()
         WHERE id = $2 AND course_id = $3
-        RETURNING id, lesson_id, user_id, question, answer, answered_at, created_at`,
+        RETURNING id, lesson_id, user_id, question, answer, answered_at, closed_at, created_at`,
       [answer, req.params.id, req.user.course_id]);
     if (!r.rows.length) return res.status(404).json({ error: 'Question not found' });
     const q = r.rows[0];
@@ -1486,6 +1501,7 @@ async function initDb() {
       day     DATE NOT NULL,
       PRIMARY KEY (user_id, day)
     )`);
+  await pool.query(`ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
   // Resources can also be plain links (no file).
   await pool.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS url TEXT`);
   await pool.query(`ALTER TABLE templates ALTER COLUMN data DROP NOT NULL`);
