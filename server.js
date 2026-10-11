@@ -173,6 +173,7 @@ app.post('/api/auth/register', async (req, res) => {
       [name, email, phone || '', hash, courseId]
     );
     notify({ course_id: courseId, audience: 'admin', kind: 'signup', text: `${name} signed up and is waiting for approval.` });
+    tgAlert(courseId, 'signups', `🆕 <b>New sign-up</b>\n${tgEsc(name)} (${tgEsc(email)}) is waiting for approval.`);
     // No token is issued — the account is pending admin approval.
     res.status(201).json({ pending: true, user: result.rows[0] });
   } catch (e) {
@@ -256,6 +257,71 @@ async function notify({ course_id, user_id = null, audience = 'student', kind, t
       [course_id, user_id, audience, kind, text, lesson_id]
     );
   } catch (e) { console.error('Notify error:', e.message); }
+}
+
+
+// ─── TELEGRAM ALERTS (admin) ─────────────────────────────────────────────────
+// Each course can connect its own Telegram bot. The admin creates a bot with
+// @BotFather, pastes the token in Settings, sends the bot any message, then
+// presses "Connect" — we read getUpdates to learn the chat id. Stored per
+// course in settings as tg:<courseId>. The token is never sent back to the
+// browser.
+const TG_API = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
+const TG_DEFAULT_EVENTS = { questions: true, notes: true, signups: true };
+async function tgGet(courseId) {
+  try {
+    const r = await pool.query('SELECT value FROM settings WHERE key = $1', ['tg:' + courseId]);
+    return r.rows.length ? JSON.parse(r.rows[0].value) : {};
+  } catch (e) { return {}; }
+}
+async function tgSave(courseId, v) {
+  await pool.query(`INSERT INTO settings (key, value) VALUES ($1, $2) ON CONFLICT (key) DO UPDATE SET value = $2`, ['tg:' + courseId, JSON.stringify(v)]);
+}
+async function tgCall(token, method, body) {
+  const resp = await fetch(`${TG_API}/bot${token}/${method}`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body || {}),
+    signal: AbortSignal.timeout(10000),
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!data.ok) { const err = new Error(data.description || `Telegram error ${resp.status}`); err.tg = true; throw err; }
+  return data.result;
+}
+const tgEsc = s => String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function htmlToText(html) {
+  return String(html || '')
+    .replace(/<(br|\/p|\/div|\/li|\/h[1-6])\s*\/?>/gi, '\n').replace(/<li[^>]*>/gi, '• ')
+    .replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&amp;/g, '&')
+    .replace(/[ \t]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim();
+}
+const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
+// Fire-and-forget: never let Telegram problems affect the student's request.
+function tgAlert(courseId, event, html) {
+  (async () => {
+    const cfg = await tgGet(courseId);
+    if (!cfg.token || !cfg.chat_id) return;
+    const ev = Object.assign({}, TG_DEFAULT_EVENTS, cfg.events || {});
+    if (!ev[event]) return;
+    const link = cfg.app_url ? `\n\n<a href="${tgEsc(cfg.app_url)}">Open admin console</a>` : '';
+    await tgCall(cfg.token, 'sendMessage', { chat_id: cfg.chat_id, text: html + link, parse_mode: 'HTML', disable_web_page_preview: true });
+  })().catch(e => console.error('Telegram alert error:', e.message));
+}
+// Notes are saved many times while a student works, so only alert once per
+// student+lesson per window.
+const TG_NOTE_WINDOW_MS = 20 * 60 * 1000;
+const tgNoteSent = new Map();
+function tgNoteThrottled(key) {
+  const now = Date.now(), last = tgNoteSent.get(key) || 0;
+  if (now - last < TG_NOTE_WINDOW_MS) return true;
+  tgNoteSent.set(key, now);
+  if (tgNoteSent.size > 5000) for (const [k, t] of tgNoteSent) if (now - t > TG_NOTE_WINDOW_MS) tgNoteSent.delete(k);
+  return false;
+}
+async function tgStudentLesson(userId, lessonId) {
+  const r = await pool.query(
+    `SELECT u.name, u.email, u.course_id, u.is_admin, l.title FROM users u
+       LEFT JOIN lessons l ON l.id = $2 AND l.course_id = u.course_id WHERE u.id = $1`, [userId, lessonId]);
+  return r.rows[0] || null;
 }
 
 // ─── LESSONS ROUTES ──────────────────────────────────────────────────────────
@@ -519,6 +585,15 @@ app.patch('/api/users/:id/progress/:lessonId', auth, async (req, res) => {
       ]
     );
     res.json({ ok: true });
+    if (note !== undefined && req.user.id === req.params.id && !req.user.is_admin) {
+      const text = htmlToText(note);
+      if (text && !tgNoteThrottled(req.params.id + ':' + req.params.lessonId)) {
+        tgStudentLesson(req.params.id, req.params.lessonId).then(sl => {
+          if (!sl || sl.is_admin) return;
+          tgAlert(sl.course_id, 'notes', `📝 <b>Note saved</b> by ${tgEsc(sl.name)}\n📘 ${tgEsc(sl.title || 'Lesson')}\n\n${tgEsc(clip(text, 700))}`);
+        }).catch(e => console.error('Telegram note lookup error:', e.message));
+      }
+    }
   } catch (e) {
     console.error('Progress update error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -543,6 +618,10 @@ app.post('/api/notes/:lessonId/files', auth, upload.single('file'), async (req, 
       [req.user.id, req.params.lessonId, req.file.originalname, req.file.mimetype || 'application/octet-stream', req.file.buffer]
     );
     res.status(201).json(result.rows[0]);
+    if (!req.user.is_admin) tgStudentLesson(req.user.id, req.params.lessonId).then(sl => {
+      if (!sl) return;
+      tgAlert(sl.course_id, 'notes', `📎 <b>File attached to notes</b> by ${tgEsc(sl.name)}\n📘 ${tgEsc(sl.title || 'Lesson')}\n${tgEsc(req.file.originalname)}`);
+    }).catch(e => console.error('Telegram file lookup error:', e.message));
   } catch (e) {
     console.error('Note file upload error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -801,8 +880,72 @@ app.post('/api/questions', auth, async (req, res) => {
     const u = await pool.query('SELECT name FROM users WHERE id = $1', [req.user.id]);
     notify({ course_id: req.user.course_id, audience: 'admin', kind: 'question', lesson_id: lessonId,
              text: `${u.rows[0] ? u.rows[0].name : 'A student'} asked a question about "${l.rows[0].title}".` });
+    tgAlert(req.user.course_id, 'questions',
+      `❓ <b>New question</b> from ${tgEsc(u.rows[0] ? u.rows[0].name : 'a student')}\n📘 ${tgEsc(l.rows[0].title)}\n\n${tgEsc(clip(question, 1500))}`);
     res.status(201).json(r.rows[0]);
   } catch (e) { console.error('Question create error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+
+// ─── TELEGRAM SETTINGS ROUTES ────────────────────────────────────────────────
+function tgPublic(cfg) {
+  return { has_token: !!cfg.token, bot_username: cfg.bot_username || null, connected: !!(cfg.token && cfg.chat_id),
+           chat_name: cfg.chat_name || null, events: Object.assign({}, TG_DEFAULT_EVENTS, cfg.events || {}) };
+}
+app.get('/api/admin/telegram', auth, adminOnly, async (req, res) => {
+  res.json(tgPublic(await tgGet(req.user.course_id)));
+});
+// PUT { token?, events? } — a new token is validated with getMe and resets the chat.
+app.put('/api/admin/telegram', auth, adminOnly, async (req, res) => {
+  try {
+    const cfg = await tgGet(req.user.course_id);
+    const { token, events } = req.body || {};
+    if (token !== undefined) {
+      const t = String(token).trim();
+      if (!/^\d+:[A-Za-z0-9_-]{30,}$/.test(t)) return res.status(400).json({ error: 'That doesn’t look like a bot token. Copy the full token from @BotFather.' });
+      let me;
+      try { me = await tgCall(t, 'getMe'); } catch (e) { return res.status(400).json({ error: 'Telegram rejected this token. Check it and try again.' }); }
+      cfg.token = t; cfg.bot_username = me.username; delete cfg.chat_id; delete cfg.chat_name;
+    }
+    if (events && typeof events === 'object') {
+      cfg.events = Object.assign({}, TG_DEFAULT_EVENTS, cfg.events || {});
+      for (const k of Object.keys(TG_DEFAULT_EVENTS)) if (k in events) cfg.events[k] = !!events[k];
+    }
+    if (req.headers.origin) cfg.app_url = req.headers.origin + (req.body.app_path || '');
+    await tgSave(req.user.course_id, cfg);
+    res.json(tgPublic(cfg));
+  } catch (e) { console.error('Telegram settings error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+// POST /api/admin/telegram/connect — finds the chat that last messaged the bot.
+app.post('/api/admin/telegram/connect', auth, adminOnly, async (req, res) => {
+  try {
+    const cfg = await tgGet(req.user.course_id);
+    if (!cfg.token) return res.status(400).json({ error: 'Add your bot token first.' });
+    let updates;
+    try { updates = await tgCall(cfg.token, 'getUpdates', { limit: 100, allowed_updates: ['message'] }); }
+    catch (e) { return res.status(400).json({ error: 'Couldn’t reach your bot: ' + e.message }); }
+    const msgs = (updates || []).map(u => u.message).filter(m => m && m.chat);
+    const m = msgs.filter(x => x.chat.type === 'private').pop() || msgs.pop();
+    if (!m) return res.status(404).json({ error: `Open @${cfg.bot_username || 'your bot'} in Telegram, press Start (or send any message), then try again.` });
+    const c = m.chat;
+    cfg.chat_id = c.id;
+    cfg.chat_name = c.title || [c.first_name, c.last_name].filter(Boolean).join(' ') || (c.username ? '@' + c.username : String(c.id));
+    if (req.body && req.body.app_path !== undefined && req.headers.origin) cfg.app_url = req.headers.origin + req.body.app_path;
+    await tgSave(req.user.course_id, cfg);
+    await tgCall(cfg.token, 'sendMessage', { chat_id: cfg.chat_id, parse_mode: 'HTML',
+      text: '✅ <b>Connected!</b>\nYou’ll get alerts here when students send questions, save notes, or sign up.' }).catch(() => {});
+    res.json(tgPublic(cfg));
+  } catch (e) { console.error('Telegram connect error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/api/admin/telegram/test', auth, adminOnly, async (req, res) => {
+  const cfg = await tgGet(req.user.course_id);
+  if (!cfg.token || !cfg.chat_id) return res.status(400).json({ error: 'Telegram isn’t connected yet.' });
+  try { await tgCall(cfg.token, 'sendMessage', { chat_id: cfg.chat_id, text: '🔔 Test message — Telegram alerts are working.' }); res.json({ ok: true }); }
+  catch (e) { res.status(400).json({ error: 'Telegram error: ' + e.message }); }
+});
+app.delete('/api/admin/telegram', auth, adminOnly, async (req, res) => {
+  try { await pool.query('DELETE FROM settings WHERE key = $1', ['tg:' + req.user.course_id]); res.json(tgPublic({})); }
+  catch (e) { console.error('Telegram disconnect error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
 // PUT /api/admin/questions/:id/close — { closed: true|false }. Closing marks a
