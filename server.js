@@ -267,7 +267,7 @@ async function notify({ course_id, user_id = null, audience = 'student', kind, t
 // course in settings as tg:<courseId>. The token is never sent back to the
 // browser.
 const TG_API = process.env.TELEGRAM_API_BASE || 'https://api.telegram.org';
-const TG_DEFAULT_EVENTS = { questions: true, notes: true, signups: true };
+const TG_DEFAULT_EVENTS = { questions: true, notes: true, signups: true, lessons: true };
 async function tgGet(courseId) {
   try {
     const r = await pool.query('SELECT value FROM settings WHERE key = $1', ['tg:' + courseId]);
@@ -391,6 +391,25 @@ async function tgStudentLesson(userId, lessonId) {
   return r.rows[0] || null;
 }
 
+// ─── SCHEDULED LESSON OPENING ────────────────────────────────────────────────
+// Opens every lesson whose open_at has passed. The UPDATE … RETURNING is
+// atomic, so concurrent calls (timer + page load) never notify twice. Runs on
+// a timer and also on every lessons fetch, so a sleeping free-tier server
+// still opens overdue lessons the moment anyone visits.
+async function openDueLessons() {
+  const r = await pool.query(
+    `UPDATE lessons SET status = 'open', open_at = NULL, opened_at = NOW()
+      WHERE status <> 'open' AND open_at IS NOT NULL AND open_at <= NOW()
+      RETURNING id, course_id, title`);
+  for (const l of r.rows) {
+    notify({ course_id: l.course_id, kind: 'lesson', lesson_id: l.id, text: `New lesson opened: ${l.title}` });
+    lbSettings(l.course_id).then(st => { if (st.enabled && st.mode === 'lesson') return currentLeaderboard(l.course_id, { force: true }); }).catch(() => {});
+    tgAlert(l.course_id, 'lessons', `🗓 <b>Lesson opened on schedule</b>\n📘 ${tgEsc(l.title)}\nStudents have been notified.`);
+  }
+  return r.rows;
+}
+setInterval(() => { openDueLessons().catch(e => console.error('Auto-open error:', e.message)); }, 60 * 1000);
+
 // ─── LESSONS ROUTES ──────────────────────────────────────────────────────────
 
 // GET /api/version — deploy verification marker
@@ -405,6 +424,7 @@ app.get('/api/lessons', async (req, res) => {
   try {
     const courseRes = await pool.query('SELECT id FROM courses WHERE slug = $1', [course]);
     if (!courseRes.rows.length) return res.status(404).json({ error: 'course-not-found' });
+    await openDueLessons().catch(e => console.error('Auto-open error:', e.message));
     const result = await pool.query(
       'SELECT * FROM lessons WHERE course_id = $1 ORDER BY sort_order ASC NULLS LAST, id ASC',
       [courseRes.rows[0].id]
@@ -444,7 +464,7 @@ app.post('/api/lessons', auth, adminOnly, async (req, res) => {
 
 // PATCH /api/lessons/:id  — admin only, must own the lesson's course
 app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
-  const { title, blurb, status, quiz, slides, sort_order, quiz_mandatory, flashcards } = req.body;
+  const { title, blurb, status, quiz, slides, sort_order, quiz_mandatory, flashcards, open_at } = req.body;
   const { id } = req.params;
   try {
     const existing = await pool.query('SELECT course_id, status, title FROM lessons WHERE id = $1', [id]);
@@ -457,6 +477,15 @@ app.patch('/api/lessons/:id', auth, adminOnly, async (req, res) => {
     if (title   !== undefined) { fields.push(`title  = $${i++}`); values.push(title); }
     if (blurb   !== undefined) { fields.push(`blurb  = $${i++}`); values.push(blurb); }
     if (status  !== undefined) { fields.push(`status = $${i++}`); values.push(status); }
+    if (status === 'open' && existing.rows[0].status !== 'open') { fields.push('open_at = NULL', 'opened_at = NOW()'); }
+    else if (open_at !== undefined) {
+      if (open_at === null || open_at === '') { fields.push('open_at = NULL'); }
+      else {
+        const d = new Date(open_at);
+        if (isNaN(d.getTime())) return res.status(400).json({ error: 'Invalid date' });
+        fields.push(`open_at = $${i++}`); values.push(d.toISOString());
+      }
+    }
     if (quiz    !== undefined) { fields.push(`quiz   = $${i++}`); values.push(JSON.stringify(quiz)); }
     if (slides  !== undefined) { fields.push(`slides = $${i++}`); values.push(JSON.stringify(slides)); }
     if (flashcards !== undefined) {
@@ -1705,6 +1734,9 @@ async function initDb() {
       PRIMARY KEY (user_id, day)
     )`);
   await pool.query(`ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
+  // Scheduled auto-opening: open_at = when to open; opened_at = when it last opened.
+  await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS open_at TIMESTAMPTZ`);
+  await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ`);
   await pool.query(`CREATE TABLE IF NOT EXISTS tg_question_msgs (
       course_id   INTEGER,
       chat_id     BIGINT,
@@ -1788,6 +1820,7 @@ async function initDb() {
 initDb()
   .then(() => {
     app.listen(PORT, () => console.log(`✓ Server running on port ${PORT}`));
+    openDueLessons().catch(e => console.error('Auto-open error:', e.message));
     if (process.env.RENDER_EXTERNAL_URL) tgRefreshWebhooks(process.env.RENDER_EXTERNAL_URL).catch(e => console.error('Telegram webhook refresh error:', e.message));
   })
   .catch(err => {
