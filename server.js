@@ -296,15 +296,82 @@ function htmlToText(html) {
 }
 const clip = (s, n) => (s.length > n ? s.slice(0, n - 1).trimEnd() + '…' : s);
 // Fire-and-forget: never let Telegram problems affect the student's request.
-function tgAlert(courseId, event, html) {
+function tgAlert(courseId, event, html, opts = {}) {
   (async () => {
     const cfg = await tgGet(courseId);
     if (!cfg.token || !cfg.chat_id) return;
     const ev = Object.assign({}, TG_DEFAULT_EVENTS, cfg.events || {});
     if (!ev[event]) return;
-    const link = cfg.app_url ? `\n\n<a href="${tgEsc(cfg.app_url)}">Open admin console</a>` : '';
-    await tgCall(cfg.token, 'sendMessage', { chat_id: cfg.chat_id, text: html + link, parse_mode: 'HTML', disable_web_page_preview: true });
+    const body = { chat_id: cfg.chat_id, text: html, parse_mode: 'HTML', disable_web_page_preview: true };
+    if (opts.questionId) {
+      // Questions get action buttons and can be answered by replying.
+      if (cfg.webhook_ok) body.text += '\n\n💬 <i>Reply to this message to answer.</i>';
+      body.reply_markup = tgQuestionKeyboard(cfg, opts.questionId, false);
+    } else if (cfg.app_url) {
+      body.text += `\n\n<a href="${tgEsc(cfg.app_url)}">Open admin console</a>`;
+    }
+    const msg = await tgCall(cfg.token, 'sendMessage', body);
+    if (opts.questionId && msg && msg.message_id) {
+      await pool.query(`INSERT INTO tg_question_msgs (course_id, chat_id, message_id, question_id) VALUES ($1,$2,$3,$4)
+                        ON CONFLICT DO NOTHING`, [courseId, cfg.chat_id, msg.message_id, opts.questionId]);
+    }
   })().catch(e => console.error('Telegram alert error:', e.message));
+}
+function tgQuestionKeyboard(cfg, questionId, closed) {
+  const row = [closed ? { text: '↩️ Reopen', callback_data: 'reopen:' + questionId } : { text: '✅ Close question', callback_data: 'close:' + questionId }];
+  if (cfg.app_url && /^https:\/\//.test(cfg.app_url)) row.push({ text: 'Open in app', url: cfg.app_url });
+  return { inline_keyboard: [row] };
+}
+// Webhook: Telegram pushes the admin's replies and button taps to us.
+function tgServerOrigin(req) {
+  const proto = String(req.headers['x-forwarded-proto'] || req.protocol || 'https').split(',')[0].trim();
+  return `${proto}://${req.get('host')}`;
+}
+async function tgEnableWebhook(courseId, cfg, origin) {
+  if (!cfg.token || !cfg.chat_id || !origin) return cfg;
+  cfg.wh_secret = cfg.wh_secret || crypto.randomBytes(24).toString('hex');
+  const url = `${origin.replace(/\/$/, '')}/api/telegram/webhook/${courseId}`;
+  try {
+    await tgCall(cfg.token, 'setWebhook', { url, secret_token: cfg.wh_secret, allowed_updates: ['message', 'callback_query'] });
+    cfg.webhook_ok = true; cfg.wh_url = url;
+  } catch (e) {
+    console.error('Telegram setWebhook error:', e.message);
+    cfg.webhook_ok = false; delete cfg.wh_url;
+  }
+  await tgSave(courseId, cfg);
+  return cfg;
+}
+// On boot, make sure every connected course's webhook points at this server.
+async function tgRefreshWebhooks(origin) {
+  const r = await pool.query(`SELECT key FROM settings WHERE key LIKE 'tg:%'`);
+  for (const row of r.rows) {
+    const courseId = Number(row.key.slice(3)); const cfg = await tgGet(courseId);
+    if (cfg.token && cfg.chat_id && cfg.wh_url !== `${origin.replace(/\/$/, '')}/api/telegram/webhook/${courseId}`) await tgEnableWebhook(courseId, cfg, origin);
+  }
+}
+// Shared by the admin API and Telegram replies.
+async function answerQuestionCore(courseId, questionId, answerText) {
+  const answer = String(answerText || '').trim().slice(0, 8000);
+  if (!answer) return null;
+  const r = await pool.query(
+    `UPDATE lesson_questions SET answer = $1, answered_at = NOW()
+      WHERE id = $2 AND course_id = $3
+      RETURNING id, lesson_id, user_id, question, answer, answered_at, closed_at, created_at`,
+    [answer, questionId, courseId]);
+  if (!r.rows.length) return null;
+  const q = r.rows[0];
+  const l = await pool.query('SELECT title FROM lessons WHERE id = $1', [q.lesson_id]);
+  notify({ course_id: courseId, user_id: q.user_id, kind: 'answer', lesson_id: q.lesson_id,
+           text: `Your instructor answered your question about "${l.rows[0] ? l.rows[0].title : 'a lesson'}".` });
+  return q;
+}
+async function closeQuestionCore(courseId, questionId, closed) {
+  const r = await pool.query(
+    `UPDATE lesson_questions SET closed_at = ${closed ? 'NOW()' : 'NULL'}
+      WHERE id = $1 AND course_id = $2
+      RETURNING id, lesson_id, user_id, question, answer, answered_at, closed_at, created_at`,
+    [questionId, courseId]);
+  return r.rows[0] || null;
 }
 // Notes are saved many times while a student works, so only alert once per
 // student+lesson per window.
@@ -881,7 +948,8 @@ app.post('/api/questions', auth, async (req, res) => {
     notify({ course_id: req.user.course_id, audience: 'admin', kind: 'question', lesson_id: lessonId,
              text: `${u.rows[0] ? u.rows[0].name : 'A student'} asked a question about "${l.rows[0].title}".` });
     tgAlert(req.user.course_id, 'questions',
-      `❓ <b>New question</b> from ${tgEsc(u.rows[0] ? u.rows[0].name : 'a student')}\n📘 ${tgEsc(l.rows[0].title)}\n\n${tgEsc(clip(question, 1500))}`);
+      `❓ <b>New question</b> from ${tgEsc(u.rows[0] ? u.rows[0].name : 'a student')}\n📘 ${tgEsc(l.rows[0].title)}\n\n${tgEsc(clip(question, 1500))}`,
+      { questionId: r.rows[0].id });
     res.status(201).json(r.rows[0]);
   } catch (e) { console.error('Question create error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
@@ -890,10 +958,13 @@ app.post('/api/questions', auth, async (req, res) => {
 // ─── TELEGRAM SETTINGS ROUTES ────────────────────────────────────────────────
 function tgPublic(cfg) {
   return { has_token: !!cfg.token, bot_username: cfg.bot_username || null, connected: !!(cfg.token && cfg.chat_id),
-           chat_name: cfg.chat_name || null, events: Object.assign({}, TG_DEFAULT_EVENTS, cfg.events || {}) };
+           chat_name: cfg.chat_name || null, replies: !!(cfg.token && cfg.chat_id && cfg.webhook_ok), events: Object.assign({}, TG_DEFAULT_EVENTS, cfg.events || {}) };
 }
 app.get('/api/admin/telegram', auth, adminOnly, async (req, res) => {
-  res.json(tgPublic(await tgGet(req.user.course_id)));
+  let cfg = await tgGet(req.user.course_id);
+  const want = `${tgServerOrigin(req)}/api/telegram/webhook/${req.user.course_id}`;
+  if (cfg.token && cfg.chat_id && cfg.wh_url !== want) cfg = await tgEnableWebhook(req.user.course_id, cfg, tgServerOrigin(req));
+  res.json(tgPublic(cfg));
 });
 // PUT { token?, events? } — a new token is validated with getMe and resets the chat.
 app.put('/api/admin/telegram', auth, adminOnly, async (req, res) => {
@@ -922,6 +993,7 @@ app.post('/api/admin/telegram/connect', auth, adminOnly, async (req, res) => {
     const cfg = await tgGet(req.user.course_id);
     if (!cfg.token) return res.status(400).json({ error: 'Add your bot token first.' });
     let updates;
+    await tgCall(cfg.token, 'deleteWebhook', {}).catch(() => {});
     try { updates = await tgCall(cfg.token, 'getUpdates', { limit: 100, allowed_updates: ['message'] }); }
     catch (e) { return res.status(400).json({ error: 'Couldn’t reach your bot: ' + e.message }); }
     const msgs = (updates || []).map(u => u.message).filter(m => m && m.chat);
@@ -931,9 +1003,14 @@ app.post('/api/admin/telegram/connect', auth, adminOnly, async (req, res) => {
     cfg.chat_id = c.id;
     cfg.chat_name = c.title || [c.first_name, c.last_name].filter(Boolean).join(' ') || (c.username ? '@' + c.username : String(c.id));
     if (req.body && req.body.app_path !== undefined && req.headers.origin) cfg.app_url = req.headers.origin + req.body.app_path;
+    // Clear the updates we just read so they aren't replayed to the webhook.
+    const lastId = (updates || []).reduce((mx, u) => Math.max(mx, u.update_id || 0), 0);
+    if (lastId) await tgCall(cfg.token, 'getUpdates', { offset: lastId + 1, limit: 1 }).catch(() => {});
     await tgSave(req.user.course_id, cfg);
+    await tgEnableWebhook(req.user.course_id, cfg, tgServerOrigin(req));
     await tgCall(cfg.token, 'sendMessage', { chat_id: cfg.chat_id, parse_mode: 'HTML',
-      text: '✅ <b>Connected!</b>\nYou’ll get alerts here when students send questions, save notes, or sign up.' }).catch(() => {});
+      text: '✅ <b>Connected!</b>\nYou’ll get alerts here when students send questions, save notes, or sign up.' +
+        (cfg.webhook_ok ? '\n\n💬 To answer a question, just <b>reply</b> to its message here.' : '') }).catch(() => {});
     res.json(tgPublic(cfg));
   } catch (e) { console.error('Telegram connect error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
@@ -944,8 +1021,61 @@ app.post('/api/admin/telegram/test', auth, adminOnly, async (req, res) => {
   catch (e) { res.status(400).json({ error: 'Telegram error: ' + e.message }); }
 });
 app.delete('/api/admin/telegram', auth, adminOnly, async (req, res) => {
-  try { await pool.query('DELETE FROM settings WHERE key = $1', ['tg:' + req.user.course_id]); res.json(tgPublic({})); }
+  try {
+    const cfg = await tgGet(req.user.course_id);
+    if (cfg.token) await tgCall(cfg.token, 'deleteWebhook', {}).catch(() => {});
+    await pool.query('DELETE FROM settings WHERE key = $1', ['tg:' + req.user.course_id]); res.json(tgPublic({}));
+  }
   catch (e) { console.error('Telegram disconnect error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/telegram/webhook/:courseId — called by Telegram. Only accepts
+// updates carrying the course's secret, and only acts on the connected chat.
+app.post('/api/telegram/webhook/:courseId', async (req, res) => {
+  res.json({ ok: true });                       // always ack fast; Telegram retries otherwise
+  const courseId = Number(req.params.courseId);
+  try {
+    const cfg = await tgGet(courseId);
+    if (!cfg.token || !cfg.chat_id || !cfg.wh_secret) return;
+    if (req.get('X-Telegram-Bot-Api-Secret-Token') !== cfg.wh_secret) return;
+    const up = req.body || {};
+    const send = (text, extra = {}) => tgCall(cfg.token, 'sendMessage', Object.assign({ chat_id: cfg.chat_id, text, parse_mode: 'HTML', disable_web_page_preview: true }, extra)).catch(e => console.error('Telegram reply error:', e.message));
+
+    if (up.callback_query) {
+      const cq = up.callback_query, m = cq.message;
+      if (!m || String(m.chat.id) !== String(cfg.chat_id)) return;
+      const [action, idStr] = String(cq.data || '').split(':');
+      const qid = Number(idStr);
+      if (!qid || !['close', 'reopen'].includes(action)) return tgCall(cfg.token, 'answerCallbackQuery', { callback_query_id: cq.id }).catch(() => {});
+      const q = await closeQuestionCore(courseId, qid, action === 'close');
+      await tgCall(cfg.token, 'answerCallbackQuery', { callback_query_id: cq.id,
+        text: !q ? 'This question no longer exists.' : action === 'close' ? 'Question closed.' : 'Question reopened.' }).catch(() => {});
+      if (q) await tgCall(cfg.token, 'editMessageReplyMarkup', { chat_id: m.chat.id, message_id: m.message_id,
+        reply_markup: tgQuestionKeyboard(cfg, qid, action === 'close') }).catch(() => {});
+      return;
+    }
+
+    const msg = up.message;
+    if (!msg || String(msg.chat.id) !== String(cfg.chat_id)) return;
+    const text = (msg.text || msg.caption || '').trim();
+    if (!msg.reply_to_message) {
+      if (/^\/start\b/.test(text)) return send('👋 You’re connected. New questions will appear here — <b>reply</b> to one to answer it.');
+      return send('To answer a question, <b>reply</b> to the question’s message (swipe left on it, or long-press → Reply).');
+    }
+    const map = await pool.query(
+      'SELECT question_id FROM tg_question_msgs WHERE course_id = $1 AND chat_id = $2 AND message_id = $3',
+      [courseId, cfg.chat_id, msg.reply_to_message.message_id]);
+    if (!map.rows.length) return send('That message isn’t a question. Reply to a “❓ New question” message to answer it.', { reply_to_message_id: msg.message_id });
+    if (!text) return send('Only text answers are supported. Please type your answer.', { reply_to_message_id: msg.message_id });
+    const qid = map.rows[0].question_id;
+    const before = await pool.query('SELECT answer FROM lesson_questions WHERE id = $1 AND course_id = $2', [qid, courseId]);
+    if (!before.rows.length) return send('This question was deleted, so the answer wasn’t sent.', { reply_to_message_id: msg.message_id });
+    const q = await answerQuestionCore(courseId, qid, text);
+    if (!q) return send('Couldn’t save the answer. Please try again.', { reply_to_message_id: msg.message_id });
+    const u = await pool.query('SELECT name FROM users WHERE id = $1', [q.user_id]);
+    const who = tgEsc(u.rows[0] ? u.rows[0].name : 'the student');
+    send(`${before.rows[0].answer ? '✏️ Answer updated' : '✅ Answer sent'} to ${who}. They’ve been notified in the app.`, { reply_to_message_id: msg.message_id });
+  } catch (e) { console.error('Telegram webhook error:', e.message); }
 });
 
 // PUT /api/admin/questions/:id/close — { closed: true|false }. Closing marks a
@@ -953,13 +1083,9 @@ app.delete('/api/admin/telegram', auth, adminOnly, async (req, res) => {
 app.put('/api/admin/questions/:id/close', auth, adminOnly, async (req, res) => {
   const closed = req.body && req.body.closed !== false;
   try {
-    const r = await pool.query(
-      `UPDATE lesson_questions SET closed_at = ${closed ? 'NOW()' : 'NULL'}
-        WHERE id = $1 AND course_id = $2
-        RETURNING id, lesson_id, user_id, question, answer, answered_at, closed_at, created_at`,
-      [req.params.id, req.user.course_id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Question not found' });
-    res.json(r.rows[0]);
+    const q = await closeQuestionCore(req.user.course_id, req.params.id, closed);
+    if (!q) return res.status(404).json({ error: 'Question not found' });
+    res.json(q);
   } catch (e) { console.error('Question close error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
@@ -990,19 +1116,10 @@ app.get('/api/admin/questions', auth, adminOnly, async (req, res) => {
 
 // PUT /api/admin/questions/:id/answer — admin answers (or edits the answer); the student is notified.
 app.put('/api/admin/questions/:id/answer', auth, adminOnly, async (req, res) => {
-  const answer = String((req.body && req.body.answer) || '').trim().slice(0, 8000);
-  if (!answer) return res.status(400).json({ error: 'answer is required' });
+  if (!String((req.body && req.body.answer) || '').trim()) return res.status(400).json({ error: 'answer is required' });
   try {
-    const r = await pool.query(
-      `UPDATE lesson_questions SET answer = $1, answered_at = NOW()
-        WHERE id = $2 AND course_id = $3
-        RETURNING id, lesson_id, user_id, question, answer, answered_at, closed_at, created_at`,
-      [answer, req.params.id, req.user.course_id]);
-    if (!r.rows.length) return res.status(404).json({ error: 'Question not found' });
-    const q = r.rows[0];
-    const l = await pool.query('SELECT title FROM lessons WHERE id = $1', [q.lesson_id]);
-    notify({ course_id: req.user.course_id, user_id: q.user_id, kind: 'answer', lesson_id: q.lesson_id,
-             text: `Your instructor answered your question about "${l.rows[0] ? l.rows[0].title : 'a lesson'}".` });
+    const q = await answerQuestionCore(req.user.course_id, req.params.id, req.body.answer);
+    if (!q) return res.status(404).json({ error: 'Question not found' });
     res.json(q);
   } catch (e) { console.error('Answer error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
@@ -1588,6 +1705,13 @@ async function initDb() {
       PRIMARY KEY (user_id, day)
     )`);
   await pool.query(`ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS tg_question_msgs (
+      course_id   INTEGER,
+      chat_id     BIGINT,
+      message_id  BIGINT,
+      question_id INTEGER REFERENCES lesson_questions(id) ON DELETE CASCADE,
+      created_at  TIMESTAMP DEFAULT NOW(),
+      PRIMARY KEY (course_id, chat_id, message_id))`);
   // Resources can also be plain links (no file).
   await pool.query(`ALTER TABLE templates ADD COLUMN IF NOT EXISTS url TEXT`);
   await pool.query(`ALTER TABLE templates ALTER COLUMN data DROP NOT NULL`);
@@ -1664,6 +1788,7 @@ async function initDb() {
 initDb()
   .then(() => {
     app.listen(PORT, () => console.log(`✓ Server running on port ${PORT}`));
+    if (process.env.RENDER_EXTERNAL_URL) tgRefreshWebhooks(process.env.RENDER_EXTERNAL_URL).catch(e => console.error('Telegram webhook refresh error:', e.message));
   })
   .catch(err => {
     console.error('✗ DB init failed:', err);
