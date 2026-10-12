@@ -93,11 +93,72 @@ function normalizeVideoCallUrl(raw) {
 // ─── COURSES ROUTES ───────────────────────────────────────────────────────────
 
 // GET /api/courses/:slug — public, used to brand the portal for a given course link
+// ─── COURSE BRANDING ─────────────────────────────────────────────────────────
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const BRAND_DEFAULTS = { primary: '#2451D6', accent: '#F2B33D', header: 'light', heading: 'classic', tagline: '' };
+function cleanBrand(b) {
+  b = b && typeof b === 'object' ? b : {};
+  const out = {};
+  if (HEX.test(b.primary || '')) out.primary = b.primary.toUpperCase();
+  if (HEX.test(b.accent || '')) out.accent = b.accent.toUpperCase();
+  if (['light', 'brand'].includes(b.header)) out.header = b.header;
+  if (['classic', 'modern'].includes(b.heading)) out.heading = b.heading;
+  if (typeof b.tagline === 'string') out.tagline = b.tagline.trim().slice(0, 40);
+  return out;
+}
+function courseOut(row) {
+  const o = { id: row.id, slug: row.slug, name: row.name, videocall_url: row.videocall_url };
+  o.brand = Object.assign({}, BRAND_DEFAULTS, cleanBrand(row.brand));
+  o.logo_url = row.logo_updated ? `/api/course-logo/${row.id}?v=${new Date(row.logo_updated).getTime()}` : null;
+  return o;
+}
+// GET /api/course-logo/:id — public; the logo is shown on the course sign-in page too.
+app.get('/api/course-logo/:id', async (req, res) => {
+  try {
+    const r = await pool.query('SELECT logo, logo_mime FROM courses WHERE id = $1', [req.params.id]);
+    if (!r.rows.length || !r.rows[0].logo) return res.status(404).json({ error: 'No logo' });
+    res.setHeader('Content-Type', r.rows[0].logo_mime || 'image/png');
+    res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; style-src 'unsafe-inline'; sandbox");   // uploaded SVGs can't run scripts
+    res.send(r.rows[0].logo);
+  } catch (e) { console.error('Logo error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+// PUT /api/courses/mine/branding — { primary, accent, header, heading, tagline } (admin, own course)
+app.put('/api/courses/mine/branding', auth, adminOnly, async (req, res) => {
+  if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
+  try {
+    const brand = req.body && req.body.reset ? {} : cleanBrand(req.body);
+    const r = await pool.query('UPDATE courses SET brand = $1 WHERE id = $2 RETURNING id, slug, name, videocall_url, brand, logo_updated',
+      [JSON.stringify(brand), req.user.course_id]);
+    res.json(courseOut(r.rows[0]));
+  } catch (e) { console.error('Branding error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+const LOGO_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'image/gif'];
+app.post('/api/courses/mine/logo', auth, adminOnly, upload.single('file'), async (req, res) => {
+  if (!req.user.course_id) return res.status(400).json({ error: 'no-course-assigned' });
+  if (!req.file) return res.status(400).json({ error: 'file is required' });
+  if (!LOGO_TYPES.includes(req.file.mimetype)) return res.status(400).json({ error: 'Use a PNG, JPG, WEBP or SVG image.' });
+  if (req.file.size > 1024 * 1024) return res.status(400).json({ error: 'The logo must be smaller than 1 MB.' });
+  try {
+    const r = await pool.query(`UPDATE courses SET logo = $1, logo_mime = $2, logo_updated = NOW() WHERE id = $3
+       RETURNING id, slug, name, videocall_url, brand, logo_updated`, [req.file.buffer, req.file.mimetype, req.user.course_id]);
+    res.json(courseOut(r.rows[0]));
+  } catch (e) { console.error('Logo upload error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+app.delete('/api/courses/mine/logo', auth, adminOnly, async (req, res) => {
+  try {
+    const r = await pool.query(`UPDATE courses SET logo = NULL, logo_mime = NULL, logo_updated = NULL WHERE id = $1
+       RETURNING id, slug, name, videocall_url, brand, logo_updated`, [req.user.course_id]);
+    res.json(courseOut(r.rows[0]));
+  } catch (e) { console.error('Logo delete error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 app.get('/api/courses/:slug', async (req, res) => {
   try {
-    const r = await pool.query('SELECT id, slug, name, videocall_url FROM courses WHERE slug = $1', [req.params.slug]);
+    const r = await pool.query('SELECT id, slug, name, videocall_url, brand, logo_updated FROM courses WHERE slug = $1', [req.params.slug]);
     if (!r.rows.length) return res.status(404).json({ error: 'course-not-found' });
-    res.json(r.rows[0]);
+    res.json(courseOut(r.rows[0]));
   } catch (e) {
     console.error('Course fetch error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -227,7 +288,8 @@ app.get('/api/auth/me', auth, async (req, res) => {
   try {
     const userRes = await pool.query(
       `SELECT u.id, u.name, u.email, u.phone, u.is_admin, u.role, u.course_id,
-              c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url
+              c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url,
+              c.brand AS course_brand_raw, c.logo_updated AS course_logo_updated
        FROM users u LEFT JOIN courses c ON u.course_id = c.id
        WHERE u.id = $1`,
       [req.user.id]
@@ -242,6 +304,11 @@ app.get('/api/auth/me', auth, async (req, res) => {
     const user = userRes.rows[0];
     pool.query('UPDATE users SET last_seen = NOW() WHERE id = $1', [req.user.id]).catch(() => {});
     user.progress = progressRes.rows; // array of { lesson_id, answers, note }
+    if (user.course_id) {
+      const co = courseOut({ id: user.course_id, brand: user.course_brand_raw, logo_updated: user.course_logo_updated });
+      user.course_brand = co.brand; user.course_logo_url = co.logo_url;
+    }
+    delete user.course_brand_raw; delete user.course_logo_updated;
     res.json(user);
   } catch (e) {
     console.error('Me error:', e.message);
@@ -1736,6 +1803,11 @@ async function initDb() {
   await pool.query(`ALTER TABLE lesson_questions ADD COLUMN IF NOT EXISTS closed_at TIMESTAMP`);
   // Scheduled auto-opening: open_at = when to open; opened_at = when it last opened.
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS open_at TIMESTAMPTZ`);
+  // Per-course branding (colors, header style, heading font, tagline) + uploaded logo.
+  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS brand JSONB DEFAULT '{}'::jsonb`);
+  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS logo BYTEA`);
+  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS logo_mime TEXT`);
+  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS logo_updated TIMESTAMPTZ`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS opened_at TIMESTAMPTZ`);
   await pool.query(`CREATE TABLE IF NOT EXISTS tg_question_msgs (
       course_id   INTEGER,
