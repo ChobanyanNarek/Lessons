@@ -475,7 +475,18 @@ async function openDueLessons() {
   }
   return r.rows;
 }
-setInterval(() => { openDueLessons().catch(e => console.error('Auto-open error:', e.message)); }, 60 * 1000);
+setInterval(() => { openDueLessons().catch(e => console.error('Auto-open error:', e.message)); }, 20 * 1000);
+// Free hosting (Render) puts the server to sleep after ~15 idle minutes, and a sleeping
+// server can't open lessons on time. While any lesson is waiting for its opening time,
+// ping our own public URL every 10 minutes so the server stays awake until it opens.
+if (process.env.RENDER_EXTERNAL_URL) {
+  setInterval(async () => {
+    try {
+      const r = await pool.query(`SELECT 1 FROM lessons WHERE status <> 'open' AND open_at IS NOT NULL LIMIT 1`);
+      if (r.rows.length) await fetch(process.env.RENDER_EXTERNAL_URL.replace(/\/$/, '') + '/api/version', { signal: AbortSignal.timeout(15000) });
+    } catch (e) { /* best effort */ }
+  }, 10 * 60 * 1000);
+}
 
 // ─── LESSONS ROUTES ──────────────────────────────────────────────────────────
 

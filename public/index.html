@@ -2284,7 +2284,24 @@ async function pollNotifications(){
   if(!apiToken || (currentUser && currentUser.role === 'super_admin')) return;
   try { notifData = await api('GET', '/notifications'); updateNotifBadge(); if(notifOpen) renderNotifPanel(); } catch(e){ /* quiet */ }
 }
-function startNotifications(){ stopNotifications(); pollNotifications(); notifTimer = setInterval(pollNotifications, 60000); }
+function startNotifications(){ stopNotifications(); pollNotifications(); notifTimer = setInterval(pollNotifications, 60000); startScheduleWatch(); }
+// While the page is open, re-fetch lessons as soon as a scheduled opening time passes,
+// so locked cards unlock on time without a manual refresh (the fetch itself opens them on the server).
+var scheduleWatch = null, scheduleBusy = false;
+function startScheduleWatch(){
+  clearInterval(scheduleWatch);
+  scheduleWatch = setInterval(async () => {
+    if(scheduleBusy || !currentCourseSlug) return;
+    const due = lessons.some(l => l.open_at && l.status !== 'open' && new Date(l.open_at).getTime() <= Date.now());
+    if(!due) return;
+    scheduleBusy = true;
+    try {
+      await loadLessons(currentCourseSlug);
+      if(currentStudent){ renderStudentGrid(); pollNotifications(); }
+      else { renderAdminGrid(); if(document.getElementById('apanel-calendar')?.classList.contains('active')) renderCalendarAdmin(); }
+    } catch(e){} finally { scheduleBusy = false; }
+  }, 15000);
+}
 function stopNotifications(){ clearInterval(notifTimer); notifTimer = null; notifData = { items: [], unread: 0 }; closeNotifPanel(); }
 function timeAgo(ts){
   const s = Math.max(0, (Date.now() - new Date(ts).getTime()) / 1000);
@@ -3345,7 +3362,9 @@ async function saveSchedule(btn){
   const id = Number(document.getElementById('sch-lesson').value);
   const date = document.getElementById('sch-date').value, time = document.getElementById('sch-time').value;
   if(!date || !time){ showToast('Pick a date and a time.'); return; }
-  const when = new Date(`${date}T${time}`);
+  // Build the date from its parts — some browsers (older Safari) read "YYYY-MM-DDTHH:MM" as UTC, shifting the time.
+  const [yy, mo, dd] = date.split('-').map(Number), [hh, mi] = time.split(':').map(Number);
+  const when = new Date(yy, mo - 1, dd, hh, mi, 0, 0);
   if(isNaN(when) || when.getTime() <= Date.now()){ showToast('Pick a time in the future.'); return; }
   btn.disabled = true;
   try {
