@@ -1870,6 +1870,28 @@ async function initDb() {
     [defaultCourseId, SUPER_ADMIN_EMAIL]
   );
 
+  // Emergency super admin password reset: set SUPER_ADMIN_RESET_PASSWORD in the
+  // host's environment (e.g. Render → Environment), deploy, sign in, then REMOVE
+  // the variable. Creates the super admin account if it doesn't exist yet.
+  const resetPw = process.env.SUPER_ADMIN_RESET_PASSWORD;
+  if (resetPw) {
+    if (String(resetPw).length < 8) {
+      console.error('✗ SUPER_ADMIN_RESET_PASSWORD is too short (min 8 characters) — ignored.');
+    } else {
+      const hash = await bcrypt.hash(String(resetPw), 10);
+      const upd = await pool.query(
+        `UPDATE users SET password_hash = $1, role = 'super_admin', is_admin = true, approved = true WHERE LOWER(email) = LOWER($2)`,
+        [hash, SUPER_ADMIN_EMAIL]);
+      if (!upd.rowCount) {
+        await pool.query(
+          `INSERT INTO users (name, email, password_hash, is_admin, approved, role, course_id)
+           VALUES ('Super Admin', $1, $2, true, true, 'super_admin', $3)`,
+          [SUPER_ADMIN_EMAIL, hash, defaultCourseId]);
+      }
+      console.log('✓ Super admin password was reset from SUPER_ADMIN_RESET_PASSWORD — remove this variable now.');
+    }
+  }
+
   // Seed an admin user only if NO admin/super_admin exists yet at all —
   // prevents recreating a stray default admin after credentials have been changed.
   const anyAdmin = await pool.query(`SELECT id FROM users WHERE is_admin = true LIMIT 1`);
