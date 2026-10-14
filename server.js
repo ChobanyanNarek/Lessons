@@ -1294,7 +1294,13 @@ async function computeLeaderboard(courseId) {
   });
   // Ties: more correct answers first, then whoever joined earlier.
   list.sort((a, b) => b.points - a.points || b.counts.correct - a.counts.correct || new Date(a.joined) - new Date(b.joined));
-  list.forEach((r, i) => { r.rank = i + 1; delete r.joined; });
+  list.forEach(r => { delete r.joined; });
+  return denseRank(list);
+}
+// Students with the same points share a place: 40, 40, 35, 30 → places 1, 1, 2, 3.
+function denseRank(list) {
+  let place = 0, prev = null;
+  list.forEach(r => { if (r.points !== prev) { place += 1; prev = r.points; } r.rank = place; });
   return list;
 }
 
@@ -1309,7 +1315,7 @@ async function currentLeaderboard(courseId, { force = false } = {}) {
     ranking = await computeLeaderboard(courseId);
     at = new Date().toISOString();
     const prevTop = (st.snapshot && st.snapshot.top3) || [];
-    const top3 = ranking.slice(0, 3).filter(r => r.points > 0).map(r => r.id);
+    const top3 = ranking.filter(r => r.points > 0 && r.rank <= 3).map(r => r.id);
     const newcomers = top3.filter(id => !prevTop.includes(id));
     st.snapshot = { at, top3, ranking: st.mode === 'live' ? undefined : ranking };
     if (st.mode === 'live') delete st.snapshot.ranking;
@@ -1320,7 +1326,7 @@ async function currentLeaderboard(courseId, { force = false } = {}) {
     }
     if (!st.notifiedOnce) { st.notifiedOnce = true; await lbSaveSettings(courseId, st); }
   } else {
-    ranking = st.snapshot.ranking || await computeLeaderboard(courseId);
+    ranking = st.snapshot.ranking ? denseRank(st.snapshot.ranking) : await computeLeaderboard(courseId);
     at = st.snapshot.at;
   }
   return { settings: st, ranking, at };
@@ -1333,11 +1339,15 @@ app.get('/api/leaderboard', auth, async (req, res) => {
     const st = await lbSettings(req.user.course_id);
     if (!st.enabled) return res.json({ enabled: false });
     const { ranking, at, settings } = await currentLeaderboard(req.user.course_id);
-    const top = ranking.filter(r => r.points > 0).slice(0, 3).map(r => ({ rank: r.rank, name: r.name, points: r.points, me: r.id === req.user.id }));
+    const podium = ranking.filter(r => r.points > 0 && r.rank <= 3);
+    const top = podium.map(r => ({ rank: r.rank, name: r.name, points: r.points, me: r.id === req.user.id }));
+    // places[0..2] = everyone sharing 1st / 2nd / 3rd place
+    const places = [1, 2, 3].map(n => { const g = top.filter(r => r.rank === n); return g.length ? { place: n, points: g[0].points, students: g } : null; }).filter(Boolean);
     const mine = ranking.find(r => r.id === req.user.id);
-    const third = ranking[2];
-    res.json({ enabled: true, mode: settings.mode, updated_at: at, total: ranking.length, points: LB_POINTS, top,
-      me: mine ? { rank: mine.rank, points: mine.points, parts: mine.parts, to_top3: mine.rank > 3 && third ? Math.max(1, third.points - mine.points + 1) : 0 } : null });
+    const third = places.find(p => p.place === 3);
+    res.json({ enabled: true, mode: settings.mode, updated_at: at, total: ranking.length, points: LB_POINTS, top, places,
+      me: mine ? { rank: mine.rank, points: mine.points, parts: mine.parts, tied: ranking.filter(r => r.rank === mine.rank).length > 1,
+                   to_top3: mine.rank > 3 && third ? Math.max(1, third.points - mine.points) : 0 } : null });
   } catch (e) { console.error('Leaderboard error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
