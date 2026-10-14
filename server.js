@@ -1554,6 +1554,67 @@ app.get('/api/users', auth, adminOnly, async (req, res) => {
   }
 });
 
+// ─── ADMIN: MULTIPLE COURSES ─────────────────────────────────────────────────
+// An admin owns one or more completely separate courses (own lessons, students,
+// settings, branding). Their token carries the ACTIVE course; switching issues a new token.
+async function uniqueSlug(name) {
+  const base = slugify(name); let slug = base, n = 1;
+  while ((await pool.query('SELECT 1 FROM courses WHERE slug = $1', [slug])).rows.length) { n += 1; slug = `${base}-${n}`; }
+  return slug;
+}
+async function ownedCourses(userId, activeId) {
+  const r = await pool.query(`
+    SELECT c.id, c.slug, c.name, c.created_at,
+      (SELECT COUNT(*)::int FROM users s WHERE s.course_id = c.id AND s.role = 'student' AND s.approved = true) AS student_count,
+      (SELECT COUNT(*)::int FROM users s WHERE s.course_id = c.id AND s.role = 'student' AND s.approved = false) AS pending_count,
+      (SELECT COUNT(*)::int FROM lessons l WHERE l.course_id = c.id) AS lesson_count
+    FROM courses c WHERE c.owner_id = $1 OR c.id = $2 ORDER BY c.created_at ASC, c.id ASC`, [userId, activeId || null]);
+  return r.rows.map(c => Object.assign(c, { active: c.id === activeId }));
+}
+app.get('/api/admin/courses', auth, adminOnly, async (req, res) => {
+  try { res.json(await ownedCourses(req.user.id, req.user.course_id)); }
+  catch (e) { console.error('Courses list error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/api/admin/courses', auth, adminOnly, async (req, res) => {
+  const name = String((req.body && req.body.name) || '').trim().slice(0, 120);
+  if (!name) return res.status(400).json({ error: 'Course name is required' });
+  if (req.user.role === 'super_admin') return res.status(403).json({ error: 'Super admin manages admins, not courses' });
+  try {
+    const r = await pool.query('INSERT INTO courses (slug, name, owner_id) VALUES ($1, $2, $3) RETURNING id, slug, name',
+      [await uniqueSlug(name), name, req.user.id]);
+    res.status(201).json(r.rows[0]);
+  } catch (e) { console.error('Course create error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+app.post('/api/admin/courses/:id/switch', auth, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const c = await pool.query('SELECT id, slug, name FROM courses WHERE id = $1 AND (owner_id = $2 OR id = $3)', [id, req.user.id, req.user.course_id]);
+    if (!c.rows.length) return res.status(404).json({ error: 'Course not found' });
+    const u = await pool.query('UPDATE users SET course_id = $1 WHERE id = $2 RETURNING id, email, is_admin, role, course_id', [id, req.user.id]);
+    const user = u.rows[0];
+    const token = jwt.sign({ id: user.id, email: user.email, is_admin: user.is_admin, role: user.role, course_id: user.course_id }, JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, course: c.rows[0] });
+  } catch (e) { console.error('Course switch error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+async function deleteCourseData(courseId) {
+  await pool.query(`DELETE FROM user_progress WHERE user_id IN (SELECT id FROM users WHERE course_id = $1 AND role = 'student')`, [courseId]);
+  await pool.query(`DELETE FROM users WHERE course_id = $1 AND role = 'student'`, [courseId]);
+  await pool.query(`DELETE FROM lessons WHERE course_id = $1`, [courseId]);
+  await pool.query(`DELETE FROM settings WHERE key IN ($1, $2)`, ['tg:' + courseId, 'lb:' + courseId]);
+  await pool.query(`DELETE FROM courses WHERE id = $1`, [courseId]);
+}
+// DELETE /api/admin/courses/:id — remove one of your courses (not the one you're in, and never your last one).
+app.delete('/api/admin/courses/:id', auth, adminOnly, async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    if (id === req.user.course_id) return res.status(400).json({ error: 'Switch to another course before deleting this one.' });
+    const own = await pool.query('SELECT id FROM courses WHERE id = $1 AND owner_id = $2', [id, req.user.id]);
+    if (!own.rows.length) return res.status(404).json({ error: 'Course not found' });
+    await deleteCourseData(id);
+    res.json({ ok: true });
+  } catch (e) { console.error('Course delete error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
 // ─── SUPER ADMIN ROUTES (platform-wide admin management) ─────────────────────
 // The Super Admin manages ADMINS, not course/lesson/student content directly.
 // For each admin they can only see how many courses and students that admin
@@ -1563,15 +1624,17 @@ app.get('/api/users', auth, adminOnly, async (req, res) => {
 app.get('/api/super/admins', auth, superAdminOnly, async (req, res) => {
   try {
     const result = await pool.query(`
-      SELECT
-        u.id, u.name, u.email, u.created_at,
-        (SELECT COUNT(*)::int FROM courses c WHERE c.id = u.course_id) AS course_count,
-        (SELECT COUNT(*)::int FROM users s WHERE s.course_id = u.course_id AND s.role = 'student') AS student_count
-      FROM users u
-      WHERE u.role = 'admin'
-      ORDER BY u.created_at DESC
-    `);
-    res.json(result.rows);
+      SELECT u.id, u.name, u.email, u.created_at, u.course_id, u.last_seen
+      FROM users u WHERE u.role = 'admin' ORDER BY u.created_at DESC`);
+    const out = [];
+    for (const a of result.rows) {
+      const courses = await ownedCourses(a.id, a.course_id);
+      out.push({ id: a.id, name: a.name, email: a.email, created_at: a.created_at, last_seen: a.last_seen,
+        course_count: courses.length,
+        student_count: courses.reduce((n, c) => n + c.student_count, 0),
+        courses: courses.map(c => ({ id: c.id, name: c.name, slug: c.slug, students: c.student_count, pending: c.pending_count, lessons: c.lesson_count })) });
+    }
+    res.json(out);
   } catch (e) {
     console.error('Admins list error:', e.message);
     res.status(500).json({ error: 'Server error' });
@@ -1607,6 +1670,7 @@ app.post('/api/super/admins', auth, superAdminOnly, async (req, res) => {
        RETURNING id, name, email`,
       [adminName, adminEmail, hash, course.id]
     );
+    await pool.query('UPDATE courses SET owner_id = $1 WHERE id = $2', [adminRes.rows[0].id, course.id]);
     res.status(201).json({ course, admin: adminRes.rows[0] });
   } catch (e) {
     if (e.code === '23505') return res.status(409).json({ error: 'email-already-in-use' });
@@ -1623,19 +1687,12 @@ app.delete('/api/super/admins/:id', auth, superAdminOnly, async (req, res) => {
   try {
     const adminRes = await pool.query(`SELECT course_id FROM users WHERE id = $1 AND role = 'admin'`, [id]);
     if (!adminRes.rows.length) return res.status(404).json({ error: 'Admin not found' });
-    const courseId = adminRes.rows[0].course_id;
-
-    if (courseId) {
-      await pool.query(
-        `DELETE FROM user_progress WHERE user_id IN (SELECT id FROM users WHERE course_id = $1 AND role = 'student')`,
-        [courseId]
-      );
-      await pool.query(`DELETE FROM users WHERE course_id = $1 AND role = 'student'`, [courseId]);
-      await pool.query(`DELETE FROM lessons WHERE course_id = $1`, [courseId]);
-    }
+    // All of this admin's courses go with them (never a course the super admin sits in).
+    const own = await pool.query(`SELECT id FROM courses WHERE owner_id = $1 OR id = $2`, [id, adminRes.rows[0].course_id]);
+    const superCourse = req.user.course_id;
     await pool.query(`DELETE FROM user_progress WHERE user_id = $1`, [id]);
     await pool.query(`DELETE FROM users WHERE id = $1 AND role = 'admin'`, [id]);
-    if (courseId) await pool.query(`DELETE FROM courses WHERE id = $1`, [courseId]);
+    for (const c of own.rows) if (c.id !== superCourse) await deleteCourseData(c.id);
 
     res.json({ ok: true });
   } catch (e) {
@@ -1826,6 +1883,10 @@ async function initDb() {
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS open_at TIMESTAMPTZ`);
   // Per-course branding (colors, header style, heading font, tagline) + uploaded logo.
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS brand JSONB DEFAULT '{}'::jsonb`);
+  // One admin can own several independent courses; users.course_id is the admin's ACTIVE course.
+  await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS owner_id UUID`);
+  await pool.query(`UPDATE courses c SET owner_id = (SELECT u.id FROM users u WHERE u.course_id = c.id AND u.role = 'admin' ORDER BY u.created_at ASC LIMIT 1)
+                     WHERE c.owner_id IS NULL`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS logo BYTEA`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS logo_mime TEXT`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS logo_updated TIMESTAMPTZ`);
