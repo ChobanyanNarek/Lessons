@@ -266,8 +266,12 @@ app.post('/api/auth/login', async (req, res) => {
     // On a course link only that course's student profile (or a lecturer/super admin) can sign in.
     const rows = course ? result.rows.filter(u => u.is_admin || u.course_slug === course) : result.rows;
     if (!rows.length) return res.status(401).json({ error: 'user-not-found' });
-    const matched = [];
-    for (const u of rows) if (await bcrypt.compare(password, u.password_hash)) matched.push(u);
+    const matchedAll = [];
+    for (const u of result.rows) if (await bcrypt.compare(password, u.password_hash)) matchedAll.push(u);
+    const matched = matchedAll.filter(u => rows.includes(u));
+    // Student profiles with the same email AND same password are "linked": the student
+    // can switch between those courses later without typing the password again.
+    const linked = matchedAll.filter(u => !u.is_admin).map(u => u.id);
     if (!matched.length) return res.status(401).json({ error: 'wrong-password' });
 
     let user = null;
@@ -284,7 +288,8 @@ app.post('/api/auth/login', async (req, res) => {
     if (!user.is_admin && !user.approved) return res.status(403).json({ error: 'account-pending' });
     pool.query('UPDATE users SET last_login = NOW(), last_seen = NOW() WHERE id = $1', [user.id]).catch(() => {});
     const token = jwt.sign(
-      { id: user.id, email: user.email, is_admin: user.is_admin, role: user.role, course_id: user.course_id },
+      { id: user.id, email: user.email, is_admin: user.is_admin, role: user.role, course_id: user.course_id,
+        ...(user.is_admin ? {} : { linked }) },
       JWT_SECRET,
       { expiresIn: '7d' }
     );
@@ -301,6 +306,48 @@ app.post('/api/auth/login', async (req, res) => {
     console.error('Login error:', e.message);
     res.status(500).json({ error: 'Server error' });
   }
+});
+
+// ── Student course switcher: same email in several courses ─────────────────────
+// GET /api/auth/my-courses — this email's student profiles (one per course)
+app.get('/api/auth/my-courses', auth, async (req, res) => {
+  if (req.user.is_admin) return res.json([]);
+  try {
+    const r = await pool.query(
+      `SELECT u.id, u.approved, c.id AS course_id, c.slug, c.name
+       FROM users u JOIN courses c ON c.id = u.course_id
+       WHERE LOWER(u.email) = LOWER($1) AND u.is_admin = false
+       ORDER BY c.name ASC`, [req.user.email]);
+    const linked = req.user.linked || [];
+    res.json(r.rows.map(x => ({ ...x, current: x.id === req.user.id, linked: linked.includes(x.id) })));
+  } catch (e) { console.error('My courses error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// POST /api/auth/switch-course { account_id, password? } — open another course profile.
+// Profiles with the same password are switched without asking; others need their own password.
+app.post('/api/auth/switch-course', auth, async (req, res) => {
+  if (req.user.is_admin) return res.status(403).json({ error: 'Forbidden' });
+  const { account_id, password } = req.body || {};
+  try {
+    const r = await pool.query(
+      `SELECT u.*, c.slug AS course_slug, c.name AS course_name FROM users u LEFT JOIN courses c ON c.id = u.course_id
+       WHERE u.id = $1 AND LOWER(u.email) = LOWER($2) AND u.is_admin = false`, [account_id, req.user.email]);
+    const target = r.rows[0];
+    if (!target) return res.status(404).json({ error: 'user-not-found' });
+    let linked = Array.isArray(req.user.linked) ? req.user.linked.slice() : [];
+    if (!linked.includes(target.id)) {
+      if (!password) return res.status(401).json({ error: 'password-required' });
+      if (!(await bcrypt.compare(password, target.password_hash))) return res.status(401).json({ error: 'wrong-password' });
+    }
+    if (!target.approved) return res.status(403).json({ error: 'account-pending' });
+    if (!linked.includes(target.id)) linked.push(target.id);
+    if (!linked.includes(req.user.id)) linked.push(req.user.id);
+    pool.query('UPDATE users SET last_login = NOW(), last_seen = NOW() WHERE id = $1', [target.id]).catch(() => {});
+    const token = jwt.sign(
+      { id: target.id, email: target.email, is_admin: false, role: target.role, course_id: target.course_id, linked },
+      JWT_SECRET, { expiresIn: '7d' });
+    res.json({ token, course: { slug: target.course_slug, name: target.course_name } });
+  } catch (e) { console.error('Switch course error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
 // GET /api/auth/me  — returns current user + their progress + their course
