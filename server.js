@@ -225,6 +225,8 @@ app.post('/api/auth/register', async (req, res) => {
     const courseRes = await pool.query('SELECT id FROM courses WHERE slug = $1', [course]);
     if (!courseRes.rows.length) return res.status(404).json({ error: 'course-not-found' });
     const courseId = courseRes.rows[0].id;
+    const dup = await pool.query(`SELECT 1 FROM users WHERE LOWER(email) = LOWER($1) AND course_id = $2 AND is_admin = false`, [String(email).trim(), courseId]);
+    if (dup.rows.length) return res.status(409).json({ error: 'email-already-in-use' });
 
     const hash = await bcrypt.hash(password, 10);
     const result = await pool.query(
@@ -244,9 +246,12 @@ app.post('/api/auth/register', async (req, res) => {
   }
 });
 
-// POST /api/auth/login
+// POST /api/auth/login — { email, password, course?, account_id? }
+// The same email can have a separate student profile in several courses (each course
+// link has its own users). We pick the profile that matches the password and the
+// course being signed into; if several fit, the client is asked which course to open.
 app.post('/api/auth/login', async (req, res) => {
-  const { email, password } = req.body;
+  const { email, password, course, account_id } = req.body || {};
   if (!email || !password) {
     return res.status(400).json({ error: 'email and password are required' });
   }
@@ -254,13 +259,28 @@ app.post('/api/auth/login', async (req, res) => {
     const result = await pool.query(
       `SELECT u.*, c.slug AS course_slug, c.name AS course_name, c.videocall_url AS course_videocall_url
        FROM users u LEFT JOIN courses c ON u.course_id = c.id
-       WHERE u.email = $1`,
-      [email]
+       WHERE LOWER(u.email) = LOWER($1)
+       ORDER BY u.is_admin DESC, u.last_login DESC NULLS LAST, u.created_at ASC`,
+      [String(email).trim()]
     );
-    const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: 'user-not-found' });
-    const match = await bcrypt.compare(password, user.password_hash);
-    if (!match) return res.status(401).json({ error: 'wrong-password' });
+    // On a course link only that course's student profile (or a lecturer/super admin) can sign in.
+    const rows = course ? result.rows.filter(u => u.is_admin || u.course_slug === course) : result.rows;
+    if (!rows.length) return res.status(401).json({ error: 'user-not-found' });
+    const matched = [];
+    for (const u of rows) if (await bcrypt.compare(password, u.password_hash)) matched.push(u);
+    if (!matched.length) return res.status(401).json({ error: 'wrong-password' });
+
+    let user = null;
+    if (account_id) user = matched.find(u => u.id === account_id) || null;
+    if (!user && course) {
+      user = matched.find(u => !u.is_admin && u.course_slug === course)      // student profile of THIS course
+          || matched.find(u => u.is_admin);                                   // lecturer / super admin
+    }
+    if (!user && matched.length === 1) user = matched[0];
+    if (!user) {
+      return res.status(409).json({ error: 'choose-account', accounts: matched.map(u => ({
+        id: u.id, role: u.role, is_admin: u.is_admin, course_name: u.role === 'super_admin' ? null : u.course_name })) });
+    }
     if (!user.is_admin && !user.approved) return res.status(403).json({ error: 'account-pending' });
     pool.query('UPDATE users SET last_login = NOW(), last_seen = NOW() WHERE id = $1', [user.id]).catch(() => {});
     const token = jwt.sign(
@@ -1669,6 +1689,8 @@ app.post('/api/super/admins', auth, superAdminOnly, async (req, res) => {
     return res.status(400).json({ error: 'courseName, adminName, adminEmail, and adminPassword are required' });
   }
   try {
+    const staffDup = await pool.query('SELECT 1 FROM users WHERE is_admin = true AND LOWER(email) = LOWER($1)', [String(adminEmail).trim()]);
+    if (staffDup.rows.length) return res.status(409).json({ error: 'email-already-in-use' });
     const baseSlug = slugify(courseName);
     let slug = baseSlug;
     let n = 1;
@@ -1830,6 +1852,12 @@ async function initDb() {
   // Migrations for databases created before multi-course support existed.
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS approved BOOLEAN DEFAULT FALSE`);
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT DEFAULT 'student'`);
+  // Same email may have one student profile PER COURSE; lecturer/super-admin emails stay unique.
+  await pool.query(`ALTER TABLE users DROP CONSTRAINT IF EXISTS users_email_key`);
+  try {
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_student_email_course ON users (LOWER(email), course_id) WHERE is_admin = false`);
+    await pool.query(`CREATE UNIQUE INDEX IF NOT EXISTS users_staff_email ON users (LOWER(email)) WHERE is_admin = true`);
+  } catch (e) { console.error('Email index warning:', e.message); }
   await pool.query(`ALTER TABLE users ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE lessons ADD COLUMN IF NOT EXISTS course_id INTEGER REFERENCES courses(id)`);
   await pool.query(`ALTER TABLE courses ADD COLUMN IF NOT EXISTS videocall_url TEXT`);
@@ -1971,9 +1999,11 @@ async function initDb() {
   await pool.query(`UPDATE users SET course_id = $1 WHERE course_id IS NULL`, [defaultCourseId]);
 
   // Promote the platform owner to super_admin. Idempotent — safe to run every boot.
+  // Only ever ONE row is promoted (the same email may also exist as student profiles).
   await pool.query(
-    `UPDATE users SET role = 'super_admin', course_id = COALESCE(course_id, $1)
-     WHERE email = $2 AND role != 'super_admin'`,
+    `UPDATE users SET role = 'super_admin', is_admin = true, course_id = COALESCE(course_id, $1)
+     WHERE id = (SELECT id FROM users WHERE LOWER(email) = LOWER($2) ORDER BY is_admin DESC, created_at ASC LIMIT 1)
+       AND NOT EXISTS (SELECT 1 FROM users WHERE role = 'super_admin')`,
     [defaultCourseId, SUPER_ADMIN_EMAIL]
   );
 
@@ -1987,7 +2017,7 @@ async function initDb() {
     } else {
       const hash = await bcrypt.hash(String(resetPw), 10);
       const upd = await pool.query(
-        `UPDATE users SET password_hash = $1, role = 'super_admin', is_admin = true, approved = true WHERE LOWER(email) = LOWER($2)`,
+        `UPDATE users SET password_hash = $1, approved = true, is_admin = true, role = 'super_admin' WHERE is_admin = true AND LOWER(email) = LOWER($2)`,
         [hash, SUPER_ADMIN_EMAIL]);
       if (!upd.rowCount) {
         await pool.query(
