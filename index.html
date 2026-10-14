@@ -1571,7 +1571,25 @@ async function init(){
   // even from a bare URL (no ?course=), since we know the user's course from their token.
   if(apiToken){
     try {
-      const me = await api('GET', '/auth/me');
+      let me = await api('GET', '/auth/me');
+      // The course in the link wins over a remembered session from another course.
+      if(currentCourseSlug && me.role !== 'super_admin' && me.course_slug && me.course_slug !== currentCourseSlug){
+        let switched = false;
+        if(me.is_admin){
+          // A lecturer opening another of THEIR courses — switch to it.
+          try {
+            const list = await api('GET', '/admin/courses');
+            const c = (Array.isArray(list) ? list : (list.courses || [])).find(x => x.slug === currentCourseSlug);
+            if(c){
+              const r = await api('POST', '/admin/courses/' + c.id + '/switch');
+              setApiToken(r.token);
+              me = await api('GET', '/auth/me');
+              switched = true;
+            }
+          } catch(_){}
+        }
+        if(!switched) throw new Error('different-course'); // sign out → this course's sign-in / sign-up
+      }
       if(me.is_admin){
         await enterAdminSession(me);
         showLoading(false);
