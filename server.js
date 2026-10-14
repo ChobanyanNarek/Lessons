@@ -1390,6 +1390,7 @@ app.get('/api/notifications', auth, async (req, res) => {
          FROM notifications
         WHERE course_id = $1 AND audience = $4 AND (user_id IS NULL OR user_id = $2)
           AND created_at >= (SELECT created_at FROM users WHERE id = $2) - INTERVAL '1 day'
+          AND NOT EXISTS (SELECT 1 FROM notif_dismissed d WHERE d.user_id = $2 AND d.notification_id = notifications.id)
         ORDER BY created_at DESC LIMIT 30`,
       [req.user.course_id, req.user.id, seen, audience]);
     res.json({ items: r.rows, unread: r.rows.filter(x => x.unread).length });
@@ -1402,6 +1403,26 @@ app.post('/api/notifications/seen', auth, async (req, res) => {
     await pool.query('UPDATE users SET notif_seen_at = NOW() WHERE id = $1', [req.user.id]);
     res.json({ ok: true });
   } catch (e) { console.error('Notifications seen error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+
+// DELETE /api/notifications/:id — hide one notification for me (others still see theirs).
+app.delete('/api/notifications/:id', auth, async (req, res) => {
+  try {
+    await pool.query(`INSERT INTO notif_dismissed (user_id, notification_id) VALUES ($1, $2) ON CONFLICT DO NOTHING`, [req.user.id, Number(req.params.id)]);
+    res.json({ ok: true });
+  } catch (e) { console.error('Notification hide error:', e.message); res.status(500).json({ error: 'Server error' }); }
+});
+// DELETE /api/notifications — clear all of my notifications in this course.
+app.delete('/api/notifications', auth, async (req, res) => {
+  try {
+    const audience = req.user.is_admin ? 'admin' : 'student';
+    await pool.query(
+      `INSERT INTO notif_dismissed (user_id, notification_id)
+         SELECT $2, id FROM notifications WHERE course_id = $1 AND audience = $3 AND (user_id IS NULL OR user_id = $2)
+       ON CONFLICT DO NOTHING`, [req.user.course_id, req.user.id, audience]);
+    await pool.query('UPDATE users SET notif_seen_at = NOW() WHERE id = $1', [req.user.id]);
+    res.json({ ok: true });
+  } catch (e) { console.error('Notifications clear error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
 
 // ─── ADMIN ROUTES (scoped to the admin's own course) ─────────────────────────
@@ -1860,6 +1881,10 @@ async function initDb() {
       lesson_id  INTEGER,
       created_at TIMESTAMP DEFAULT NOW()
     )`);
+  await pool.query(`CREATE TABLE IF NOT EXISTS notif_dismissed (
+      user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+      notification_id INTEGER REFERENCES notifications(id) ON DELETE CASCADE,
+      PRIMARY KEY (user_id, notification_id))`);
   // Private student → instructor questions, one thread item per question.
   await pool.query(`
     CREATE TABLE IF NOT EXISTS lesson_questions (
