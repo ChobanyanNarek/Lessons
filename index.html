@@ -327,6 +327,15 @@ select.app-select:focus,.notes-filter select:focus,.tpl-form select:focus{outlin
 .pv-body video{max-width:100%;max-height:100%;}
 .pv-body pre{margin:0;padding:16px;width:100%;height:100%;overflow:auto;white-space:pre-wrap;font-size:13px;align-self:flex-start;}
 .pv-none{padding:24px;text-align:center;color:var(--ink-dim);font-size:14px;}
+.pv-doc{width:100%;height:100%;overflow:auto;padding:28px 36px;background:#fff;color:#1c2430;align-self:flex-start;box-sizing:border-box;font-size:14px;line-height:1.65;overflow-wrap:anywhere;}
+.pv-doc img{max-width:100%;height:auto;}
+.pv-doc table{border-collapse:collapse;margin:8px 0;}
+.pv-doc td,.pv-doc th{border:1px solid #c9d3e3;padding:4px 9px;font-size:13px;vertical-align:top;text-align:left;}
+.pv-doc th{background:#eef2fa;font-weight:600;}
+.pv-sheet-tabs{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 12px;}
+.pv-sheet-tabs button{border:1px solid #c9d3e3;background:#fff;border-radius:6px;padding:5px 12px;font-family:inherit;font-size:12.5px;cursor:pointer;color:#1c2430;}
+.pv-sheet-tabs button.on{background:#e6eefc;border-color:#2451d6;color:#16327e;font-weight:600;}
+.pv-note{font-size:12px;color:#6b7686;margin:8px 0 0;}
 .nv-file{display:inline-flex;align-items:center;gap:6px;}
 .sm-overlay{position:fixed;inset:0;background:rgba(15,32,57,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:1000;}
 .sm-box{background:var(--surface);border-radius:12px;width:min(420px,100%);padding:22px;box-shadow:0 12px 40px rgba(15,32,57,.3);}
@@ -1941,6 +1950,42 @@ const loadDocxLib = () => {
   return _libs.docx;
 };
 const loadJsZipLib = () => loadLib('jszip', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', 'JSZip');
+function loadScriptText(key, urls, globalName){
+  if(window[globalName]) return Promise.resolve(window[globalName]);
+  if(_libs[key]) return _libs[key];
+  _libs[key] = (async () => {
+    for(const url of urls){
+      try {
+        const r = await fetch(url);
+        if(!r.ok) continue;
+        const sc = document.createElement('script');
+        sc.textContent = await r.text();
+        document.head.appendChild(sc);
+        if(window[globalName]) return window[globalName];
+      } catch(e){ console.warn(key + ' load failed from', url, e); }
+    }
+    delete _libs[key];
+    throw new Error('Could not load ' + key);
+  })();
+  return _libs[key];
+}
+// Word (.docx) and Excel (.xlsx/.xls) previews are rendered right in the browser.
+const loadMammothLib = () => loadScriptText('mammoth', [
+  'https://cdn.jsdelivr.net/npm/mammoth@1.8.0/mammoth.browser.min.js',
+  'https://unpkg.com/mammoth@1.8.0/mammoth.browser.min.js'], 'mammoth');
+const loadSheetLib = () => loadScriptText('xlsx', [
+  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  'https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js'], 'XLSX');
+var SHEET_ROW_LIMIT = 1000;
+function sheetTableHtml(XLSX, ws){
+  const rows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false, defval: '' });
+  if(!rows.length) return '<p class="pv-note">This sheet is empty.</p>';
+  const shown = rows.slice(0, SHEET_ROW_LIMIT);
+  const cols = shown.reduce((m, r) => Math.max(m, r.length), 0);
+  const body = shown.map(r => '<tr>' + Array.from({ length: cols }, (_, i) => `<td>${escapeHtml(r[i] == null ? '' : r[i])}</td>`).join('') + '</tr>').join('');
+  return `<table><tbody>${body}</tbody></table>` +
+    (rows.length > shown.length ? `<p class="pv-note">Showing the first ${SHEET_ROW_LIMIT} of ${rows.length} rows. Use Download to see everything.</p>` : '');
+}
 
 // Converts a saved note (HTML from the contenteditable editor) into docx
 // paragraphs, keeping bold/italic/underline, line breaks, lists and checklists.
@@ -3150,6 +3195,30 @@ async function previewAuthFile(path, name, mimetype){
       const pre = document.createElement('pre');
       pre.textContent = (await raw.text()).slice(0, 200000);   // textContent: never rendered as HTML
       body.innerHTML = ''; body.appendChild(pre);
+    } else if(ext === 'docx' || type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'){
+      const mammoth = await loadMammothLib();
+      const out = await mammoth.convertToHtml({ arrayBuffer: await raw.arrayBuffer() });
+      if(!document.getElementById('pv-overlay')) return;
+      body.innerHTML = '';
+      const doc = document.createElement('div'); doc.className = 'pv-doc';
+      doc.innerHTML = safeNoteHtml(out.value) || '<p class="pv-note">This document is empty.</p>';
+      doc.querySelectorAll('a[href]').forEach(a => { a.target = '_blank'; a.rel = 'noopener noreferrer'; });
+      body.appendChild(doc);
+    } else if(['xlsx','xlsm','xls'].includes(ext) || /spreadsheetml|ms-excel/.test(type)){
+      const XLSX = await loadSheetLib();
+      const wb = XLSX.read(await raw.arrayBuffer(), { type: 'array' });
+      if(!document.getElementById('pv-overlay')) return;
+      body.innerHTML = '';
+      const doc = document.createElement('div'); doc.className = 'pv-doc';
+      const names = wb.SheetNames || [];
+      const show = i => {
+        doc.querySelectorAll('.pv-sheet-tabs button').forEach((b, k) => b.classList.toggle('on', k === i));
+        doc.querySelector('.pv-sheet-view').innerHTML = sheetTableHtml(XLSX, wb.Sheets[names[i]]);
+      };
+      doc.innerHTML = (names.length > 1 ? '<div class="pv-sheet-tabs">' + names.map(n => `<button type="button">${escapeHtml(n)}</button>`).join('') + '</div>' : '') + '<div class="pv-sheet-view"></div>';
+      doc.querySelectorAll('.pv-sheet-tabs button').forEach((b, i) => b.onclick = () => show(i));
+      body.appendChild(doc);
+      if(names.length) show(0); else doc.querySelector('.pv-sheet-view').innerHTML = '<p class="pv-note">This workbook has no sheets.</p>';
     } else {
       body.innerHTML = `<div class="pv-none">This file type can't be previewed in the browser.<br>Use Download to open it.</div>`;
     }
