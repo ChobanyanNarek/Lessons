@@ -1917,7 +1917,29 @@ function loadLib(key, url, globalName){
   });
   return _libs[key];
 }
-const loadDocxLib  = () => loadLib('docx',  'https://cdn.jsdelivr.net/npm/docx@9.5.1/dist/index.iife.js', 'docx');
+const loadDocxLib = () => {
+  if(window.docx) return Promise.resolve(window.docx);
+  if(_libs.docx) return _libs.docx;
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/docx@9.5.1/dist/index.umd.cjs',
+    'https://unpkg.com/docx@9.5.1/dist/index.umd.cjs',
+  ];
+  _libs.docx = (async () => {
+    for(const url of urls){
+      try {
+        const r = await fetch(url);
+        if(!r.ok) continue;
+        const sc = document.createElement('script');
+        sc.textContent = await r.text();
+        document.head.appendChild(sc);
+        if(window.docx) return window.docx;
+      } catch(e){ console.warn('docx load failed from', url, e); }
+    }
+    delete _libs.docx;
+    throw new Error('Could not load docx');
+  })();
+  return _libs.docx;
+};
 const loadJsZipLib = () => loadLib('jszip', 'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js', 'JSZip');
 
 // Converts a saved note (HTML from the contenteditable editor) into docx
