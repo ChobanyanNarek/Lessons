@@ -29,6 +29,15 @@ app.use(express.static(path.join(__dirname, 'public')));
 // Render's disk is wiped on every redeploy. Postgres storage persists across deploys.
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } }); // 15MB cap
 
+// Safe Content-Disposition header: non-English file names (Armenian, Russian, accents…)
+// would otherwise make Node throw and the download/preview fail.
+function cdHeader(disposition, name) {
+  const clean = String(name || 'download').replace(/[\r\n"\\]/g, '');
+  const ascii = clean.replace(/[^\x20-\x7e]/g, '_');
+  const encoded = encodeURIComponent(clean).replace(/['()*]/g, c => '%' + c.charCodeAt(0).toString(16).toUpperCase());
+  return `${disposition}; filename="${ascii}"; filename*=UTF-8''${encoded}`;
+}
+
 // ─── MIDDLEWARE ──────────────────────────────────────────────────────────────
 
 function auth(req, res, next) {
@@ -712,7 +721,7 @@ app.get('/api/files/:fileId', async (req, res) => {
     const disposition = 'inline';
     const safeName = ensureExtension((file.name || 'download').replace(/[\r\n"]/g, ''), file.mimetype);
     res.setHeader('Content-Type', file.mimetype || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
+    res.setHeader('Content-Disposition', cdHeader(disposition, safeName));
     res.send(file.data);
   } catch (e) {
     console.error('File download error:', e.message);
@@ -948,7 +957,7 @@ app.get('/api/notes/files/:fileId', auth, async (req, res) => {
     const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
     const safeName = (file.name || 'download').replace(/[\r\n"]/g, '');
     res.setHeader('Content-Type', file.mimetype || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `${disposition}; filename="${safeName}"`);
+    res.setHeader('Content-Disposition', cdHeader(disposition, safeName));
     res.send(file.data);
   } catch (e) {
     console.error('Note file download error:', e.message);
@@ -1031,7 +1040,7 @@ app.get('/api/templates/:id/file', auth, async (req, res) => {
     if (t.course_id !== req.user.course_id && req.user.role !== 'super_admin') return res.status(403).json({ error: 'Forbidden' });
     const disposition = req.query.disposition === 'inline' ? 'inline' : 'attachment';
     res.setHeader('Content-Type', t.mimetype || 'application/octet-stream');
-    res.setHeader('Content-Disposition', `${disposition}; filename="${ensureExtension((t.name || 'template').replace(/[\r\n"]/g, ''), t.mimetype)}"`);
+    res.setHeader('Content-Disposition', cdHeader(disposition, ensureExtension(t.name || 'template', t.mimetype)));
     res.send(t.data);
   } catch (e) { console.error('Template download error:', e.message); res.status(500).json({ error: 'Server error' }); }
 });
